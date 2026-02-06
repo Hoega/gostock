@@ -1,0 +1,214 @@
+{{define "rentvsbuy.html"}}
+{{if .Input.MonthlyRent}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Location vs Achat - Patrimoine net</h2>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg" open>
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Comparer le <strong>patrimoine accumul&eacute;</strong> entre rester locataire ou acheter, ann&eacute;e apr&egrave;s ann&eacute;e. <strong>La courbe la plus haute gagne.</strong></p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Formules de calcul</p>
+                <div class="bg-white p-2 rounded border font-mono text-xs space-y-2">
+                    <div>
+                        <span class="text-black font-bold">Locataire</span> = Apport plac&eacute; &times; (1 + taux)^n + &Eacute;pargne mensuelle plac&eacute;e - Loyers cumul&eacute;s
+                    </div>
+                    <div>
+                        <span class="text-blue-600 font-bold">Acheteur</span> = Valeur du bien - Capital restant d&ucirc; - Co&ucirc;ts irr&eacute;cup&eacute;rables
+                    </div>
+                </div>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Biais pris en compte</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><strong>Biais de l'apport</strong> : Le locataire place son apport (PEA, Assurance-Vie) au lieu de l'immobiliser</li>
+                    <li><strong>Biais du cash-flow</strong> : Si mensualit&eacute; > loyer, le locataire &eacute;pargne la diff&eacute;rence chaque mois</li>
+                </ul>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Comment lire</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><strong>Ligne noire</strong> : Patrimoine du locataire (apport + &eacute;pargne plac&eacute;s)</li>
+                    <li><strong>Lignes color&eacute;es</strong> : Patrimoine de l'acheteur selon 6 sc&eacute;narios de valorisation</li>
+                    <li><strong>Point d'inflexion</strong> : Quand une courbe acheteur croise la ligne locataire = l'achat devient rentable</li>
+                </ul>
+            </div>
+            <div class="bg-amber-50 p-2 rounded text-xs">
+                <strong>Cl&eacute; de lecture :</strong> Si toutes les courbes acheteur restent sous la ligne noire pendant 10 ans, vous avez int&eacute;r&ecirc;t &agrave; rester locataire si vous pensez revendre avant 10 ans.
+            </div>
+        </div>
+    </details>
+
+    {{if gt .Input.SavingsRate 0.0}}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+        <p class="text-sm text-blue-800 mb-2">
+            <strong>Biais de l'apport</strong> : L'apport de <strong>{{formatMoney (sub .Input.PropertyPrice .Input.LoanAmount)}} &euro;</strong>
+            est plac&eacute; &agrave; <strong>{{.Input.SavingsRate}}%/an</strong> si vous restez locataire (PEA, Assurance-Vie...).
+        </p>
+        <p class="text-sm text-blue-800">
+            <strong>Biais du cash-flow</strong> : Si la mensualit&eacute; totale ({{formatMoney .Result.MonthlyTotal}} &euro; + charges) est sup&eacute;rieure au loyer ({{formatMoney .Input.MonthlyRent}} &euro;),
+            le locataire &eacute;pargne la diff&eacute;rence chaque mois.
+        </p>
+    </div>
+    {{end}}
+    <div style="position: relative; height: 400px;">
+        <canvas id="rentVsBuyChart"></canvas>
+    </div>
+    <div id="inflectionSummary" class="mt-4"></div>
+</div>
+<script>
+(function() {
+    const rvbData = {{toJSON .Result.RentVsBuyData}};
+    const resaleRates = {{toJSON .Result.ResaleRates}};
+    const downPayment = {{.Input.PropertyPrice}} - {{.Input.LoanAmount}};
+
+    const labels = rvbData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+
+    const colors = [
+        'rgb(249, 115, 22)',  // -1% orange
+        'rgb(107, 114, 128)', //  0% gris
+        'rgb(34, 197, 94)'    // +1% vert
+    ];
+
+    const datasets = [];
+
+    // Ligne patrimoine locataire : noire épaisse
+    datasets.push({
+        label: 'Locataire (apport + \u00e9pargne plac\u00e9s)',
+        data: rvbData.map(d => d.RentWealth),
+        borderColor: 'rgb(0, 0, 0)',
+        backgroundColor: 'rgb(0, 0, 0)',
+        borderWidth: 3,
+        tension: 0.3,
+        pointRadius: 2,
+        fill: false
+    });
+
+    // Lignes patrimoine acheteur par scénario
+    resaleRates.forEach((rate, i) => {
+        const pct = (rate * 100).toFixed(0);
+        const sign = rate >= 0 ? '+' : '';
+        datasets.push({
+            label: 'Acheteur ' + sign + pct + '% / an',
+            data: rvbData.map(d => d.BuyWealth[i]),
+            borderColor: colors[i],
+            backgroundColor: colors[i],
+            tension: 0.3,
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false
+        });
+    });
+
+    // Récupérer les points d'inflexion depuis les dernières données
+    const lastData = rvbData[rvbData.length - 1];
+    const inflectionYears = lastData ? lastData.InflectionYears : [];
+
+    // Générer le résumé des points d'inflexion
+    const summaryDiv = document.getElementById('inflectionSummary');
+    if (inflectionYears && inflectionYears.length > 0) {
+        let html = '<div class="bg-amber-50 border border-amber-200 rounded-lg p-4">';
+        html += '<h3 class="font-semibold text-amber-900 mb-2">Point d\'inflexion (achat devient rentable)</h3>';
+        html += '<div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">';
+
+        resaleRates.forEach((rate, i) => {
+            const pct = (rate * 100).toFixed(0);
+            const sign = rate >= 0 ? '+' : '';
+            const years = inflectionYears[i];
+            const colorStyle = 'color: ' + colors[i];
+
+            if (years < 0) {
+                html += '<div class="flex items-center gap-2"><span style="' + colorStyle + '">\u25CF ' + sign + pct + '%/an</span>: <span class="text-red-600 font-medium">Jamais rentable</span></div>';
+            } else {
+                const yearsRounded = Math.round(years * 10) / 10;
+                html += '<div class="flex items-center gap-2"><span style="' + colorStyle + '">\u25CF ' + sign + pct + '%/an</span>: <span class="font-medium">' + yearsRounded + ' ans</span></div>';
+            }
+        });
+
+        html += '</div>';
+        html += '<p class="text-xs text-amber-700 mt-2">Le point d\'inflexion indique quand l\'achat devient plus rentable que la location. Si vous comptez revendre avant, restez locataire.</p>';
+        html += '</div>';
+        summaryDiv.innerHTML = html;
+    }
+
+    const ctx = document.getElementById('rentVsBuyChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: { labels: labels, datasets: datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let val = context.parsed.y;
+                            let formatted = val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                            return context.dataset.label + ' : ' + formatted + ' \u20ac';
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: {
+                        zeroLine: {
+                            type: 'line',
+                            yMin: 0,
+                            yMax: 0,
+                            borderColor: 'rgba(0, 0, 0, 0.3)',
+                            borderWidth: 2,
+                            borderDash: [6, 6]
+                        },
+                        apportLine: {
+                            type: 'line',
+                            yMin: downPayment,
+                            yMax: downPayment,
+                            borderColor: 'rgb(139, 92, 246)',
+                            borderWidth: 2,
+                            borderDash: [10, 5],
+                            label: {
+                                display: true,
+                                content: 'Apport initial',
+                                position: 'start',
+                                backgroundColor: 'rgb(139, 92, 246)',
+                                color: 'white',
+                                font: { size: 10 }
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Dur\u00e9e de d\u00e9tention'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Patrimoine net (\u20ac)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' \u20ac';
+                        }
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
+{{end}}
+{{end}}

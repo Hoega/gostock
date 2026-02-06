@@ -1,0 +1,192 @@
+{{define "content"}}
+<div class="space-y-6">
+    <h1 class="text-3xl font-bold text-gray-900">Simulateur de Crédit Immobilier</h1>
+
+    <form hx-post="/credit/calculate" hx-target="#results" hx-swap="innerHTML"
+          hx-trigger="submit, keyup changed delay:500ms from:find input, change delay:500ms from:find select"
+          hx-indicator="#calc-indicator"
+          class="bg-white shadow rounded-lg p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+            <!-- Prix du bien -->
+            <div>
+                <label for="property_price" class="block text-sm font-medium text-gray-700">Prix du bien (&euro;)</label>
+                <input type="number" name="property_price" id="property_price" value="{{.PropertyPrice}}" step="1000" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Apport personnel -->
+            <div>
+                <label for="down_payment" class="block text-sm font-medium text-gray-700">Apport personnel (&euro;)</label>
+                <input type="number" name="down_payment" id="down_payment" value="{{.DownPayment}}" step="1000" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Taux d'intérêt -->
+            <div>
+                <label for="interest_rate" class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t annuel (%)</label>
+                <input type="number" name="interest_rate" id="interest_rate" value="{{.InterestRate}}" step="0.01" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Durée -->
+            <div>
+                <label for="duration_years" class="block text-sm font-medium text-gray-700">Dur&eacute;e (ann&eacute;es)</label>
+                <input type="number" name="duration_years" id="duration_years" value="{{.DurationYears}}" step="1" min="1" max="30"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Date de début -->
+            <div>
+                <label for="start_month" class="block text-sm font-medium text-gray-700">Date de d&eacute;but</label>
+                <div class="flex gap-2 mt-1">
+                    <select name="start_month" id="start_month"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="1"{{if eq .StartMonth 1}} selected{{end}}>Janvier</option>
+                        <option value="2"{{if eq .StartMonth 2}} selected{{end}}>F&eacute;vrier</option>
+                        <option value="3"{{if eq .StartMonth 3}} selected{{end}}>Mars</option>
+                        <option value="4"{{if eq .StartMonth 4}} selected{{end}}>Avril</option>
+                        <option value="5"{{if eq .StartMonth 5}} selected{{end}}>Mai</option>
+                        <option value="6"{{if eq .StartMonth 6}} selected{{end}}>Juin</option>
+                        <option value="7"{{if eq .StartMonth 7}} selected{{end}}>Juillet</option>
+                        <option value="8"{{if eq .StartMonth 8}} selected{{end}}>Ao&ucirc;t</option>
+                        <option value="9"{{if eq .StartMonth 9}} selected{{end}}>Septembre</option>
+                        <option value="10"{{if eq .StartMonth 10}} selected{{end}}>Octobre</option>
+                        <option value="11"{{if eq .StartMonth 11}} selected{{end}}>Novembre</option>
+                        <option value="12"{{if eq .StartMonth 12}} selected{{end}}>D&eacute;cembre</option>
+                    </select>
+                    <input type="number" name="start_year" id="start_year" value="{{.StartYear}}" step="1" min="2020" max="2040"
+                        class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+            </div>
+
+            <!-- Taux assurance -->
+            <div>
+                <label for="insurance_rate" class="block text-sm font-medium text-gray-700">Taux assurance annuel (%)</label>
+                <input type="number" name="insurance_rate" id="insurance_rate" value="{{.InsuranceRate}}" step="0.01" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Frais de notaire -->
+            <div>
+                <label for="notary_rate" class="block text-sm font-medium text-gray-700">Frais de notaire (%)</label>
+                <div class="flex items-center gap-2 mt-1">
+                    <input type="number" name="notary_rate" id="notary_rate" value="{{.NotaryRate}}" step="0.1" min="0"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <div class="flex gap-1 text-xs shrink-0">
+                        <button type="button" onclick="document.getElementById('notary_rate').value='7.50'; htmx.trigger(this.closest('form'), 'submit')"
+                            class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700">Ancien</button>
+                        <button type="button" onclick="document.getElementById('notary_rate').value='2.50'; htmx.trigger(this.closest('form'), 'submit')"
+                            class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700">Neuf</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Frais d'agence % -->
+            <div>
+                <label for="agency_rate" class="block text-sm font-medium text-gray-700">Frais d'agence (%)</label>
+                <input type="number" name="agency_rate" id="agency_rate" value="{{.AgencyRate}}" step="0.1" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Frais d'agence fixe -->
+            <div>
+                <label for="agency_fixed" class="block text-sm font-medium text-gray-700">Frais d'agence montant fixe (&euro;)</label>
+                <input type="number" name="agency_fixed" id="agency_fixed" value="{{.AgencyFixed}}" step="100" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                <p class="mt-1 text-xs text-gray-500">Si renseign&eacute;, remplace le pourcentage</p>
+            </div>
+
+            <!-- Frais de dossier -->
+            <div>
+                <label for="bank_fees" class="block text-sm font-medium text-gray-700">Frais de dossier (&euro;)</label>
+                <input type="number" name="bank_fees" id="bank_fees" value="{{.BankFees}}" step="50" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Travaux immédiats -->
+            <div>
+                <label for="renovation_cost" class="block text-sm font-medium text-gray-700">Travaux imm&eacute;diats (&euro;)</label>
+                <input type="number" name="renovation_cost" id="renovation_cost" value="{{.RenovationCost}}" step="1000" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Coefficient de valorisation des travaux -->
+            <div>
+                <label for="renovation_value_rate" class="block text-sm font-medium text-gray-700">Valorisation des travaux (%)</label>
+                <input type="number" name="renovation_value_rate" id="renovation_value_rate" value="{{.RenovationValueRate}}" step="5" min="0" max="150"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                <p class="mt-1 text-xs text-gray-500">1&euro; travaux = X% de valeur (70% = toiture, 100% = cuisine)</p>
+            </div>
+
+            <!-- Taxe foncière -->
+            <div>
+                <label for="property_tax" class="block text-sm font-medium text-gray-700">Taxe fonci&egrave;re annuelle (&euro;)</label>
+                <input type="number" name="property_tax" id="property_tax" value="{{.PropertyTax}}" step="100" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Charges de copropriété -->
+            <div>
+                <label for="condo_fees" class="block text-sm font-medium text-gray-700">Charges de copropri&eacute;t&eacute; mensuelles (&euro;)</label>
+                <input type="number" name="condo_fees" id="condo_fees" value="{{.CondoFees}}" step="10" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Revenu mensuel net 1 -->
+            <div>
+                <label for="net_income_1" class="block text-sm font-medium text-gray-700">Revenu mensuel net - Emprunteur 1 (&euro;)</label>
+                <input type="number" name="net_income_1" id="net_income_1" value="{{.NetIncome1}}" step="100" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Revenu mensuel net 2 -->
+            <div>
+                <label for="net_income_2" class="block text-sm font-medium text-gray-700">Revenu mensuel net - Emprunteur 2 (&euro;)</label>
+                <input type="number" name="net_income_2" id="net_income_2" value="{{.NetIncome2}}" step="100" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Loyer mensuel actuel -->
+            <div>
+                <label for="monthly_rent" class="block text-sm font-medium text-gray-700">Loyer mensuel actuel (&euro;)</label>
+                <input type="number" name="monthly_rent" id="monthly_rent" value="{{.MonthlyRent}}" step="50" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Revalorisation annuelle du loyer -->
+            <div>
+                <label for="rent_increase_rate" class="block text-sm font-medium text-gray-700">Revalorisation annuelle du loyer (%)</label>
+                <input type="number" name="rent_increase_rate" id="rent_increase_rate" value="{{.RentIncreaseRate}}" step="0.1" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            </div>
+
+            <!-- Rendement épargne (coût d'opportunité) -->
+            <div>
+                <label for="savings_rate" class="block text-sm font-medium text-gray-700">Rendement &eacute;pargne annuel (%)</label>
+                <input type="number" name="savings_rate" id="savings_rate" value="{{.SavingsRate}}" step="0.1" min="0"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                <p class="mt-1 text-xs text-gray-500">Co&ucirc;t d'opportunit&eacute; : si locataire, l'apport est plac&eacute;</p>
+            </div>
+        </div>
+
+        <div class="mt-6 flex items-center gap-4">
+            <button type="submit"
+                class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Calculer
+            </button>
+            <div id="calc-indicator" class="htmx-indicator flex items-center gap-2 text-indigo-600">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-sm">Calcul en cours...</span>
+            </div>
+        </div>
+    </form>
+
+    <div id="results"></div>
+</div>
+{{end}}
+
+{{template "layout" .}}

@@ -1,0 +1,571 @@
+{{define "results.html"}}
+<div class="bg-white shadow rounded-lg p-6 space-y-6">
+    <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats</h2>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Mensualité -->
+        <div class="bg-indigo-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-indigo-600">Mensualit&eacute; totale</p>
+            <p class="text-2xl font-bold text-indigo-900">{{formatMoney .Result.MonthlyTotal}} &euro;</p>
+            <p class="text-xs text-indigo-500 mt-1">
+                Cr&eacute;dit : {{formatMoney .Result.MonthlyPayment}} &euro; | Assurance : {{formatMoney .Result.MonthlyInsurance}} &euro;
+            </p>
+            <p class="text-xs text-indigo-500">
+                Montant emprunt&eacute; : {{formatMoney .Input.LoanAmount}} &euro;
+            </p>
+        </div>
+
+        <!-- Coût total du crédit -->
+        <div class="bg-amber-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-amber-600">Co&ucirc;t total du cr&eacute;dit</p>
+            <p class="text-2xl font-bold text-amber-900">{{formatMoney .Result.TotalLoanCost}} &euro;</p>
+            <p class="text-xs text-amber-500 mt-1">
+                Int&eacute;r&ecirc;ts : {{formatMoney .Result.TotalInterest}} &euro; | Assurance : {{formatMoney .Result.TotalInsurance}} &euro;
+            </p>
+        </div>
+
+        <!-- Frais annexes -->
+        <div class="bg-green-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-green-600">Frais annexes</p>
+            <p class="text-xs text-green-500 mt-2">
+                Notaire : {{formatMoney .Result.NotaryFees}} &euro;
+            </p>
+            <p class="text-xs text-green-500">
+                Agence : {{formatMoney .Result.AgencyFees}} &euro;
+            </p>
+            <p class="text-xs text-green-500">
+                Dossier : {{formatMoney .Result.BankFees}} &euro;
+            </p>
+            {{if gt .Result.RenovationCost 0.0}}
+            <p class="text-xs text-green-500">
+                Travaux : {{formatMoney .Result.RenovationCost}} &euro;
+            </p>
+            {{end}}
+        </div>
+
+        <!-- Coût total projet -->
+        <div class="bg-rose-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-rose-600">Co&ucirc;t total du projet</p>
+            <p class="text-2xl font-bold text-rose-900">{{formatMoney .Result.TotalProjectCost}} &euro;</p>
+            <p class="text-xs text-rose-500 mt-1">
+                Prix + notaire + agence + dossier + int&eacute;r&ecirc;ts + assurance
+            </p>
+        </div>
+    </div>
+
+    <!-- Donut Chart: Répartition du coût total -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div class="bg-white border rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">R&eacute;partition du co&ucirc;t total du cr&eacute;dit</h3>
+
+            <!-- Explication détaillée -->
+            <details class="mb-4 bg-slate-50 rounded-lg">
+                <summary class="cursor-pointer p-2 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+                    Comment lire ce graphique ?
+                </summary>
+                <div class="p-3 pt-0 text-xs text-slate-600 space-y-2">
+                    <div>
+                        <p class="font-semibold text-slate-800">Objectif</p>
+                        <p>Visualiser la r&eacute;partition de ce que vous remboursez &agrave; la banque sur toute la dur&eacute;e du pr&ecirc;t.</p>
+                    </div>
+                    <div>
+                        <p class="font-semibold text-slate-800">Composition</p>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li><strong>Capital</strong> : L'argent emprunt&eacute; qui sert &agrave; acheter le bien</li>
+                            <li><strong>Int&eacute;r&ecirc;ts</strong> : Le co&ucirc;t de l'emprunt (r&eacute;mun&eacute;ration de la banque)</li>
+                            <li><strong>Assurance</strong> : Protection en cas de d&eacute;c&egrave;s, invalidit&eacute;, perte d'emploi</li>
+                        </ul>
+                    </div>
+                    <div class="bg-blue-50 p-2 rounded">
+                        <strong>Cl&eacute; :</strong> Seul le capital construit votre patrimoine. Int&eacute;r&ecirc;ts et assurance sont des co&ucirc;ts purs.
+                    </div>
+                </div>
+            </details>
+
+            <div style="position: relative; height: 250px;">
+                <canvas id="costBreakdownChart"></canvas>
+            </div>
+        </div>
+        <div class="bg-white border rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">D&eacute;tail des montants</h3>
+            <div class="space-y-4">
+                <div class="flex items-center justify-between p-3 bg-indigo-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-4 h-4 rounded-full bg-indigo-500"></div>
+                        <span class="font-medium text-gray-700">Capital emprunt&eacute;</span>
+                    </div>
+                    <span class="font-bold text-indigo-900">{{formatMoney .Input.LoanAmount}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-4 h-4 rounded-full bg-amber-500"></div>
+                        <span class="font-medium text-gray-700">Int&eacute;r&ecirc;ts</span>
+                    </div>
+                    <span class="font-bold text-amber-900">{{formatMoney .Result.TotalInterest}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-3 bg-rose-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-4 h-4 rounded-full bg-rose-500"></div>
+                        <span class="font-medium text-gray-700">Assurance</span>
+                    </div>
+                    <span class="font-bold text-rose-900">{{formatMoney .Result.TotalInsurance}} &euro;</span>
+                </div>
+                <div class="border-t pt-3 mt-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-gray-700">Total rembours&eacute;</span>
+                        <span class="font-bold text-gray-900">{{formatMoney (add (add .Input.LoanAmount .Result.TotalInterest) .Result.TotalInsurance)}} &euro;</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const capital = {{.Input.LoanAmount}};
+        const interests = {{.Result.TotalInterest}};
+        const insurance = {{.Result.TotalInsurance}};
+        const total = capital + interests + insurance;
+
+        const ctx = document.getElementById('costBreakdownChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Capital', 'Int\u00e9r\u00eats', 'Assurance'],
+                datasets: [{
+                    data: [capital, interests, insurance],
+                    backgroundColor: [
+                        'rgb(99, 102, 241)',   // indigo-500
+                        'rgb(245, 158, 11)',   // amber-500
+                        'rgb(244, 63, 94)'     // rose-500
+                    ],
+                    borderColor: [
+                        'rgb(255, 255, 255)',
+                        'rgb(255, 255, 255)',
+                        'rgb(255, 255, 255)'
+                    ],
+                    borderWidth: 3,
+                    hoverOffset: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '60%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 20,
+                            usePointStyle: true,
+                            pointStyle: 'circle'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed;
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                const formatted = value.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                                return context.label + ' : ' + formatted + ' \u20ac (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    })();
+    </script>
+
+    <!-- Donut Chart: Coûts irrécupérables - L'anti-illusion -->
+    <div class="bg-white border rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Co&ucirc;ts irr&eacute;cup&eacute;rables : l'anti-illusion</h3>
+
+        <!-- Explication détaillée -->
+        <details class="mb-4 bg-slate-50 rounded-lg">
+            <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+                Comment lire ce graphique ?
+            </summary>
+            <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+                <div>
+                    <p class="font-semibold text-slate-800">Objectif</p>
+                    <p>Identifier l'argent "perdu" par l'acheteur : des d&eacute;penses qui ne seront <strong>jamais r&eacute;cup&eacute;r&eacute;es</strong> &agrave; la revente.</p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Formule de calcul</p>
+                    <div class="bg-white p-2 rounded border font-mono text-xs">
+                        Co&ucirc;ts irr&eacute;cup&eacute;rables = Frais notaire + Frais agence + Frais dossier + Int&eacute;r&ecirc;ts + Assurance + Taxe fonci&egrave;re + Charges copro
+                    </div>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">D&eacute;tail des postes</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li><strong>Frais de notaire</strong> : ~8% dans l'ancien, ~3% dans le neuf (droits de mutation, &eacute;moluments)</li>
+                        <li><strong>Frais d'agence</strong> : 3-8% selon l'agence et la n&eacute;gociation</li>
+                        <li><strong>Int&eacute;r&ecirc;ts</strong> : Co&ucirc;t de l'emprunt sur toute la dur&eacute;e (souvent le plus gros poste)</li>
+                        <li><strong>Taxe fonci&egrave;re</strong> : Imp&ocirc;t annuel, peut repr&eacute;senter 10-15% du prix sur 20 ans dans certaines villes</li>
+                        <li><strong>Charges copro</strong> : Entretien des parties communes (ascenseur, gardien, travaux...)</li>
+                    </ul>
+                </div>
+                <div class="bg-red-50 p-2 rounded text-xs border border-red-200">
+                    <strong>Cl&eacute; de lecture :</strong> Ces montants sont "jet&eacute;s par les fen&ecirc;tres" exactement comme un loyer. L'acheteur ne les r&eacute;cup&egrave;re pas &agrave; la revente, m&ecirc;me si le bien a pris de la valeur.
+                </div>
+            </div>
+        </details>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <h4 class="text-sm font-medium text-gray-700 mb-3 text-center">R&eacute;partition des co&ucirc;ts irr&eacute;cup&eacute;rables</h4>
+                <div style="position: relative; height: 280px;">
+                    <canvas id="irrecoverableCostsChart"></canvas>
+                </div>
+            </div>
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-2 bg-red-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Frais de notaire</span>
+                    </div>
+                    <span class="font-bold text-red-900">{{formatMoney .Result.NotaryFees}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-orange-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Frais d'agence</span>
+                    </div>
+                    <span class="font-bold text-orange-900">{{formatMoney .Result.AgencyFees}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-2 bg-yellow-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Frais de dossier</span>
+                    </div>
+                    <span class="font-bold text-yellow-900">{{formatMoney .Result.BankFees}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-2 bg-amber-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Int&eacute;r&ecirc;ts</span>
+                    </div>
+                    <span class="font-bold text-amber-900">{{formatMoney .Result.TotalInterest}} &euro;</span>
+                </div>
+                <div class="flex items-center justify-between p-2 bg-rose-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-rose-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Assurance</span>
+                    </div>
+                    <span class="font-bold text-rose-900">{{formatMoney .Result.TotalInsurance}} &euro;</span>
+                </div>
+                {{if gt .Input.PropertyTax 0.0}}
+                <div class="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Taxe fonci&egrave;re ({{div .Input.DurationMonths 12}} ans)</span>
+                    </div>
+                    <span class="font-bold text-purple-900">{{formatMoney (mul .Input.PropertyTax (div .Input.DurationMonths 12))}} &euro;</span>
+                </div>
+                {{end}}
+                {{if gt .Input.CondoFees 0.0}}
+                <div class="flex items-center justify-between p-2 bg-indigo-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-indigo-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Charges copro ({{.Input.DurationMonths}} mois)</span>
+                    </div>
+                    <span class="font-bold text-indigo-900">{{formatMoney (mul .Input.CondoFees .Input.DurationMonths)}} &euro;</span>
+                </div>
+                {{end}}
+                <div class="border-t pt-3 mt-3">
+                    <div class="flex items-center justify-between">
+                        <span class="font-semibold text-gray-700">Total irr&eacute;cup&eacute;rable acheteur</span>
+                        <span class="font-bold text-red-700" id="totalIrrecoverable"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{if gt .Input.MonthlyRent 0.0}}
+    <!-- Comparaison : Acheteur vs Locataire - Argent "perdu" -->
+    <div class="bg-gradient-to-r from-red-50 to-gray-50 border border-red-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Qui "jette l'argent par les fen&ecirc;tres" ?</h3>
+
+        <!-- Explication détaillée -->
+        <details class="mb-4 bg-white/70 rounded-lg">
+            <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-white rounded-lg">
+                Comment lire ce graphique ?
+            </summary>
+            <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+                <div>
+                    <p class="font-semibold text-slate-800">Objectif</p>
+                    <p>D&eacute;truire le mythe "louer = jeter l'argent". Ce graphique compare l'argent "perdu" par chaque profil.</p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Ce qui est compar&eacute;</p>
+                    <div class="grid grid-cols-2 gap-2 text-xs mt-2">
+                        <div class="bg-red-50 p-2 rounded border border-red-200">
+                            <strong class="text-red-800">Acheteur</strong><br>
+                            Frais notaire + agence + dossier + int&eacute;r&ecirc;ts + assurance + taxe fonci&egrave;re + charges copro
+                        </div>
+                        <div class="bg-gray-100 p-2 rounded border border-gray-300">
+                            <strong class="text-gray-800">Locataire</strong><br>
+                            Cumul des loyers sur {{div .Input.DurationMonths 12}} ans (avec revalorisation de +{{.Input.RentIncreaseRate}}%/an)
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Formule loyers cumul&eacute;s</p>
+                    <div class="bg-white p-2 rounded border font-mono text-xs">
+                        Loyers = &sum; Loyer_initial &times; (1 + revalorisation)^ann&eacute;e pour chaque mois
+                    </div>
+                </div>
+                <div class="bg-amber-50 p-2 rounded text-xs border border-amber-200">
+                    <strong>Attention :</strong> Ce graphique ne dit PAS qui est "gagnant". Il montre seulement l'argent qui ne construit pas de patrimoine. L'acheteur conserve son capital (le bien), le locataire peut placer son &eacute;pargne ailleurs.
+                </div>
+            </div>
+        </details>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div style="position: relative; height: 300px;">
+                <canvas id="thrownAwayComparisonChart"></canvas>
+            </div>
+            <div class="flex flex-col justify-center space-y-4">
+                <div class="p-4 bg-red-100 rounded-lg border-l-4 border-red-500">
+                    <p class="text-sm text-red-800 font-medium">Acheteur - Argent "perdu"</p>
+                    <p class="text-2xl font-bold text-red-900" id="buyerThrownAway">-</p>
+                    <p class="text-xs text-red-600 mt-1">Int&eacute;r&ecirc;ts + Assurance + Taxes + Frais</p>
+                </div>
+                <div class="p-4 bg-gray-100 rounded-lg border-l-4 border-gray-500">
+                    <p class="text-sm text-gray-800 font-medium">Locataire - Loyers cumul&eacute;s</p>
+                    <p class="text-2xl font-bold text-gray-900" id="renterThrownAway">-</p>
+                    <p class="text-xs text-gray-600 mt-1">Loyer initial {{formatMoney .Input.MonthlyRent}} &euro;/mois (+{{.Input.RentIncreaseRate}}%/an)</p>
+                </div>
+                <div class="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
+                    <p class="text-sm text-amber-800 font-medium">Diff&eacute;rence</p>
+                    <p class="text-2xl font-bold" id="thrownAwayDifference">-</p>
+                    <p class="text-xs text-amber-600 mt-1" id="thrownAwayVerdict">-</p>
+                </div>
+            </div>
+        </div>
+        <p class="text-xs text-gray-500 mt-4 italic">
+            Note : Ces montants repr&eacute;sentent l'argent qui ne construit pas de patrimoine. L'acheteur r&eacute;cup&egrave;re son capital &agrave; la revente, mais pas les int&eacute;r&ecirc;ts ni les frais.
+        </p>
+    </div>
+    {{end}}
+
+    <script>
+    (function() {
+        const notaryFees = {{.Result.NotaryFees}};
+        const agencyFees = {{.Result.AgencyFees}};
+        const bankFees = {{.Result.BankFees}};
+        const interests = {{.Result.TotalInterest}};
+        const insurance = {{.Result.TotalInsurance}};
+        const propertyTax = {{.Input.PropertyTax}} * ({{.Input.DurationMonths}} / 12);
+        const condoFees = {{.Input.CondoFees}} * {{.Input.DurationMonths}};
+        const monthlyRent = {{.Input.MonthlyRent}};
+        const rentIncreaseRate = {{.Input.RentIncreaseRate}} / 100;
+        const durationMonths = {{.Input.DurationMonths}};
+
+        const data = [];
+        const labels = [];
+        const colors = [];
+
+        // Always include main costs
+        if (notaryFees > 0) { data.push(notaryFees); labels.push('Notaire'); colors.push('rgb(239, 68, 68)'); }
+        if (agencyFees > 0) { data.push(agencyFees); labels.push('Agence'); colors.push('rgb(249, 115, 22)'); }
+        if (bankFees > 0) { data.push(bankFees); labels.push('Dossier'); colors.push('rgb(234, 179, 8)'); }
+        if (interests > 0) { data.push(interests); labels.push('Int\u00e9r\u00eats'); colors.push('rgb(245, 158, 11)'); }
+        if (insurance > 0) { data.push(insurance); labels.push('Assurance'); colors.push('rgb(244, 63, 94)'); }
+        if (propertyTax > 0) { data.push(propertyTax); labels.push('Taxe fonci\u00e8re'); colors.push('rgb(168, 85, 247)'); }
+        if (condoFees > 0) { data.push(condoFees); labels.push('Charges copro'); colors.push('rgb(99, 102, 241)'); }
+
+        const totalIrrecoverable = data.reduce((a, b) => a + b, 0);
+        document.getElementById('totalIrrecoverable').textContent = totalIrrecoverable.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+
+        // Donut des coûts irrécupérables
+        const ctx = document.getElementById('irrecoverableCostsChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderColor: 'rgb(255, 255, 255)',
+                    borderWidth: 2,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '55%',
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 12,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: { size: 10 }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed;
+                                const percentage = ((value / totalIrrecoverable) * 100).toFixed(1);
+                                const formatted = value.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                                return context.label + ' : ' + formatted + ' \u20ac (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Comparaison Acheteur vs Locataire (si loyer renseigné)
+        if (monthlyRent > 0) {
+            // Calcul du cumul des loyers avec revalorisation annuelle
+            let cumulRent = 0;
+            for (let m = 0; m < durationMonths; m++) {
+                const yearOfMonth = Math.floor(m / 12);
+                const rent = monthlyRent * Math.pow(1 + rentIncreaseRate, yearOfMonth);
+                cumulRent += rent;
+            }
+
+            document.getElementById('buyerThrownAway').textContent = totalIrrecoverable.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+            document.getElementById('renterThrownAway').textContent = cumulRent.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+
+            const difference = totalIrrecoverable - cumulRent;
+            const diffEl = document.getElementById('thrownAwayDifference');
+            const verdictEl = document.getElementById('thrownAwayVerdict');
+
+            if (difference > 0) {
+                diffEl.textContent = '+' + difference.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+                diffEl.classList.add('text-red-700');
+                verdictEl.textContent = 'L\'acheteur "jette" ' + Math.abs(difference).toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac de plus que le locataire';
+            } else if (difference < 0) {
+                diffEl.textContent = difference.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+                diffEl.classList.add('text-green-700');
+                verdictEl.textContent = 'Le locataire "jette" ' + Math.abs(difference).toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac de plus que l\'acheteur';
+            } else {
+                diffEl.textContent = '0 \u20ac';
+                diffEl.classList.add('text-gray-700');
+                verdictEl.textContent = 'Les deux "jettent" autant d\'argent';
+            }
+
+            // Bar chart comparatif
+            const ctxComp = document.getElementById('thrownAwayComparisonChart').getContext('2d');
+            new Chart(ctxComp, {
+                type: 'bar',
+                data: {
+                    labels: ['Acheteur', 'Locataire'],
+                    datasets: [{
+                        label: 'Argent "perdu"',
+                        data: [totalIrrecoverable, cumulRent],
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.8)',
+                            'rgba(107, 114, 128, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgb(239, 68, 68)',
+                            'rgb(107, 114, 128)'
+                        ],
+                        borderWidth: 2,
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.x.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value / 1000).toLocaleString('fr-FR') + ' k\u20ac';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    })();
+    </script>
+
+    {{if gt .Result.IncomeMonthly 0.0}}
+    <h3 class="text-lg font-semibold text-gray-900 mt-2">Comparaison revenus / co&ucirc;t du projet</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Revenus mensuels -->
+        <div class="bg-cyan-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-cyan-600">Revenus mensuels nets</p>
+            <p class="text-2xl font-bold text-cyan-900">{{formatMoney .Result.IncomeMonthly}} &euro;</p>
+            {{if gt .Input.NetIncome2 0.0}}
+            <p class="text-xs text-cyan-500 mt-1">
+                Empr. 1 : {{formatMoney .Input.NetIncome1}} &euro; | Empr. 2 : {{formatMoney .Input.NetIncome2}} &euro;
+            </p>
+            {{end}}
+        </div>
+
+        <!-- Taux d'effort -->
+        <div class="bg-purple-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-purple-600">Taux d'effort</p>
+            <p class="text-2xl font-bold {{if gt .Result.EffortRate 35.0}}text-red-700{{else}}text-purple-900{{end}}">{{formatMoney .Result.EffortRate}} %</p>
+            <p class="text-xs text-purple-500 mt-1">
+                Mensualit&eacute; / revenus
+            </p>
+            {{if gt .Result.EffortRate 35.0}}
+            <p class="text-xs text-red-500 font-medium mt-1">Au-dessus du seuil HCSF de 35%</p>
+            {{end}}
+        </div>
+
+        <!-- Capacité d'emprunt max -->
+        <div class="bg-emerald-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-emerald-600">Capacit&eacute; d'emprunt max (HCSF)</p>
+            <p class="text-2xl font-bold text-emerald-900">{{formatMoney .Result.MaxLoanAmount}} &euro;</p>
+            <p class="text-xs text-emerald-500 mt-1">
+                Mensualit&eacute; max : {{formatMoney .Result.MaxMonthlyPayment}} &euro;/mois
+            </p>
+            {{if gt .Input.LoanAmount .Result.MaxLoanAmount}}
+            <p class="text-xs text-red-500 font-medium mt-1">
+                D&eacute;passement : {{formatMoney (sub .Input.LoanAmount .Result.MaxLoanAmount)}} &euro;
+            </p>
+            {{else}}
+            <p class="text-xs text-emerald-600 font-medium mt-1">
+                Marge : {{formatMoney (sub .Result.MaxLoanAmount .Input.LoanAmount)}} &euro;
+            </p>
+            {{end}}
+        </div>
+
+        <!-- Revenus totaux sur 25 ans -->
+        <div class="bg-teal-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-teal-600">Revenus totaux sur 25 ans</p>
+            <p class="text-2xl font-bold text-teal-900">{{formatMoney .Result.IncomeTotal25y}} &euro;</p>
+            <p class="text-xs text-teal-500 mt-1">
+                {{formatMoney .Result.IncomeMonthly}} &euro; &times; 12 &times; 25
+            </p>
+        </div>
+
+        <!-- Ratio projet / revenus -->
+        <div class="bg-orange-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-orange-600">Part du projet sur 25 ans</p>
+            <p class="text-2xl font-bold text-orange-900">{{formatMoney .Result.ProjectIncomeRatio}} %</p>
+            <p class="text-xs text-orange-500 mt-1">
+                Co&ucirc;t total / revenus 25 ans
+            </p>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{end}}

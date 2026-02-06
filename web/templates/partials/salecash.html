@@ -1,0 +1,232 @@
+{{define "salecash.html"}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Cash brut &agrave; la revente</h2>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Combien d'argent liquide vous r&eacute;cup&eacute;rez en main propre le jour de la vente.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Formule de calcul</p>
+                <div class="bg-white p-2 rounded border font-mono text-xs">
+                    Cash brut = Prix de vente du bien - Capital restant d&ucirc; &agrave; la banque
+                </div>
+                <p class="mt-1 text-xs">Le prix de vente d&eacute;pend du sc&eacute;nario de valorisation choisi (+X%/an appliqu&eacute; au prix initial + travaux valoris&eacute;s).</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Comment lire</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li>Ce montant repr&eacute;sente le <strong>virement re&ccedil;u du notaire</strong> apr&egrave;s la vente</li>
+                    <li>Il ne tient <strong>pas compte</strong> des frais d&eacute;j&agrave; pay&eacute;s (int&eacute;r&ecirc;ts, assurance, taxes...)</li>
+                    <li>C'est une vision "optimiste" : l'argent dans votre poche, pas le profit r&eacute;el</li>
+                </ul>
+            </div>
+            <div class="bg-blue-50 p-2 rounded text-xs">
+                <strong>Exemple :</strong> Vous vendez &agrave; 250 000 &euro;, il reste 80 000 &euro; de cr&eacute;dit &agrave; rembourser. Cash brut = 170 000 &euro; sur votre compte.
+            </div>
+        </div>
+    </details>
+
+    <div style="position: relative; height: 400px;">
+        <canvas id="grossCashChart"></canvas>
+    </div>
+</div>
+
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Cash net &agrave; la revente</h2>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Votre <strong>profit r&eacute;el</strong> apr&egrave;s d&eacute;duction de tous les co&ucirc;ts irr&eacute;cup&eacute;rables.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Formule de calcul</p>
+                <div class="bg-white p-2 rounded border font-mono text-xs">
+                    Cash net = Cash brut - Co&ucirc;ts irr&eacute;cup&eacute;rables
+                </div>
+                <p class="mt-1 text-xs">Co&ucirc;ts irr&eacute;cup&eacute;rables = Frais notaire + Frais agence + Frais dossier + Int&eacute;r&ecirc;ts cumul&eacute;s + Assurance cumul&eacute;e + Taxe fonci&egrave;re + Charges copro</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Comment lire les zones color&eacute;es</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><span class="inline-block w-3 h-3 bg-red-100 border border-red-300 rounded"></span> <strong>Zone rouge</strong> : Vous perdez de l'argent (cash net n&eacute;gatif)</li>
+                    <li><span class="inline-block w-3 h-3 bg-green-100 border border-green-300 rounded"></span> <strong>Zone verte</strong> : Vous r&eacute;cup&eacute;rez plus que votre apport initial (vrai profit)</li>
+                    <li><span class="inline-block w-3 h-3 bg-purple-400 rounded"></span> <strong>Ligne violette</strong> : Votre apport initial - le seuil &agrave; d&eacute;passer</li>
+                </ul>
+            </div>
+            <div class="bg-amber-50 p-2 rounded text-xs">
+                <strong>Cl&eacute; de lecture :</strong> Si la courbe est dans la zone verte, vous avez r&eacute;cup&eacute;r&eacute; votre apport + fait du profit. Entre 0 et l'apport, vous avez r&eacute;cup&eacute;r&eacute; une partie de votre apport mais pas tout.
+            </div>
+        </div>
+    </details>
+
+    <div style="position: relative; height: 400px;">
+        <canvas id="netCashChart"></canvas>
+    </div>
+</div>
+
+<script>
+(function() {
+    const saleCashData = {{toJSON .Result.SaleCashData}};
+    const resaleRates = {{toJSON .Result.ResaleRates}};
+    const downPayment = {{.Input.PropertyPrice}} - {{.Input.LoanAmount}};
+
+    const labels = saleCashData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+
+    const colors = [
+        'rgb(249, 115, 22)',  // -1% orange
+        'rgb(107, 114, 128)', //  0% gris
+        'rgb(34, 197, 94)'    // +1% vert
+    ];
+
+    const baseChartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+            mode: 'index',
+            intersect: false
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        let val = context.parsed.y;
+                        let formatted = val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                        return context.dataset.label + ' : ' + formatted + ' \u20ac';
+                    }
+                }
+            },
+            annotation: {
+                annotations: {
+                    zeroLine: {
+                        type: 'line',
+                        yMin: 0,
+                        yMax: 0,
+                        borderColor: 'rgba(0, 0, 0, 0.3)',
+                        borderWidth: 2,
+                        borderDash: [6, 6],
+                        label: {
+                            display: true,
+                            content: 'Seuil de rentabilit\u00e9',
+                            position: 'start'
+                        }
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                title: {
+                    display: true,
+                    text: 'Dur\u00e9e de d\u00e9tention'
+                }
+            },
+            y: {
+                title: {
+                    display: true,
+                    text: 'Cash r\u00e9cup\u00e9r\u00e9 (\u20ac)'
+                },
+                ticks: {
+                    callback: function(value) {
+                        return value.toLocaleString('fr-FR') + ' \u20ac';
+                    }
+                }
+            }
+        }
+    };
+
+    // Graphique Cash Brut
+    const grossDatasets = resaleRates.map((rate, i) => {
+        const pct = (rate * 100).toFixed(0);
+        const sign = rate >= 0 ? '+' : '';
+        return {
+            label: sign + pct + '% / an',
+            data: saleCashData.map(d => d.GrossCash[i]),
+            borderColor: colors[i],
+            backgroundColor: colors[i],
+            tension: 0.3,
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false
+        };
+    });
+
+    const ctxGross = document.getElementById('grossCashChart').getContext('2d');
+    new Chart(ctxGross, {
+        type: 'line',
+        data: { labels: labels, datasets: grossDatasets },
+        options: baseChartOptions
+    });
+
+    // Graphique Cash Net (avec ligne apport)
+    const netDatasets = resaleRates.map((rate, i) => {
+        const pct = (rate * 100).toFixed(0);
+        const sign = rate >= 0 ? '+' : '';
+        return {
+            label: sign + pct + '% / an',
+            data: saleCashData.map(d => d.NetCash[i]),
+            borderColor: colors[i],
+            backgroundColor: colors[i],
+            tension: 0.3,
+            pointRadius: 2,
+            borderWidth: 2,
+            fill: false
+        };
+    });
+
+    const netChartOptions = JSON.parse(JSON.stringify(baseChartOptions));
+
+    // Zone de danger (rouge) : Cash Net < 0
+    netChartOptions.plugins.annotation.annotations.dangerZone = {
+        type: 'box',
+        yMax: 0,
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 0
+    };
+
+    // Zone de profit (verte) : Cash Net > Apport
+    netChartOptions.plugins.annotation.annotations.profitZone = {
+        type: 'box',
+        yMin: downPayment,
+        backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderWidth: 0
+    };
+
+    netChartOptions.plugins.annotation.annotations.downPaymentLine = {
+        type: 'line',
+        yMin: downPayment,
+        yMax: downPayment,
+        borderColor: 'rgb(139, 92, 246)',
+        borderWidth: 2,
+        borderDash: [10, 5],
+        label: {
+            display: true,
+            content: 'Apport : ' + downPayment.toLocaleString('fr-FR') + ' \u20ac',
+            position: 'end',
+            backgroundColor: 'rgb(139, 92, 246)',
+            color: 'white',
+            font: { weight: 'bold' }
+        }
+    };
+
+    const ctxNet = document.getElementById('netCashChart').getContext('2d');
+    new Chart(ctxNet, {
+        type: 'line',
+        data: { labels: labels, datasets: netDatasets },
+        options: netChartOptions
+    });
+})();
+</script>
+{{end}}
