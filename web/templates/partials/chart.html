@@ -17,7 +17,7 @@
                 <div class="bg-white p-2 rounded border font-mono text-xs">
                     Plus-value nette = Appreciation du bien - Co&ucirc;ts irr&eacute;cup&eacute;rables
                 </div>
-                <p class="mt-1 text-xs">Co&ucirc;ts irr&eacute;cup&eacute;rables = Int&eacute;r&ecirc;ts + Assurance + Frais (notaire, agence, dossier) + Charges copro</p>
+                <p class="mt-1 text-xs">Co&ucirc;ts irr&eacute;cup&eacute;rables = Int&eacute;r&ecirc;ts + Assurance + Frais (notaire, agence, dossier) + Taxe fonci&egrave;re + Charges copro + Entretien</p>
             </div>
             <div>
                 <p class="font-semibold text-slate-800">Comment lire</p>
@@ -52,6 +52,12 @@
             {{if gt .Result.IrrecoverableBreakdown.TotalCondoFees 0.0}}
             <div>Charges : <strong>{{formatMoney .Result.IrrecoverableBreakdown.TotalCondoFees}} &euro;</strong></div>
             {{end}}
+            {{if gt .Result.IrrecoverableBreakdown.TotalPropertyTax 0.0}}
+            <div>Taxe fonci&egrave;re : <strong>{{formatMoney .Result.IrrecoverableBreakdown.TotalPropertyTax}} &euro;</strong></div>
+            {{end}}
+            {{if gt .Result.IrrecoverableBreakdown.TotalMaintenance 0.0}}
+            <div>Entretien : <strong>{{formatMoney .Result.IrrecoverableBreakdown.TotalMaintenance}} &euro;</strong></div>
+            {{end}}
         </div>
         <p class="text-xs text-red-600 mt-2 italic">
             Pour &ecirc;tre rentable, le bien doit s'appr&eacute;cier d'au moins ce montant.
@@ -73,7 +79,41 @@
     const propertyPrice = {{.Input.PropertyPrice}};
     const renovationCost = {{.Input.RenovationCost}};
     const renovationValueRate = {{if gt .Input.RenovationValueRate 0.0}}{{.Input.RenovationValueRate}}{{else}}70{{end}} / 100;
-    const baseValue = propertyPrice + (renovationCost * renovationValueRate);
+    const workLines = {{toJSON .Input.WorkLines}};
+
+    // Work categories with their parameters (must match Go code)
+    const workCategories = {
+        'structure': { initialRate: 80, annualRate: 0.5 },
+        'extension': { initialRate: 100, annualRate: 1.0 },
+        'isolation': { initialRate: 90, annualRate: 1.5 },
+        'cuisine': { initialRate: 100, annualRate: -2.0 },
+        'sdb': { initialRate: 90, annualRate: -2.0 },
+        'peinture': { initialRate: 50, annualRate: -10.0 },
+        'exterieur': { initialRate: 60, annualRate: -3.0 },
+        'autres': { initialRate: 70, annualRate: 0.0 },
+        'legacy': { initialRate: 100, annualRate: 0.0 }
+    };
+
+    // Calculate work value at a given year
+    function calculateWorkValueAtYear(year) {
+        if (workLines && workLines.length > 0) {
+            let total = 0;
+            for (const line of workLines) {
+                const cat = workCategories[line.categoryID] || workCategories['autres'];
+                const initialValue = line.amount * cat.initialRate / 100;
+                let value = initialValue * Math.pow(1 + cat.annualRate / 100, year);
+                if (value < 0) value = 0;
+                total += value;
+            }
+            return total;
+        }
+        // Legacy mode: static value
+        return renovationCost * renovationValueRate;
+    }
+
+    // Calculate base value at year 0 for reference
+    const initialWorkValue = calculateWorkValueAtYear(0);
+    const baseValue = propertyPrice + initialWorkValue;
 
     const labels = resaleData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
 
@@ -84,9 +124,12 @@
     ];
 
     // Pré-calculer les prix de revente pour chaque année et scénario
+    // avec la valeur des travaux qui évolue selon les catégories
     const salePrices = resaleData.map((d, yearIndex) => {
+        const workValueThisYear = calculateWorkValueAtYear(d.Year);
+        const baseValueThisYear = propertyPrice + workValueThisYear;
         return resaleRates.map((rate) => {
-            return baseValue * Math.pow(1 + rate, d.Year);
+            return baseValueThisYear * Math.pow(1 + rate, d.Year);
         });
     });
 

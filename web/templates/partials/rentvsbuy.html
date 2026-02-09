@@ -57,6 +57,39 @@
         </p>
     </div>
     {{end}}
+
+    {{if and (gt .Input.InflationRate 0.0) (gt (len .Result.RentVsBuyData) 0)}}
+    {{$firstYear := index .Result.RentVsBuyData 0}}
+    {{$lastYear := index .Result.RentVsBuyData (subInt (len .Result.RentVsBuyData) 1)}}
+    {{$durationYears := len .Result.RentVsBuyData}}
+    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+        <h3 class="font-semibold text-green-900 mb-2">
+            Avantage acheteur : mensualit&eacute; fixe vs loyer index&eacute;
+        </h3>
+        <p class="text-sm text-green-700 mb-3">
+            Votre mensualit&eacute; reste fixe &agrave; <strong>{{formatMoney $firstYear.NominalBuyerCost}} &euro;/mois</strong>
+            pendant toute la dur&eacute;e du pr&ecirc;t, tandis que le loyer augmente avec l'inflation ({{.Input.RentIncreaseRate}}%/an).
+        </p>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <p class="font-medium text-green-800">Ann&eacute;e 1</p>
+                <p>Mensualit&eacute; : {{formatMoney $firstYear.NominalBuyerCost}} &euro;</p>
+                <p>Loyer : {{formatMoney $firstYear.Rent}} &euro;</p>
+            </div>
+            <div>
+                <p class="font-medium text-green-800">Ann&eacute;e {{$durationYears}}</p>
+                <p>Mensualit&eacute; : {{formatMoney $lastYear.NominalBuyerCost}} &euro;
+                   <span class="text-green-600">(&asymp; {{formatMoney $lastYear.RealBuyerPayment}} &euro; en pouvoir d'achat)</span>
+                </p>
+                <p>Loyer : {{formatMoney $lastYear.Rent}} &euro;</p>
+            </div>
+        </div>
+        <p class="text-xs text-green-600 mt-3">
+            Avec {{.Input.InflationRate}}% d'inflation annuelle, votre mensualit&eacute; de {{formatMoney $firstYear.NominalBuyerCost}} &euro;
+            ne vaudra plus que {{formatMoney $lastYear.RealBuyerPayment}} &euro; en pouvoir d'achat en ann&eacute;e {{$durationYears}}.
+        </p>
+    </div>
+    {{end}}
     <div style="position: relative; height: 400px;">
         <canvas id="rentVsBuyChart"></canvas>
     </div>

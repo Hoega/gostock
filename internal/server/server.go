@@ -43,11 +43,14 @@ func New(port int, store persistence.Store) *http.Server {
 			b, _ := json.Marshal(v)
 			return template.JS(b)
 		},
-		"sub": func(a, b float64) float64 {
+		"sub": func(a, b any) float64 {
+			return toFloat(a) - toFloat(b)
+		},
+		"subInt": func(a, b int) int {
 			return a - b
 		},
-		"add": func(a, b float64) float64 {
-			return a + b
+		"add": func(a, b any) float64 {
+			return toFloat(a) + toFloat(b)
 		},
 		"mul": func(a, b any) float64 {
 			af := toFloat(a)

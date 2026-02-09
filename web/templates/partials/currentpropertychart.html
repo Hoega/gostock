@@ -1,0 +1,113 @@
+{{define "currentpropertychart.html"}}
+{{if gt .Result.PropertySale.SalePrice 0.0}}
+{{if gt (len .Result.CurrentPropertyProjection) 0}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+        Valeur r&eacute;cup&eacute;rable - Bien actuel
+    </h2>
+
+    <div class="flex items-start gap-2 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <svg class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-blue-800">R&eacute;partition entre emprunteurs</strong> :
+            Ce graphique montre combien chaque emprunteur r&eacute;cup&egrave;re si le bien est vendu apr&egrave;s X ann&eacute;es.
+        </div>
+    </div>
+
+    <!-- Sélecteur de scénario -->
+    <div class="mb-4 flex items-center gap-4">
+        <label class="text-sm font-medium text-gray-700">Sc&eacute;nario de valorisation :</label>
+        <select id="currentPropScenario" onchange="updateCurrentPropChart()"
+                class="rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <option value="1" selected>0% / an (stable)</option>
+            <option value="0">-1% / an (baisse)</option>
+            <option value="2">+1% / an (hausse)</option>
+        </select>
+    </div>
+
+    <div style="position: relative; height: 400px;">
+        <canvas id="currentPropChart"></canvas>
+    </div>
+
+    <!-- Légende -->
+    <div class="mt-4 flex gap-6 text-sm">
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded" style="background: rgba(99, 102, 241, 0.7);"></span>
+            <span>Emprunteur 1</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded" style="background: rgba(16, 185, 129, 0.7);"></span>
+            <span>Emprunteur 2</span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const projData = {{toJSON .Result.CurrentPropertyProjection}};
+    let chart = null;
+
+    window.updateCurrentPropChart = function() {
+        const idx = parseInt(document.getElementById('currentPropScenario').value);
+        const labels = projData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+
+        const datasets = [
+            {
+                label: 'Emprunteur 1',
+                data: projData.map(d => d.Proceeds1[idx]),
+                backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                borderColor: 'rgb(99, 102, 241)',
+                borderWidth: 1,
+                fill: true
+            },
+            {
+                label: 'Emprunteur 2',
+                data: projData.map(d => d.Proceeds2[idx]),
+                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                borderColor: 'rgb(16, 185, 129)',
+                borderWidth: 1,
+                fill: true
+            }
+        ];
+
+        if (chart) chart.destroy();
+
+        const ctx = document.getElementById('currentPropChart').getContext('2d');
+        chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        mode: 'index',
+                        callbacks: {
+                            label: ctx => ctx.dataset.label + ' : ' +
+                                ctx.parsed.y.toLocaleString('fr-FR') + ' \u20ac',
+                            footer: items => {
+                                const total = items.reduce((s, i) => s + i.parsed.y, 0);
+                                return 'Total : ' + total.toLocaleString('fr-FR') + ' \u20ac';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { stacked: true },
+                    y: {
+                        stacked: true,
+                        ticks: { callback: v => v.toLocaleString('fr-FR') + ' \u20ac' }
+                    }
+                }
+            }
+        });
+    };
+
+    updateCurrentPropChart();
+})();
+</script>
+{{end}}
+{{end}}
+{{end}}

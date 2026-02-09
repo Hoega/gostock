@@ -1,6 +1,14 @@
 {{define "results.html"}}
-<div class="bg-white shadow rounded-lg p-6 space-y-6">
-    <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats</h2>
+<div id="results-container" class="bg-white shadow rounded-lg p-6 space-y-6">
+    <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats</h2>
+        <button onclick="exportToPDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 no-print">
+            <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Imprimer / PDF
+        </button>
+    </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- Mensualité -->
@@ -10,9 +18,16 @@
             <p class="text-xs text-indigo-500 mt-1">
                 Cr&eacute;dit : {{formatMoney .Result.MonthlyPayment}} &euro; | Assurance : {{formatMoney .Result.MonthlyInsurance}} &euro;
             </p>
-            <p class="text-xs text-indigo-500">
-                Montant emprunt&eacute; : {{formatMoney .Input.LoanAmount}} &euro;
-            </p>
+            {{if gt (len .Result.LoanLineResults) 0}}
+            <details class="mt-2">
+                <summary class="text-xs text-indigo-600 cursor-pointer hover:text-indigo-800">D&eacute;tail par pr&ecirc;t</summary>
+                <div class="mt-1 space-y-1">
+                    {{range .Result.LoanLineResults}}
+                    <p class="text-xs text-indigo-500">{{.Label}} : {{formatMoney .MonthlyTotal}} &euro;/mois</p>
+                    {{end}}
+                </div>
+            </details>
+            {{end}}
         </div>
 
         <!-- Coût total du crédit -->
@@ -36,12 +51,41 @@
             <p class="text-xs text-green-500">
                 Dossier : {{formatMoney .Result.BankFees}} &euro;
             </p>
+            {{if gt .Result.GuaranteeFees 0.0}}
+            <p class="text-xs text-green-500">
+                Garantie : {{formatMoney .Result.GuaranteeFees}} &euro;
+            </p>
+            {{end}}
             {{if gt .Result.RenovationCost 0.0}}
             <p class="text-xs text-green-500">
                 Travaux : {{formatMoney .Result.RenovationCost}} &euro;
             </p>
             {{end}}
         </div>
+
+        <!-- Financement du projet (si vente ou apports multiples) -->
+        {{if or (gt .Result.PropertySale.NetProceeds 0.0) (gt .Input.DownPayment2 0.0)}}
+        <div class="bg-cyan-50 rounded-lg p-4">
+            <p class="text-sm font-medium text-cyan-600">Financement du projet</p>
+            <p class="text-xs text-cyan-500 mt-2">
+                Apport Empr. 1 : {{formatMoney .Input.DownPayment1}} &euro;
+            </p>
+            <p class="text-xs text-cyan-500">
+                Apport Empr. 2 : {{formatMoney .Input.DownPayment2}} &euro;
+            </p>
+            {{if gt .Result.PropertySale.NetProceeds 0.0}}
+            <p class="text-xs text-cyan-500 font-medium">
+                Produit vente : {{formatMoney .Result.PropertySale.NetProceeds}} &euro;
+            </p>
+            <p class="text-xs text-cyan-400 italic">
+                ({{formatMoney .Result.PropertySale.SalePrice}} - {{formatMoney .Result.PropertySale.LoanBalance}} - {{formatMoney .Result.PropertySale.Penalty}})
+            </p>
+            {{end}}
+            <p class="text-xs text-cyan-600 font-medium mt-1 pt-1 border-t border-cyan-200">
+                Total apport : {{formatMoney (add (add .Input.DownPayment1 .Input.DownPayment2) .Result.PropertySale.NetProceeds)}} &euro;
+            </p>
+        </div>
+        {{end}}
 
         <!-- Coût total projet -->
         <div class="bg-rose-50 rounded-lg p-4">
@@ -52,6 +96,164 @@
             </p>
         </div>
     </div>
+
+    {{if gt (len .Result.LoanLineResults) 0}}
+    <!-- Détail des lignes de crédit -->
+    <div class="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">D&eacute;tail des lignes de cr&eacute;dit</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-indigo-200">
+                <thead class="bg-indigo-100/50">
+                    <tr>
+                        <th class="px-4 py-2 text-left text-xs font-semibold text-indigo-700 uppercase">Pr&ecirc;t</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-indigo-700 uppercase">Montant</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-indigo-700 uppercase">Taux</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-indigo-700 uppercase">Dur&eacute;e</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-indigo-700 uppercase">Mensualit&eacute;</th>
+                        <th class="px-4 py-2 text-right text-xs font-semibold text-indigo-700 uppercase">Co&ucirc;t total</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-indigo-100">
+                    {{range .Result.LoanLineResults}}
+                    <tr>
+                        <td class="px-4 py-3 text-sm font-medium text-gray-900">{{.Label}}</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 text-right">{{formatMoney .Amount}} &euro;</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 text-right">{{printf "%.2f" .Rate}} %</td>
+                        <td class="px-4 py-3 text-sm text-gray-700 text-right">{{.DurationYears}} ans</td>
+                        <td class="px-4 py-3 text-sm font-medium text-indigo-700 text-right">{{formatMoney .MonthlyTotal}} &euro;</td>
+                        <td class="px-4 py-3 text-sm text-amber-700 text-right">{{formatMoney (add .TotalInterest .TotalInsurance)}} &euro;</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                <tfoot class="bg-indigo-100/50">
+                    <tr>
+                        <td class="px-4 py-2 text-sm font-bold text-gray-900">Total</td>
+                        <td class="px-4 py-2 text-sm font-bold text-gray-900 text-right">-</td>
+                        <td class="px-4 py-2"></td>
+                        <td class="px-4 py-2"></td>
+                        <td class="px-4 py-2 text-sm font-bold text-indigo-900 text-right">{{formatMoney .Result.MonthlyTotal}} &euro;</td>
+                        <td class="px-4 py-2 text-sm font-bold text-amber-900 text-right">{{formatMoney .Result.TotalLoanCost}} &euro;</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    {{end}}
+
+    {{if gt .Result.PropertySale.NetProceeds 0.0}}
+    <!-- Détail de la vente résidence principale -->
+    <div class="bg-gradient-to-r from-cyan-50 to-teal-50 border border-cyan-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">D&eacute;tail de la vente r&eacute;sidence principale</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Calcul du produit net -->
+            <div class="bg-white rounded-lg p-4 border border-cyan-100">
+                <h4 class="text-sm font-semibold text-cyan-800 mb-3">Produit net de vente</h4>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Prix de vente</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.PropertySale.SalePrice}} &euro;</span>
+                    </div>
+                    {{if gt (len .Result.PropertySale.LoanLines) 0}}
+                    <!-- Détail des lignes de prêt -->
+                    <div class="border-t border-b border-cyan-100 py-2 my-2">
+                        <p class="text-xs text-cyan-700 font-medium mb-1">D&eacute;tail des pr&ecirc;ts en cours :</p>
+                        {{range .Result.PropertySale.LoanLines}}
+                        <div class="flex justify-between text-red-600 text-xs pl-2">
+                            <span>- {{.Label}} (CRD: {{formatMoney .Balance}} &euro;, taux: {{.Rate}}%)</span>
+                            <span class="font-medium">IRA: {{formatMoney .IRA}} &euro;</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    <div class="flex justify-between text-red-600">
+                        <span>- Capital restant d&ucirc; (total)</span>
+                        <span class="font-medium">{{formatMoney .Result.PropertySale.LoanBalance}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between text-red-600">
+                        <span>- IRA (total)</span>
+                        <span class="font-medium">{{formatMoney .Result.PropertySale.Penalty}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2 mt-2">
+                        <span class="font-semibold text-cyan-800">= Produit net</span>
+                        <span class="font-bold text-cyan-900 text-lg">{{formatMoney .Result.PropertySale.NetProceeds}} &euro;</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Répartition entre emprunteurs -->
+            <div class="bg-white rounded-lg p-4 border border-cyan-100">
+                <h4 class="text-sm font-semibold text-cyan-800 mb-3">R&eacute;partition du produit</h4>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Quote-part officielle E1</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Input.SalePropertyShare1}} %</span>
+                    </div>
+                    {{if gt .Input.VirtualContribution2 0.0}}
+                    <div class="flex justify-between text-purple-600">
+                        <span>Apport virtuel E2</span>
+                        <span class="font-medium">{{formatMoney .Input.VirtualContribution2}} &euro;</span>
+                    </div>
+                    {{end}}
+                    {{if gt .Input.VirtualProfitShare2 0.0}}
+                    <div class="flex justify-between text-purple-600">
+                        <span>Part b&eacute;n&eacute;fice E2</span>
+                        <span class="font-medium">{{formatMoney .Input.VirtualProfitShare2}} %</span>
+                    </div>
+                    {{end}}
+                    <div class="border-t pt-2 mt-2 space-y-2">
+                        <div class="flex justify-between bg-indigo-50 rounded p-2 -mx-1">
+                            <span class="font-semibold text-indigo-800">Emprunteur 1 re&ccedil;oit</span>
+                            <span class="font-bold text-indigo-900">{{formatMoney .Result.PropertySale.Proceeds1}} &euro;</span>
+                        </div>
+                        <div class="flex justify-between bg-emerald-50 rounded p-2 -mx-1">
+                            <span class="font-semibold text-emerald-800">Emprunteur 2 re&ccedil;oit</span>
+                            <span class="font-bold text-emerald-900">{{formatMoney .Result.PropertySale.Proceeds2}} &euro;</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{if or (gt .Input.CurrentDownPayment1 0.0) (gt .Input.VirtualContribution2 0.0) (gt .Input.VirtualProfitShare2 0.0)}}
+        <!-- Explication du calcul -->
+        <details class="mt-4 bg-white/70 rounded-lg">
+            <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-white rounded-lg">
+                D&eacute;tail du calcul de r&eacute;partition
+            </summary>
+            <div class="p-4 pt-0 text-sm text-slate-600 space-y-2">
+                <div class="bg-slate-50 p-3 rounded font-mono text-xs space-y-1">
+                    <p class="font-semibold text-slate-700">R&eacute;cup&eacute;ration des apports :</p>
+                    {{if gt .Input.CurrentDownPayment1 0.0}}
+                    <p>1. Apport initial E1 = {{formatMoney .Input.CurrentDownPayment1}} &euro;</p>
+                    {{end}}
+                    {{if gt .Input.VirtualContribution2 0.0}}
+                    <p>2. Apport E2 (contribution non-officielle) = {{formatMoney .Input.VirtualContribution2}} &euro;</p>
+                    {{end}}
+                    <p>3. Total des apports = {{formatMoney (add .Input.CurrentDownPayment1 .Input.VirtualContribution2)}} &euro;</p>
+
+                    <p class="pt-2 border-t border-slate-200 font-semibold text-slate-700">Calcul du b&eacute;n&eacute;fice :</p>
+                    <p>4. B&eacute;n&eacute;fice = Produit net - Total apports</p>
+                    <p>&nbsp;&nbsp;&nbsp;= {{formatMoney .Result.PropertySale.NetProceeds}} - {{formatMoney (add .Input.CurrentDownPayment1 .Input.VirtualContribution2)}} = <strong>{{formatMoney (sub .Result.PropertySale.NetProceeds (add .Input.CurrentDownPayment1 .Input.VirtualContribution2))}} &euro;</strong></p>
+
+                    {{if gt .Input.VirtualProfitShare2 0.0}}
+                    <p class="pt-2 border-t border-slate-200 font-semibold text-slate-700">Partage du b&eacute;n&eacute;fice :</p>
+                    <p>5. Part E2 = B&eacute;n&eacute;fice &times; {{formatMoney .Input.VirtualProfitShare2}}%</p>
+                    {{end}}
+
+                    <p class="pt-2 border-t border-slate-200 font-semibold text-slate-700">R&eacute;sultat final :</p>
+                    <p>
+                        <strong class="text-indigo-700">E1 total</strong> = Apport E1 + (B&eacute;n&eacute;fice - Part E2) = <strong>{{formatMoney .Result.PropertySale.Proceeds1}} &euro;</strong>
+                    </p>
+                    <p>
+                        <strong class="text-emerald-700">E2 total</strong> = Apport E2 + Part E2 = <strong>{{formatMoney .Result.PropertySale.Proceeds2}} &euro;</strong>
+                    </p>
+                </div>
+            </div>
+        </details>
+        {{end}}
+    </div>
+    {{end}}
 
     <!-- Donut Chart: Répartition du coût total -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
@@ -82,7 +284,7 @@
                 </div>
             </details>
 
-            <div style="position: relative; height: 250px;">
+            <div class="chart-container" style="height: 250px;">
                 <canvas id="costBreakdownChart"></canvas>
             </div>
         </div>
@@ -215,7 +417,7 @@
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
                 <h4 class="text-sm font-medium text-gray-700 mb-3 text-center">R&eacute;partition des co&ucirc;ts irr&eacute;cup&eacute;rables</h4>
-                <div style="position: relative; height: 280px;">
+                <div class="chart-container" style="height: 280px;">
                     <canvas id="irrecoverableCostsChart"></canvas>
                 </div>
             </div>
@@ -241,6 +443,15 @@
                     </div>
                     <span class="font-bold text-yellow-900">{{formatMoney .Result.BankFees}} &euro;</span>
                 </div>
+                {{if gt .Result.GuaranteeFees 0.0}}
+                <div class="flex items-center justify-between p-2 bg-lime-50 rounded-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="w-3 h-3 rounded-full bg-lime-500"></div>
+                        <span class="text-sm font-medium text-gray-700">Frais de garantie</span>
+                    </div>
+                    <span class="font-bold text-lime-900">{{formatMoney .Result.GuaranteeFees}} &euro;</span>
+                </div>
+                {{end}}
                 <div class="flex items-center justify-between p-2 bg-amber-50 rounded-lg">
                     <div class="flex items-center gap-3">
                         <div class="w-3 h-3 rounded-full bg-amber-500"></div>
@@ -279,6 +490,33 @@
                         <span class="font-bold text-red-700" id="totalIrrecoverable"></span>
                     </div>
                 </div>
+
+                <!-- Loyer équivalent -->
+                <div class="mt-4 p-3 bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg border border-amber-200">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-sm font-semibold text-amber-800">Loyer &eacute;quivalent mensuel</span>
+                        <span class="text-lg font-bold text-amber-900">{{formatMoney .Result.EquivalentRent}} &euro;/mois</span>
+                    </div>
+                    <p class="text-xs text-amber-600">Co&ucirc;ts r&eacute;currents (int&eacute;r&ecirc;ts + assurance + taxe fonci&egrave;re + charges) / dur&eacute;e</p>
+                    {{if gt .Input.MonthlyRent 0.0}}
+                    <div class="mt-2 pt-2 border-t border-amber-200">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm text-gray-700">Votre loyer actuel :</span>
+                            <span class="text-sm font-medium text-gray-900">{{formatMoney .Input.MonthlyRent}} &euro;/mois</span>
+                        </div>
+                        <div class="flex items-center justify-between mt-1">
+                            <span class="text-sm font-medium text-gray-700">Diff&eacute;rence :</span>
+                            {{if lt .Result.EquivalentRent .Input.MonthlyRent}}
+                            <span class="text-sm font-bold text-green-700">-{{formatMoney (sub .Input.MonthlyRent .Result.EquivalentRent)}} &euro;/mois (achat avantageux)</span>
+                            {{else if gt .Result.EquivalentRent .Input.MonthlyRent}}
+                            <span class="text-sm font-bold text-red-700">+{{formatMoney (sub .Result.EquivalentRent .Input.MonthlyRent)}} &euro;/mois (location avantageuse)</span>
+                            {{else}}
+                            <span class="text-sm font-bold text-gray-700">=0 &euro;/mois (&eacute;quivalent)</span>
+                            {{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
             </div>
         </div>
     </div>
@@ -286,7 +524,7 @@
     {{if gt .Input.MonthlyRent 0.0}}
     <!-- Comparaison : Acheteur vs Locataire - Argent "perdu" -->
     <div class="bg-gradient-to-r from-red-50 to-gray-50 border border-red-200 rounded-lg p-6 mt-6">
-        <h3 class="text-lg font-semibold text-gray-900 mb-2">Qui "jette l'argent par les fen&ecirc;tres" ?</h3>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Qui "jette l'argent par les fen&ecirc;tres" ? <span id="thrownAwayDuration" class="text-base font-normal text-gray-500">(sur {{div .Input.DurationMonths 12}} ans)</span></h3>
 
         <!-- Explication détaillée -->
         <details class="mb-4 bg-white/70 rounded-lg">
@@ -323,8 +561,14 @@
             </div>
         </details>
 
+        <div class="flex items-center gap-4 mb-4 bg-white/70 rounded-lg p-3">
+            <label for="thrownAwaySlider" class="text-sm font-medium text-gray-700 whitespace-nowrap">P&eacute;riode :</label>
+            <input type="range" id="thrownAwaySlider" min="1" max="{{div .Input.DurationMonths 12}}" value="{{div .Input.DurationMonths 12}}" step="1" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500">
+            <span id="thrownAwaySliderValue" class="text-sm font-bold text-gray-900 min-w-[4rem] text-right">{{div .Input.DurationMonths 12}} ans</span>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div style="position: relative; height: 300px;">
+            <div class="chart-container" style="height: 300px;">
                 <canvas id="thrownAwayComparisonChart"></canvas>
             </div>
             <div class="flex flex-col justify-center space-y-4">
@@ -356,6 +600,7 @@
         const notaryFees = {{.Result.NotaryFees}};
         const agencyFees = {{.Result.AgencyFees}};
         const bankFees = {{.Result.BankFees}};
+        const guaranteeFees = {{.Result.GuaranteeFees}};
         const interests = {{.Result.TotalInterest}};
         const insurance = {{.Result.TotalInsurance}};
         const propertyTax = {{.Input.PropertyTax}} * ({{.Input.DurationMonths}} / 12);
@@ -372,6 +617,7 @@
         if (notaryFees > 0) { data.push(notaryFees); labels.push('Notaire'); colors.push('rgb(239, 68, 68)'); }
         if (agencyFees > 0) { data.push(agencyFees); labels.push('Agence'); colors.push('rgb(249, 115, 22)'); }
         if (bankFees > 0) { data.push(bankFees); labels.push('Dossier'); colors.push('rgb(234, 179, 8)'); }
+        if (guaranteeFees > 0) { data.push(guaranteeFees); labels.push('Garantie'); colors.push('rgb(132, 204, 22)'); }
         if (interests > 0) { data.push(interests); labels.push('Int\u00e9r\u00eats'); colors.push('rgb(245, 158, 11)'); }
         if (insurance > 0) { data.push(insurance); labels.push('Assurance'); colors.push('rgb(244, 63, 94)'); }
         if (propertyTax > 0) { data.push(propertyTax); labels.push('Taxe fonci\u00e8re'); colors.push('rgb(168, 85, 247)'); }
@@ -424,44 +670,63 @@
 
         // Comparaison Acheteur vs Locataire (si loyer renseigné)
         if (monthlyRent > 0) {
-            // Calcul du cumul des loyers avec revalorisation annuelle
-            let cumulRent = 0;
-            for (let m = 0; m < durationMonths; m++) {
-                const yearOfMonth = Math.floor(m / 12);
-                const rent = monthlyRent * Math.pow(1 + rentIncreaseRate, yearOfMonth);
-                cumulRent += rent;
-            }
+            const loanAmount = {{.Input.LoanAmount}};
+            const monthlyRate = {{.Input.InterestRate}} / 100 / 12;
+            const monthlyInsuranceAmt = {{.Result.MonthlyInsurance}};
+            const annualPropertyTax = {{.Input.PropertyTax}};
+            const monthlyCondoFees = {{.Input.CondoFees}};
+            const durationYears = Math.floor(durationMonths / 12);
 
-            document.getElementById('buyerThrownAway').textContent = totalIrrecoverable.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
-            document.getElementById('renterThrownAway').textContent = cumulRent.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
-
-            const difference = totalIrrecoverable - cumulRent;
-            const diffEl = document.getElementById('thrownAwayDifference');
-            const verdictEl = document.getElementById('thrownAwayVerdict');
-
-            if (difference > 0) {
-                diffEl.textContent = '+' + difference.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
-                diffEl.classList.add('text-red-700');
-                verdictEl.textContent = 'L\'acheteur "jette" ' + Math.abs(difference).toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac de plus que le locataire';
-            } else if (difference < 0) {
-                diffEl.textContent = difference.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
-                diffEl.classList.add('text-green-700');
-                verdictEl.textContent = 'Le locataire "jette" ' + Math.abs(difference).toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac de plus que l\'acheteur';
+            // Simuler l'amortissement pour obtenir les intérêts cumulés par année
+            let monthlyPaymentCalc;
+            if (monthlyRate === 0) {
+                monthlyPaymentCalc = loanAmount / durationMonths;
             } else {
-                diffEl.textContent = '0 \u20ac';
-                diffEl.classList.add('text-gray-700');
-                verdictEl.textContent = 'Les deux "jettent" autant d\'argent';
+                monthlyPaymentCalc = loanAmount * monthlyRate / (1 - Math.pow(1 + monthlyRate, -durationMonths));
             }
 
-            // Bar chart comparatif
+            const cumInterestByYear = [0];
+            const cumInsuranceByYear = [0];
+            let remainingBal = loanAmount;
+            let runInterest = 0;
+            let runInsurance = 0;
+            for (let m = 1; m <= durationMonths; m++) {
+                const monthInterest = remainingBal * monthlyRate;
+                runInterest += monthInterest;
+                remainingBal -= (monthlyPaymentCalc - monthInterest);
+                runInsurance += monthlyInsuranceAmt;
+                if (m % 12 === 0) {
+                    cumInterestByYear.push(runInterest);
+                    cumInsuranceByYear.push(runInsurance);
+                }
+            }
+
+            // Loyers cumulés par année
+            const cumRentByYear = [0];
+            let runRent = 0;
+            for (let y = 1; y <= durationYears; y++) {
+                for (let m = (y - 1) * 12; m < y * 12; m++) {
+                    runRent += monthlyRent * Math.pow(1 + rentIncreaseRate, Math.floor(m / 12));
+                }
+                cumRentByYear.push(runRent);
+            }
+
+            function computeForYears(years) {
+                const buyerTotal = notaryFees + agencyFees + bankFees + guaranteeFees
+                    + cumInterestByYear[years] + cumInsuranceByYear[years]
+                    + annualPropertyTax * years + monthlyCondoFees * years * 12;
+                return { buyerTotal, renterTotal: cumRentByYear[years] };
+            }
+
+            // Créer le graphe
             const ctxComp = document.getElementById('thrownAwayComparisonChart').getContext('2d');
-            new Chart(ctxComp, {
+            const compChart = new Chart(ctxComp, {
                 type: 'bar',
                 data: {
                     labels: ['Acheteur', 'Locataire'],
                     datasets: [{
                         label: 'Argent "perdu"',
-                        data: [totalIrrecoverable, cumulRent],
+                        data: [0, 0],
                         backgroundColor: [
                             'rgba(239, 68, 68, 0.8)',
                             'rgba(107, 114, 128, 0.8)'
@@ -500,9 +765,244 @@
                     }
                 }
             });
+
+            const fmt = v => v.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+
+            function updateThrownAway(years) {
+                const { buyerTotal, renterTotal } = computeForYears(years);
+
+                compChart.data.datasets[0].data = [buyerTotal, renterTotal];
+                compChart.update();
+
+                document.getElementById('buyerThrownAway').textContent = fmt(buyerTotal) + ' \u20ac';
+                document.getElementById('renterThrownAway').textContent = fmt(renterTotal) + ' \u20ac';
+                document.getElementById('thrownAwayDuration').textContent = '(sur ' + years + ' an' + (years > 1 ? 's' : '') + ')';
+
+                const difference = buyerTotal - renterTotal;
+                const diffEl = document.getElementById('thrownAwayDifference');
+                const verdictEl = document.getElementById('thrownAwayVerdict');
+                diffEl.className = 'text-2xl font-bold';
+
+                if (difference > 0) {
+                    diffEl.textContent = '+' + fmt(Math.abs(difference)) + ' \u20ac';
+                    diffEl.classList.add('text-red-700');
+                    verdictEl.textContent = 'L\'acheteur "jette" ' + fmt(Math.abs(difference)) + ' \u20ac de plus que le locataire';
+                } else if (difference < 0) {
+                    diffEl.textContent = '-' + fmt(Math.abs(difference)) + ' \u20ac';
+                    diffEl.classList.add('text-green-700');
+                    verdictEl.textContent = 'Le locataire "jette" ' + fmt(Math.abs(difference)) + ' \u20ac de plus que l\'acheteur';
+                } else {
+                    diffEl.textContent = '0 \u20ac';
+                    diffEl.classList.add('text-gray-700');
+                    verdictEl.textContent = 'Les deux "jettent" autant d\'argent';
+                }
+            }
+
+            // Binding du slider
+            const slider = document.getElementById('thrownAwaySlider');
+            const sliderValue = document.getElementById('thrownAwaySliderValue');
+            slider.addEventListener('input', function() {
+                const years = parseInt(this.value);
+                sliderValue.textContent = years + ' an' + (years > 1 ? 's' : '');
+                updateThrownAway(years);
+            });
+
+            // Rendu initial
+            updateThrownAway(durationYears);
         }
     })();
     </script>
+
+    {{if or (gt .Input.DownPayment2 0.0) (gt .Input.NetIncome2 0.0)}}
+    {{if gt .Result.Ownership.QuotePart1 0.0}}
+    <!-- Quotes-parts du bien -->
+    <div class="bg-white border rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Quotes-parts du bien</h3>
+        <p class="text-xs text-gray-500 mb-4">
+            Mode de r&eacute;partition : {{if eq .Input.PaymentSplitMode "equal"}}50/50{{else}}au prorata des revenus{{end}}
+        </p>
+
+        <!-- Barre empilée -->
+        <div class="mb-6">
+            <div class="flex h-8 rounded-lg overflow-hidden">
+                <div class="bg-indigo-500 flex items-center justify-center text-white text-xs font-bold" style="width: {{.Result.Ownership.QuotePart1}}%">
+                    {{formatMoney .Result.Ownership.QuotePart1}}%
+                </div>
+                <div class="bg-emerald-500 flex items-center justify-center text-white text-xs font-bold" style="width: {{.Result.Ownership.QuotePart2}}%">
+                    {{formatMoney .Result.Ownership.QuotePart2}}%
+                </div>
+            </div>
+            <div class="flex justify-between mt-1">
+                <span class="text-xs font-medium text-indigo-700">Emprunteur 1</span>
+                <span class="text-xs font-medium text-emerald-700">Emprunteur 2</span>
+            </div>
+        </div>
+
+        <!-- Détail par emprunteur -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Emprunteur 1 -->
+            <div class="bg-indigo-50 rounded-lg p-4 border-l-4 border-indigo-500">
+                <h4 class="text-sm font-semibold text-indigo-800 mb-3">Emprunteur 1</h4>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Apport</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Input.DownPayment1}} &euro;</span>
+                    </div>
+                    {{if gt .Result.Ownership.SaleProceeds1 0.0}}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Produit de vente</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.SaleProceeds1}} &euro;</span>
+                    </div>
+                    {{end}}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Part du pr&ecirc;t</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.LoanShare1}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2">
+                        <span class="text-gray-600 font-medium">Contribution totale</span>
+                        <span class="font-bold text-indigo-900">{{formatMoney .Result.Ownership.Contribution1}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Mensualit&eacute;</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.MonthlyPayment1}} &euro;/mois</span>
+                    </div>
+                    <div class="flex justify-between bg-indigo-100 rounded p-2 -mx-1">
+                        <span class="font-semibold text-indigo-800">Quote-part</span>
+                        <span class="font-bold text-indigo-900 text-lg">{{formatMoney .Result.Ownership.QuotePart1}} %</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emprunteur 2 -->
+            <div class="bg-emerald-50 rounded-lg p-4 border-l-4 border-emerald-500">
+                <h4 class="text-sm font-semibold text-emerald-800 mb-3">Emprunteur 2</h4>
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Apport</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Input.DownPayment2}} &euro;</span>
+                    </div>
+                    {{if gt .Result.Ownership.SaleProceeds2 0.0}}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Produit de vente</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.SaleProceeds2}} &euro;</span>
+                    </div>
+                    {{end}}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Part du pr&ecirc;t</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.LoanShare2}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between border-t pt-2">
+                        <span class="text-gray-600 font-medium">Contribution totale</span>
+                        <span class="font-bold text-emerald-900">{{formatMoney .Result.Ownership.Contribution2}} &euro;</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Mensualit&eacute;</span>
+                        <span class="font-medium text-gray-900">{{formatMoney .Result.Ownership.MonthlyPayment2}} &euro;/mois</span>
+                    </div>
+                    <div class="flex justify-between bg-emerald-100 rounded p-2 -mx-1">
+                        <span class="font-semibold text-emerald-800">Quote-part</span>
+                        <span class="font-bold text-emerald-900 text-lg">{{formatMoney .Result.Ownership.QuotePart2}} %</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+    {{end}}
+
+    {{if or .Result.AidEligibility.PTZEligible .Result.AidEligibility.PALEligible .Result.AidEligibility.BRSEligible (gt .Result.AidEligibility.PTZReferenceRFR 0.0)}}
+    <!-- Éligibilité aux aides -->
+    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">&Eacute;ligibilit&eacute; aux aides &agrave; l'accession</h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- PTZ -->
+            <div class="bg-white rounded-lg p-4 border {{if .Result.AidEligibility.PTZEligible}}border-green-300{{else}}border-gray-200{{end}}">
+                <div class="flex items-center gap-2 mb-2">
+                    {{if .Result.AidEligibility.PTZEligible}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        &Eacute;ligible
+                    </span>
+                    {{else}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Non &eacute;ligible
+                    </span>
+                    {{end}}
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-2">PTZ - Pr&ecirc;t &agrave; Taux Z&eacute;ro</h4>
+                {{if .Result.AidEligibility.PTZEligible}}
+                <div class="space-y-1 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Montant max</span>
+                        <span class="font-bold text-green-700">{{formatMoney .Result.AidEligibility.PTZMaxAmount}} &euro;</span>
+                    </div>
+                </div>
+                {{end}}
+                <div class="mt-2 text-xs text-gray-500">
+                    <p>Plafond zone : {{formatMoney .Result.AidEligibility.PTZIncomeCeiling}} &euro;</p>
+                    <p>Votre RFR : {{formatMoney .Result.AidEligibility.PTZReferenceRFR}} &euro;</p>
+                </div>
+            </div>
+
+            <!-- PAL -->
+            <div class="bg-white rounded-lg p-4 border {{if .Result.AidEligibility.PALEligible}}border-green-300{{else}}border-gray-200{{end}}">
+                <div class="flex items-center gap-2 mb-2">
+                    {{if .Result.AidEligibility.PALEligible}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        &Eacute;ligible
+                    </span>
+                    {{else}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Non &eacute;ligible
+                    </span>
+                    {{end}}
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-2">PAL - Pr&ecirc;t Action Logement</h4>
+                {{if .Result.AidEligibility.PALEligible}}
+                <div class="space-y-1 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Montant max</span>
+                        <span class="font-bold text-green-700">{{formatMoney .Result.AidEligibility.PALMaxAmount}} &euro;</span>
+                    </div>
+                </div>
+                {{end}}
+                <div class="mt-2 text-xs text-gray-500">
+                    <p>Taux : 1% (2024)</p>
+                    <p>Dur&eacute;e : jusqu'&agrave; 25 ans</p>
+                </div>
+            </div>
+
+            <!-- BRS -->
+            <div class="bg-white rounded-lg p-4 border {{if .Result.AidEligibility.BRSEligible}}border-green-300{{else}}border-gray-200{{end}}">
+                <div class="flex items-center gap-2 mb-2">
+                    {{if .Result.AidEligibility.BRSEligible}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        &Eacute;ligible
+                    </span>
+                    {{else}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        Non &eacute;ligible
+                    </span>
+                    {{end}}
+                </div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-2">BRS - Bail R&eacute;el Solidaire</h4>
+                {{if .Result.AidEligibility.BRSEligible}}
+                <div class="space-y-1 text-sm text-gray-600">
+                    <p>Permet d'acheter le b&acirc;ti sans le terrain (redevance mensuelle)</p>
+                </div>
+                {{else}}
+                <div class="mt-2 text-xs text-gray-500">
+                    <p>Disponible en zones tendues (A, Abis, B1)</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <p class="text-xs text-gray-500 mt-4 italic">
+            Note : Ces calculs sont indicatifs. Les conditions d'&eacute;ligibilit&eacute; d&eacute;finitive d&eacute;pendent de crit&egrave;res suppl&eacute;mentaires (primo-acc&eacute;dant, performance &eacute;nerg&eacute;tique, etc.).
+        </p>
+    </div>
+    {{end}}
 
     {{if gt .Result.IncomeMonthly 0.0}}
     <h3 class="text-lg font-semibold text-gray-900 mt-2">Comparaison revenus / co&ucirc;t du projet</h3>
@@ -567,5 +1067,359 @@
         </div>
     </div>
     {{end}}
+
+    {{if gt (len .Result.IRRData) 0}}
+    <!-- TRI (Taux de Rendement Interne) -->
+    <div class="bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Taux de Rendement Interne (TRI)</h3>
+        <p class="text-sm text-gray-600 mb-4">
+            Le TRI mesure la performance de votre investissement immobilier comme un placement financier.
+            Il permet de comparer directement avec d'autres placements (PEA, assurance-vie, livrets).
+        </p>
+
+        <!-- Explication détaillée -->
+        <details class="mb-4 bg-white/70 rounded-lg">
+            <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-white rounded-lg">
+                Comment lire ce graphique ?
+            </summary>
+            <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+                <div>
+                    <p class="font-semibold text-slate-800">Objectif</p>
+                    <p>Quantifier la rentabilit&eacute; r&eacute;elle de votre achat immobilier en le convertissant en &eacute;quivalent taux de placement financier.</p>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Formule de calcul</p>
+                    <div class="bg-white p-2 rounded border font-mono text-xs">
+                        TRI = taux r tel que : 0 = -Investissement + &sum;(Flux_t / (1+r)^t) + Revente / (1+r)^n
+                    </div>
+                </div>
+                <div>
+                    <p class="font-semibold text-slate-800">Flux de tr&eacute;sorerie pris en compte</p>
+                    <ul class="list-disc list-inside space-y-1 text-xs">
+                        <li><strong>Ann&eacute;e 0</strong> : -Investissement initial (apport + frais notaire + agence + dossier + garantie + travaux)</li>
+                        <li><strong>Ann&eacute;es 1 &agrave; N</strong> : -Co&ucirc;ts annuels (mensualit&eacute;s &times; 12 + taxe fonci&egrave;re + charges copro &times; 12)</li>
+                        <li><strong>Ann&eacute;e N (revente)</strong> : +Produit de revente (valeur du bien - capital restant d&ucirc;)</li>
+                    </ul>
+                </div>
+                <div class="bg-violet-50 p-2 rounded text-xs border border-violet-200">
+                    <strong>Interpr&eacute;tation :</strong> Un TRI de 5% signifie que votre achat immobilier &eacute;quivaut &agrave; un placement financier &agrave; 5% net par an. Comparez avec les rendements de l'assurance-vie (~2-3%), du PEA (~4-7% historique), ou du Livret A (3%).
+                </div>
+            </div>
+        </details>
+
+        <!-- TRI Final Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {{range $index, $rate := .Result.ResaleRates}}
+            {{$irr := index $.Result.IRRByScenario $index}}
+            <div class="bg-white rounded-lg p-4 border {{if lt $irr -900.0}}border-gray-300{{else if lt $irr 0.0}}border-red-300{{else if lt $irr 3.0}}border-amber-300{{else}}border-green-300{{end}}">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-600">
+                        {{if lt $rate 0.0}}-{{else}}+{{end}}{{printf "%.0f" (mul $rate 100)}}%/an
+                    </span>
+                    {{if lt $irr -900.0}}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                        Non calculable
+                    </span>
+                    {{else if lt $irr 0.0}}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                        N&eacute;gatif
+                    </span>
+                    {{else if lt $irr 3.0}}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                        Faible
+                    </span>
+                    {{else}}
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Bon
+                    </span>
+                    {{end}}
+                </div>
+                {{if lt $irr -900.0}}
+                <p class="text-2xl font-bold text-gray-500">N/A</p>
+                {{else}}
+                <p class="text-2xl font-bold {{if lt $irr 0.0}}text-red-700{{else if lt $irr 3.0}}text-amber-700{{else}}text-green-700{{end}}">
+                    {{printf "%.2f" $irr}} %
+                </p>
+                {{end}}
+                <p class="text-xs text-gray-500 mt-1">
+                    TRI &agrave; {{div $.Input.DurationMonths 12}} ans
+                </p>
+            </div>
+            {{end}}
+        </div>
+
+        {{if gt .Input.SavingsRate 0.0}}
+        <!-- Comparaison avec le taux d'épargne -->
+        <div class="bg-white/80 rounded-lg p-4 mb-6 border border-violet-200">
+            <h4 class="text-sm font-semibold text-violet-800 mb-3">Comparaison avec votre taux d'&eacute;pargne de r&eacute;f&eacute;rence ({{printf "%.1f" .Input.SavingsRate}}%)</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {{range $index, $rate := .Result.ResaleRates}}
+                {{$irr := index $.Result.IRRByScenario $index}}
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-gray-600">{{if lt $rate 0.0}}-{{else}}+{{end}}{{printf "%.0f" (mul $rate 100)}}%/an :</span>
+                    {{if lt $irr -900.0}}
+                    <span class="font-medium text-gray-500">N/A</span>
+                    {{else if gt $irr $.Input.SavingsRate}}
+                    <span class="font-bold text-green-700">+{{printf "%.2f" (sub $irr $.Input.SavingsRate)}} pts vs &eacute;pargne</span>
+                    {{else if lt $irr $.Input.SavingsRate}}
+                    <span class="font-bold text-red-700">{{printf "%.2f" (sub $irr $.Input.SavingsRate)}} pts vs &eacute;pargne</span>
+                    {{else}}
+                    <span class="font-bold text-gray-700">=0 pts (&eacute;quivalent)</span>
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Graphique évolution TRI -->
+        <div class="bg-white rounded-lg p-4 border border-violet-200">
+            <h4 class="text-sm font-semibold text-violet-800 mb-3">&Eacute;volution du TRI selon l'ann&eacute;e de revente</h4>
+            <div class="chart-container" style="height: 350px;">
+                <canvas id="irrChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const irrData = {{toJSON .Result.IRRData}};
+        const resaleRates = {{toJSON .Result.ResaleRates}};
+        const savingsRate = {{.Input.SavingsRate}};
+
+        const labels = irrData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+
+        const colors = [
+            'rgb(249, 115, 22)',  // -1% orange
+            'rgb(107, 114, 128)', //  0% gris
+            'rgb(34, 197, 94)'    // +1% vert
+        ];
+
+        const datasets = resaleRates.map((rate, i) => {
+            const pct = (rate * 100).toFixed(0);
+            const sign = rate >= 0 ? '+' : '';
+            return {
+                label: sign + pct + '% / an',
+                data: irrData.map(d => {
+                    const irr = d.IRR[i];
+                    // Filter out non-convergence values
+                    return irr <= -900 ? null : irr;
+                }),
+                borderColor: colors[i],
+                backgroundColor: colors[i],
+                tension: 0.3,
+                pointRadius: 3,
+                borderWidth: 2,
+                fill: false,
+                spanGaps: true
+            };
+        });
+
+        // Add reference line for savings rate if specified
+        if (savingsRate > 0) {
+            datasets.push({
+                label: 'Taux \u00e9pargne (' + savingsRate.toFixed(1) + '%)',
+                data: irrData.map(() => savingsRate),
+                borderColor: 'rgb(139, 92, 246)',
+                backgroundColor: 'transparent',
+                borderDash: [6, 6],
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: false
+            });
+        }
+
+        const ctx = document.getElementById('irrChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.parsed.y === null) {
+                                    return context.dataset.label + ' : Non calculable';
+                                }
+                                return context.dataset.label + ' : ' + context.parsed.y.toFixed(2) + ' %';
+                            }
+                        }
+                    },
+                    annotation: {
+                        annotations: {
+                            zeroLine: {
+                                type: 'line',
+                                yMin: 0,
+                                yMax: 0,
+                                borderColor: 'rgba(0, 0, 0, 0.3)',
+                                borderWidth: 1,
+                                borderDash: [4, 4]
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Ann\u00e9e de revente'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'TRI (%)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value.toFixed(1) + ' %';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    })();
+    </script>
+    {{end}}
 </div>
+
+<script>
+function exportToPDF() {
+    // Convert all canvas charts to images for printing
+    const canvases = document.querySelectorAll('#results-container canvas');
+    const canvasData = [];
+
+    canvases.forEach((canvas) => {
+        const parent = canvas.parentNode;
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png', 1.0);
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.className = 'print-chart';
+        canvasData.push({ canvas, parent, img });
+        parent.replaceChild(img, canvas);
+    });
+
+    // Use native print dialog
+    window.print();
+
+    // Restore canvases after a short delay
+    setTimeout(() => {
+        canvasData.forEach(({ canvas, parent, img }) => {
+            parent.replaceChild(canvas, img);
+        });
+    }, 1000);
+}
+</script>
+
+<style>
+.chart-container {
+    position: relative;
+    width: 100%;
+}
+.chart-container canvas {
+    max-width: 100%;
+}
+@media print {
+    /* Hide everything except results */
+    body > *:not(main),
+    main > .space-y-6 > *:not(#results),
+    form,
+    h1,
+    nav,
+    button,
+    .htmx-indicator,
+    details summary,
+    input[type="range"],
+    .no-print {
+        display: none !important;
+    }
+
+    /* Show results */
+    #results, #results-container {
+        display: block !important;
+    }
+
+    /* Expand all details in results */
+    #results-container details {
+        display: block !important;
+    }
+    #results-container details > *:not(summary) {
+        display: block !important;
+    }
+
+    /* Reset page */
+    html, body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    main, main > * {
+        padding: 0 !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+    }
+
+    /* Results container styling */
+    #results-container {
+        box-shadow: none !important;
+        padding: 5mm !important;
+        margin: 0 !important;
+    }
+
+    /* Reduce spacing */
+    #results-container .space-y-6 > * + * {
+        margin-top: 8px !important;
+    }
+
+    #results-container .mt-6 {
+        margin-top: 8px !important;
+    }
+
+    /* Charts sizing */
+    .chart-container {
+        height: auto !important;
+        max-height: 180px !important;
+        page-break-inside: avoid;
+    }
+
+    .chart-container img.print-chart {
+        max-height: 160px !important;
+        width: auto !important;
+        margin: 0 auto;
+        display: block;
+    }
+
+    /* Prevent page breaks inside cards */
+    #results-container .rounded-lg {
+        page-break-inside: avoid;
+    }
+
+    /* Grid adjustments for print */
+    #results-container .grid {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 5px !important;
+    }
+    #results-container .grid > * {
+        flex: 1 1 45% !important;
+        margin-bottom: 5px !important;
+        min-width: 180px !important;
+    }
+
+    /* Page settings */
+    @page {
+        size: A4;
+        margin: 10mm;
+    }
+}
+</style>
 {{end}}

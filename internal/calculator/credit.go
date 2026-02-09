@@ -13,22 +13,153 @@ var frenchMonths = [12]string{
 	"Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 }
 
-// Calculate computes the full mortgage simulation from the given input.
-func Calculate(input model.CreditInput) model.CreditResult {
-	monthlyRate := input.InterestRate / 100 / 12
-	n := input.DurationMonths
-	capital := input.LoanAmount
+// PresetWorkCategories contains the predefined work categories with their valuation parameters.
+// Each category has an initial valuation rate and an annual appreciation/depreciation rate.
+var PresetWorkCategories = []model.WorkCategory{
+	{ID: "structure", Label: "Gros œuvre / Structure", InitialRate: 80, AnnualRate: 0.5},
+	{ID: "extension", Label: "Extension / Agrandissement", InitialRate: 100, AnnualRate: 1.0},
+	{ID: "isolation", Label: "Isolation / Énergie", InitialRate: 90, AnnualRate: 1.5},
+	{ID: "cuisine", Label: "Cuisine équipée", InitialRate: 100, AnnualRate: -2.0},
+	{ID: "sdb", Label: "Salle de bain", InitialRate: 90, AnnualRate: -2.0},
+	{ID: "peinture", Label: "Peinture / Décoration", InitialRate: 50, AnnualRate: -10.0},
+	{ID: "exterieur", Label: "Extérieur (jardin, terrasse)", InitialRate: 60, AnnualRate: -3.0},
+	{ID: "autres", Label: "Autres travaux", InitialRate: 70, AnnualRate: 0.0},
+	{ID: "legacy", Label: "Travaux (mode simple)", InitialRate: 100, AnnualRate: 0.0}, // For backward compatibility
+}
 
-	// Monthly payment (annuité constante): M = C × t / (1 - (1+t)^(-n))
-	var monthlyPayment float64
+// GetWorkCategory returns the work category by ID, or the default "autres" category if not found.
+func GetWorkCategory(id string) model.WorkCategory {
+	for _, cat := range PresetWorkCategories {
+		if cat.ID == id {
+			return cat
+		}
+	}
+	// Default to "autres" category
+	return PresetWorkCategories[len(PresetWorkCategories)-1]
+}
+
+// CalculateWorkValueAtYear computes the value of a work line at a given year.
+// Formula: Amount × InitialRate × (1 + AnnualRate)^year with floor at 0.
+func CalculateWorkValueAtYear(work model.WorkLine, year int) float64 {
+	cat := GetWorkCategory(work.CategoryID)
+	initialValue := work.Amount * cat.InitialRate / 100
+	value := initialValue * math.Pow(1+cat.AnnualRate/100, float64(year))
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
+// CalculateTotalWorkValueAtYear computes the total value of all work lines at a given year.
+func CalculateTotalWorkValueAtYear(workLines []model.WorkLine, year int) float64 {
+	var total float64
+	for _, work := range workLines {
+		total += CalculateWorkValueAtYear(work, year)
+	}
+	return total
+}
+
+// ConvertLegacyToWorkLines converts legacy RenovationCost/RenovationValueRate to WorkLines.
+// This provides backward compatibility with existing data.
+func ConvertLegacyToWorkLines(renovationCost, renovationValueRate float64) []model.WorkLine {
+	if renovationCost <= 0 {
+		return nil
+	}
+	// Use "autres" category as base, but adjust initial rate to match the legacy value rate
+	// For legacy compatibility, we create a single "autres" work line
+	return []model.WorkLine{
+		{
+			CategoryID: "autres",
+			Label:      "Travaux (mode simple)",
+			Amount:     renovationCost,
+		},
+	}
+}
+
+// calculateLoanLine computes the monthly payment and totals for a single loan line.
+func calculateLoanLine(amount float64, rate float64, durationMonths int, insuranceRate float64) (monthlyPayment, monthlyInsurance, totalInterest, totalInsurance float64) {
+	monthlyRate := rate / 100 / 12
+	n := durationMonths
+
 	if monthlyRate == 0 {
-		monthlyPayment = capital / float64(n)
+		monthlyPayment = amount / float64(n)
 	} else {
-		monthlyPayment = capital * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-n)))
+		monthlyPayment = amount * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-n)))
 	}
 
-	// Insurance: annual rate on initial capital, divided by 12
-	monthlyInsurance := input.InsuranceRate / 100 / 12 * capital
+	monthlyInsurance = insuranceRate / 100 / 12 * amount
+
+	// Calculate total interest
+	remaining := amount
+	for m := 1; m <= n; m++ {
+		interest := remaining * monthlyRate
+		principal := monthlyPayment - interest
+		remaining -= principal
+		totalInterest += interest
+	}
+
+	totalInsurance = monthlyInsurance * float64(n)
+	return
+}
+
+// Calculate computes the full mortgage simulation from the given input.
+func Calculate(input model.CreditInput) model.CreditResult {
+	var monthlyPayment, monthlyInsurance, totalInterest, totalInsurance float64
+	var capital float64
+	var n int
+	var loanLineResults []model.NewLoanLineResult
+
+	// Check if we have multiple loan lines
+	if len(input.NewLoanLines) > 0 {
+		// Calculate each loan line separately
+		for _, line := range input.NewLoanLines {
+			if line.Amount <= 0 {
+				continue
+			}
+			durationMonths := line.DurationYears * 12
+			if durationMonths <= 0 {
+				durationMonths = input.DurationMonths
+			}
+
+			mp, mi, ti, tis := calculateLoanLine(line.Amount, line.Rate, durationMonths, line.InsuranceRate)
+
+			loanLineResults = append(loanLineResults, model.NewLoanLineResult{
+				Label:            line.Label,
+				Amount:           line.Amount,
+				Rate:             line.Rate,
+				DurationYears:    line.DurationYears,
+				InsuranceRate:    line.InsuranceRate,
+				MonthlyPayment:   round2(mp),
+				MonthlyInsurance: round2(mi),
+				MonthlyTotal:     round2(mp + mi),
+				TotalInterest:    round2(ti),
+				TotalInsurance:   round2(tis),
+			})
+
+			monthlyPayment += mp
+			monthlyInsurance += mi
+			totalInterest += ti
+			totalInsurance += tis
+			capital += line.Amount
+
+			// Track the longest duration for amortization table
+			if durationMonths > n {
+				n = durationMonths
+			}
+		}
+	} else {
+		// Use single loan parameters (backward compatibility)
+		capital = input.LoanAmount
+		n = input.DurationMonths
+		monthlyPayment, monthlyInsurance, totalInterest, totalInsurance = calculateLoanLine(
+			capital, input.InterestRate, n, input.InsuranceRate,
+		)
+	}
+
+	// Ensure we have a duration
+	if n == 0 {
+		n = input.DurationMonths
+	}
 
 	// Notary fees
 	notaryFees := input.PropertyPrice * input.NotaryRate / 100
@@ -49,9 +180,31 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	}
 
 	// Build amortization table
+	// For multiple loans, we use a simplified table with the primary loan rate
+	// or an average rate weighted by amount
+	var avgMonthlyRate float64
+	if len(input.NewLoanLines) > 0 && capital > 0 {
+		var weightedRate float64
+		for _, line := range input.NewLoanLines {
+			if line.Amount > 0 {
+				weightedRate += line.Rate * line.Amount
+			}
+		}
+		avgMonthlyRate = (weightedRate / capital) / 100 / 12
+	} else {
+		avgMonthlyRate = input.InterestRate / 100 / 12
+	}
+
 	remaining := capital
-	var totalInterest float64
 	amortization := make([]model.AmortizationRow, 0, n)
+
+	// Calculate monthly payment for amortization display (using average rate)
+	var amortMonthlyPayment float64
+	if avgMonthlyRate == 0 {
+		amortMonthlyPayment = capital / float64(n)
+	} else {
+		amortMonthlyPayment = capital * avgMonthlyRate / (1 - math.Pow(1+avgMonthlyRate, float64(-n)))
+	}
 
 	for m := 1; m <= n; m++ {
 		// Compute date for this row
@@ -59,8 +212,8 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		year := startYear + (startMonth-1+m-1)/12
 		date := fmt.Sprintf("%s %d", frenchMonths[month-1], year)
 
-		interest := remaining * monthlyRate
-		principal := monthlyPayment - interest
+		interest := remaining * avgMonthlyRate
+		principal := amortMonthlyPayment - interest
 		remaining -= principal
 
 		// Avoid floating point noise on the last month
@@ -68,8 +221,6 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			principal += remaining
 			remaining = 0
 		}
-
-		totalInterest += interest
 
 		amortization = append(amortization, model.AmortizationRow{
 			Month:            m,
@@ -82,11 +233,11 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		})
 	}
 
-	totalInsurance := monthlyInsurance * float64(n)
 	totalLoanCost := totalInterest + totalInsurance
 	bankFees := input.BankFees
+	guaranteeFees := input.GuaranteeFees
 	renovationCost := input.RenovationCost
-	totalProjectCost := input.PropertyPrice + notaryFees + agencyFees + bankFees + renovationCost + totalInterest + totalInsurance
+	totalProjectCost := input.PropertyPrice + notaryFees + agencyFees + bankFees + guaranteeFees + renovationCost + totalInterest + totalInsurance
 
 	// Income comparison
 	incomeMonthly := input.NetIncome1 + input.NetIncome2
@@ -110,7 +261,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		// Insurance = InsuranceRate / 100 / 12 × C
 		// C × [t / (1 - (1+t)^(-n)) + InsuranceRate/100/12] = maxMonthlyPayment
 		insuranceMonthlyRate := input.InsuranceRate / 100 / 12
-		if monthlyRate == 0 {
+		if avgMonthlyRate == 0 {
 			// Without interest: M = C/n, so C = M × n
 			// C/n + insuranceRate × C = maxMonthlyPayment
 			// C × (1/n + insuranceRate) = maxMonthlyPayment
@@ -119,7 +270,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 				maxLoanAmount = maxMonthlyPayment / divisor
 			}
 		} else {
-			paymentFactor := monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-n)))
+			paymentFactor := avgMonthlyRate / (1 - math.Pow(1+avgMonthlyRate, float64(-n)))
 			divisor := paymentFactor + insuranceMonthlyRate
 			if divisor > 0 {
 				maxLoanAmount = maxMonthlyPayment / divisor
@@ -131,12 +282,28 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	resaleRates := []float64{-0.01, 0, 0.01}
 	durationYears := n / 12
 	downPayment := input.PropertyPrice - input.LoanAmount
-	// Valeur ajoutée par les travaux (coefficient de valorisation, ex: 70% par défaut)
-	renovationValueRate := input.RenovationValueRate / 100
-	if renovationValueRate == 0 {
-		renovationValueRate = 0.70 // 70% par défaut si non renseigné
+
+	// Determine effective work lines: use WorkLines if provided, otherwise convert legacy data
+	effectiveWorkLines := input.WorkLines
+	if len(effectiveWorkLines) == 0 && renovationCost > 0 {
+		// Legacy mode: convert to work lines using the custom rate
+		renovationValueRate := input.RenovationValueRate
+		if renovationValueRate == 0 {
+			renovationValueRate = 70 // 70% par défaut si non renseigné
+		}
+		// Create a custom "legacy" work line that matches the old behavior
+		effectiveWorkLines = []model.WorkLine{
+			{
+				CategoryID: "legacy",
+				Label:      "Travaux (mode simple)",
+				Amount:     renovationCost * renovationValueRate / 100, // Pre-apply the rate as amount
+			},
+		}
 	}
-	renovationAddedValue := renovationCost * renovationValueRate
+
+	// Calculate initial work value (year 0) for baseValue at year 0
+	initialWorkValue := CalculateTotalWorkValueAtYear(effectiveWorkLines, 0)
+
 	resaleData := make([]model.ResaleProjection, 0, durationYears)
 	saleCashData := make([]model.SaleCashProjection, 0, durationYears)
 
@@ -149,30 +316,43 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	}
 
 	// Variables pour le détail des coûts irrécupérables (fin de prêt)
-	var finalCumulInterest, finalCumulInsurance, finalCumulCondoFees float64
+	var finalCumulInterest, finalCumulInsurance, finalCumulCondoFees, finalCumulPropertyTax, finalCumulMaintenance float64
+
+	// Frais d'entretien annuels (% de la valeur du bien)
+	annualMaintenanceCost := input.PropertyPrice * input.MaintenanceRate / 100
 
 	for year := 1; year <= durationYears; year++ {
 		monthIndex := year*12 - 1 // index in amortization (0-based)
 		capitalRemaining := amortization[monthIndex].RemainingBalance
 
-		// Cumul des mensualités sur year*12 mois
-		var cumulPayments float64
+		// Cumul des intérêts et assurance sur year*12 mois (coûts irrécupérables)
+		var cumulInterest, cumulInsurance float64
 		for m := 0; m < year*12; m++ {
-			cumulPayments += amortization[m].Payment + amortization[m].Insurance
+			cumulInterest += amortization[m].Interest
+			cumulInsurance += amortization[m].Insurance
 		}
 
-		// Coûts récurrents cumulés (charges copro)
+		// Coûts récurrents cumulés
 		cumulCondoFees := input.CondoFees * float64(year*12)
+		cumulPropertyTax := input.PropertyTax * float64(year)
+		cumulMaintenance := annualMaintenanceCost * float64(year)
 
-		totalSpent := downPayment + notaryFees + agencyFees + bankFees + renovationCost + cumulPayments + cumulCondoFees
+		// Coûts irrécupérables = frais fixes + intérêts + assurance + charges + taxe foncière + entretien
+		// Le capital remboursé n'est PAS un coût irrécupérable (c'est une épargne forcée)
+		irrecoverableCosts := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
 		scenarios := make([]float64, len(resaleRates))
+		// Calculate work value at this year (evolves over time based on category rates)
+		workValueThisYear := CalculateTotalWorkValueAtYear(effectiveWorkLines, year)
 		for i, rate := range resaleRates {
-			// Les travaux valorisent le bien selon le coefficient (ex: 70%)
-			// 1€ de travaux ≠ 1€ de valeur (toiture vs cuisine)
-			baseValue := input.PropertyPrice + renovationAddedValue
+			// Les travaux valorisent le bien selon leur catégorie et évoluent dans le temps
+			// La valeur du bien + travaux évolue avec le marché immobilier
+			baseValue := input.PropertyPrice + workValueThisYear
+			baseValueYear0 := input.PropertyPrice + initialWorkValue
 			propertyValue := baseValue * math.Pow(1+rate, float64(year))
-			netGain := propertyValue - capitalRemaining - totalSpent
+			// Plus-value nette = Appréciation du bien - Coûts irrécupérables
+			appreciation := propertyValue - baseValueYear0
+			netGain := appreciation - irrecoverableCosts
 			scenarios[i] = round2(netGain)
 
 			// Détection du point d'inflexion (rentabilité devient positive)
@@ -197,19 +377,15 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		})
 
 		// Sale Cash projection: cash récupéré à la revente
-		// Coûts irrécupérables = frais fixes + intérêts cumulés + assurance cumulée + taxe foncière + charges copro
-		var cumulInterest, cumulInsurance float64
-		for m := 0; m < year*12; m++ {
-			cumulInterest += amortization[m].Interest
-			cumulInsurance += amortization[m].Insurance
-		}
-		irrecoverableCost := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulCondoFees
+		// Coûts irrécupérables = frais fixes + intérêts cumulés + assurance cumulée + taxe foncière + charges copro + entretien
+		// Note: cumulInterest, cumulInsurance, cumulCondoFees, cumulPropertyTax, cumulMaintenance déjà calculés ci-dessus
+		irrecoverableCost := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
 		grossCash := make([]float64, len(resaleRates))
 		netCash := make([]float64, len(resaleRates))
 		for i, rate := range resaleRates {
-			// Les travaux valorisent le bien selon le coefficient
-			baseValue := input.PropertyPrice + renovationAddedValue
+			// Les travaux valorisent le bien selon leur catégorie et évoluent dans le temps
+			baseValue := input.PropertyPrice + workValueThisYear
 			propertyValue := baseValue * math.Pow(1+rate, float64(year))
 			// Cash brut = Valeur bien - Capital restant dû
 			grossCash[i] = round2(propertyValue - capitalRemaining)
@@ -229,14 +405,18 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			finalCumulInterest = cumulInterest
 			finalCumulInsurance = cumulInsurance
 			finalCumulCondoFees = cumulCondoFees
+			finalCumulPropertyTax = cumulPropertyTax
+			finalCumulMaintenance = cumulMaintenance
 		}
 	}
 
 	// Calcul étendu des points d'inflexion au-delà de la durée du prêt (jusqu'à 50 ans)
 	// Après la fin du prêt : plus de mensualités, mais les charges continuent
-	totalPaymentsAtEnd := float64(0)
+	// Pré-calcul des intérêts/assurance totaux à la fin du prêt
+	var totalInterestAtEnd, totalInsuranceAtEnd float64
 	for m := 0; m < n; m++ {
-		totalPaymentsAtEnd += amortization[m].Payment + amortization[m].Insurance
+		totalInterestAtEnd += amortization[m].Interest
+		totalInsuranceAtEnd += amortization[m].Insurance
 	}
 
 	for i, rate := range resaleRates {
@@ -245,11 +425,16 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			for year := durationYears + 1; year <= 50; year++ {
 				// Après le prêt : capital restant = 0, plus de mensualités
 				cumulCondoFees := input.CondoFees * float64(year*12)
-				totalSpent := downPayment + notaryFees + agencyFees + bankFees + renovationCost + totalPaymentsAtEnd + cumulCondoFees
+				cumulPropertyTax := input.PropertyTax * float64(year)
+				cumulMaintenance := annualMaintenanceCost * float64(year)
+				irrecoverableCosts := notaryFees + agencyFees + bankFees + totalInterestAtEnd + totalInsuranceAtEnd + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
-				baseValue := input.PropertyPrice + renovationAddedValue
+				// Calculate work value at this year
+				workValueExtended := CalculateTotalWorkValueAtYear(effectiveWorkLines, year)
+				baseValue := input.PropertyPrice + workValueExtended
 				propertyValue := baseValue * math.Pow(1+rate, float64(year))
-				netGain := propertyValue - 0 - totalSpent // capitalRemaining = 0 après le prêt
+				appreciation := propertyValue - (input.PropertyPrice + initialWorkValue)
+				netGain := appreciation - irrecoverableCosts
 
 				if prevScenarios[i] < 0 && netGain >= 0 {
 					// Interpolation linéaire
@@ -269,13 +454,15 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 	// Détail des coûts irrécupérables
 	irrecoverableBreakdown := model.IrrecoverableDetail{
-		NotaryFees:     round2(notaryFees),
-		AgencyFees:     round2(agencyFees),
-		BankFees:       round2(bankFees),
-		TotalInterest:  round2(finalCumulInterest),
-		TotalInsurance: round2(finalCumulInsurance),
-		TotalCondoFees: round2(finalCumulCondoFees),
-		Total:          round2(notaryFees + agencyFees + bankFees + finalCumulInterest + finalCumulInsurance + finalCumulCondoFees),
+		NotaryFees:       round2(notaryFees),
+		AgencyFees:       round2(agencyFees),
+		BankFees:         round2(bankFees),
+		TotalInterest:    round2(finalCumulInterest),
+		TotalInsurance:   round2(finalCumulInsurance),
+		TotalCondoFees:   round2(finalCumulCondoFees),
+		TotalPropertyTax: round2(finalCumulPropertyTax),
+		TotalMaintenance: round2(finalCumulMaintenance),
+		Total:            round2(notaryFees + agencyFees + bankFees + finalCumulInterest + finalCumulInsurance + finalCumulCondoFees + finalCumulPropertyTax + finalCumulMaintenance),
 	}
 
 	// Rent vs Buy comparison
@@ -287,6 +474,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	if input.MonthlyRent > 0 {
 		rentIncRate := input.RentIncreaseRate / 100
 		savingsRate := input.SavingsRate / 100
+		inflationRate := input.InflationRate / 100
 		monthlyReturnRate := math.Pow(1+savingsRate, 1.0/12) - 1 // Taux mensuel équivalent
 		rentVsBuyData = make([]model.RentVsBuyYear, 0, durationYears)
 
@@ -346,12 +534,15 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			}
 			cumulPropertyTax := input.PropertyTax * float64(year)
 			cumulCondoFees := input.CondoFees * float64(year*12)
-			irrecoverableCosts := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulPropertyTax + cumulCondoFees
+			cumulMaintenanceRvB := annualMaintenanceCost * float64(year)
+			irrecoverableCosts := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulPropertyTax + cumulCondoFees + cumulMaintenanceRvB
 
 			buyWealth := make([]float64, len(resaleRates))
+			// Calculate work value for rent vs buy comparison
+			workValueRentVsBuy := CalculateTotalWorkValueAtYear(effectiveWorkLines, year)
 			for i, rate := range resaleRates {
-				// Les travaux valorisent le bien selon le coefficient
-				baseValue := input.PropertyPrice + renovationAddedValue
+				// Les travaux valorisent le bien selon leur catégorie et évoluent dans le temps
+				baseValue := input.PropertyPrice + workValueRentVsBuy
 				propertyValue := baseValue * math.Pow(1+rate, float64(year))
 				// Équité = valeur bien - capital restant dû
 				equity := propertyValue - capitalRemaining
@@ -382,15 +573,184 @@ func Calculate(input model.CreditInput) model.CreditResult {
 				prevRentWealth[i] = rentWealth
 			}
 
+			// Calcul de la mensualité en euros constants (pouvoir d'achat année 0)
+			// Formule: RealPayment(year) = NominalPayment / (1 + inflationRate)^year
+			realBuyerPayment := buyerMonthlyCost / math.Pow(1+inflationRate, float64(year))
+
+			// Loyer nominal pour cette année
+			rentThisYear := input.MonthlyRent * math.Pow(1+rentIncRate, float64(year-1))
+
 			rentVsBuyData = append(rentVsBuyData, model.RentVsBuyYear{
-				Year:            year,
-				CumulRent:       round2(cumulRent),
-				InvestmentValue: round2(investmentValue),
-				CashFlowSavings: round2(cashFlowSavings),
-				RentWealth:      round2(rentWealth),
-				BuyWealth:       buyWealth,
-				InflectionYears: inflectionYears,
+				Year:             year,
+				CumulRent:        round2(cumulRent),
+				InvestmentValue:  round2(investmentValue),
+				CashFlowSavings:  round2(cashFlowSavings),
+				RentWealth:       round2(rentWealth),
+				BuyWealth:        buyWealth,
+				InflectionYears:  inflectionYears,
+				NominalBuyerCost: round2(buyerMonthlyCost),
+				RealBuyerPayment: round2(realBuyerPayment),
+				Rent:             round2(rentThisYear),
 			})
+		}
+	}
+
+	// Property sale calculation (vente résidence principale)
+	var propertySale model.PropertySale
+	if input.CurrentSalePrice > 0 {
+		propertySale.SalePrice = input.CurrentSalePrice
+		propertySale.LoanBalance = input.CurrentLoanBalance
+		propertySale.Penalty = input.EarlyRepaymentPenalty
+		propertySale.LoanLines = input.CurrentLoanLines
+		propertySale.NetProceeds = math.Max(0, input.CurrentSalePrice-input.CurrentLoanBalance-input.EarlyRepaymentPenalty)
+
+		// Nouvelle logique équitable :
+		// 1. Chacun récupère d'abord son apport initial
+		// 2. Le bénéfice (ou la perte) est partagé selon le % convenu
+
+		apportE1 := input.CurrentDownPayment1
+		apportE2 := input.VirtualContribution2
+		totalApports := apportE1 + apportE2
+
+		// Calcul du bénéfice (ou perte) = Produit net - Total des apports
+		profit := propertySale.NetProceeds - totalApports
+
+		// Part du bénéfice pour E2 selon le pourcentage convenu
+		var profitShareE2 float64
+		if profit > 0 {
+			// Bénéfice : E2 reçoit son % du profit
+			profitShareE2 = profit * input.VirtualProfitShare2 / 100
+		} else {
+			// Perte : E2 absorbe son % de la perte (réduction de son apport récupéré)
+			profitShareE2 = profit * input.VirtualProfitShare2 / 100
+		}
+
+		// Calcul des montants finaux
+		// E1 récupère : son apport + (profit - part E2)
+		// E2 récupère : son apport + sa part du profit
+		proceeds1 := apportE1 + (profit - profitShareE2)
+		proceeds2 := apportE2 + profitShareE2
+
+		// S'assurer qu'on ne dépasse pas le produit net disponible
+		// et qu'on ne va pas en négatif
+		if proceeds1 < 0 {
+			proceeds2 += proceeds1 // Transférer le déficit
+			proceeds1 = 0
+		}
+		if proceeds2 < 0 {
+			proceeds1 += proceeds2 // Transférer le déficit
+			proceeds2 = 0
+		}
+
+		propertySale.Proceeds1 = round2(proceeds1)
+		propertySale.Proceeds2 = round2(proceeds2)
+	}
+
+	// Calculate current property projection if applicable
+	var currentPropertyProjection []model.CurrentPropertyYearProjection
+	if input.CurrentSalePrice > 0 && len(input.CurrentLoanLines) > 0 {
+		currentPropertyProjection = calculateCurrentPropertyProjection(input, resaleRates)
+	}
+
+	// Ownership shares (quotes-parts) calculation
+	var ownership model.OwnershipShare
+	if input.DownPayment1 > 0 || input.DownPayment2 > 0 || propertySale.NetProceeds > 0 {
+		monthlyTotal := monthlyPayment + monthlyInsurance
+		if input.PaymentSplitMode == "equal" {
+			// 50/50 split
+			ownership.LoanShare1 = capital / 2
+			ownership.LoanShare2 = capital / 2
+			ownership.MonthlyPayment1 = monthlyTotal / 2
+			ownership.MonthlyPayment2 = monthlyTotal / 2
+		} else {
+			// Prorata des revenus (default)
+			totalIncome := input.NetIncome1 + input.NetIncome2
+			if totalIncome > 0 {
+				ratio1 := input.NetIncome1 / totalIncome
+				ownership.LoanShare1 = capital * ratio1
+				ownership.LoanShare2 = capital * (1 - ratio1)
+				ownership.MonthlyPayment1 = monthlyTotal * ratio1
+				ownership.MonthlyPayment2 = monthlyTotal * (1 - ratio1)
+			} else {
+				// No income info: 50/50 fallback
+				ownership.LoanShare1 = capital / 2
+				ownership.LoanShare2 = capital / 2
+				ownership.MonthlyPayment1 = monthlyTotal / 2
+				ownership.MonthlyPayment2 = monthlyTotal / 2
+			}
+		}
+		// Include sale proceeds in contributions
+		ownership.SaleProceeds1 = propertySale.Proceeds1
+		ownership.SaleProceeds2 = propertySale.Proceeds2
+		ownership.Contribution1 = input.DownPayment1 + propertySale.Proceeds1 + ownership.LoanShare1
+		ownership.Contribution2 = input.DownPayment2 + propertySale.Proceeds2 + ownership.LoanShare2
+		totalContribution := ownership.Contribution1 + ownership.Contribution2
+		if totalContribution > 0 {
+			ownership.QuotePart1 = round2(ownership.Contribution1 / totalContribution * 100)
+			ownership.QuotePart2 = round2(ownership.Contribution2 / totalContribution * 100)
+		}
+		ownership.LoanShare1 = round2(ownership.LoanShare1)
+		ownership.LoanShare2 = round2(ownership.LoanShare2)
+		ownership.Contribution1 = round2(ownership.Contribution1)
+		ownership.Contribution2 = round2(ownership.Contribution2)
+		ownership.MonthlyPayment1 = round2(ownership.MonthlyPayment1)
+		ownership.MonthlyPayment2 = round2(ownership.MonthlyPayment2)
+	}
+
+	// Calculate aid eligibility (PTZ, PAL, BRS)
+	aidEligibility := CalculateAidEligibility(input)
+
+	// Loyer équivalent = coûts irrécupérables récurrents / durée
+	// On inclut les coûts récurrents (intérêts, assurance, taxe foncière, charges, entretien)
+	// mais PAS les frais ponctuels (notaire, agence, dossier) car ils ne sont pas mensuels
+	equivalentRent := (totalInterest + totalInsurance +
+		input.PropertyTax*float64(durationYears) +
+		input.CondoFees*float64(n) +
+		annualMaintenanceCost*float64(durationYears)) / float64(n)
+
+	// TRI (Taux de Rendement Interne) calculation per year and scenario
+	// Allows comparing the real estate investment with financial placements
+	irrData := make([]model.IRRProjection, 0, durationYears)
+	irrByScenarioFinal := make([]float64, len(resaleRates))
+
+	// Initial investment (year 0 outflow)
+	// Includes: down payment + notary fees + agency fees + bank fees + guarantee fees + renovation cost
+	initialInvestment := downPayment + notaryFees + agencyFees + bankFees + guaranteeFees + renovationCost
+
+	// Annual cost during loan period (same every year)
+	// Includes: loan payments + insurance + property tax + condo fees + maintenance
+	annualLoanPayment := (monthlyPayment + monthlyInsurance) * 12
+	annualPropertyTax := input.PropertyTax
+	annualCondoFees := input.CondoFees * 12
+	// Note: annualMaintenanceCost already computed above
+
+	for year := 1; year <= durationYears; year++ {
+		irrs := make([]float64, len(resaleRates))
+		for i := range resaleRates {
+			// Build cash flow array
+			cashFlows := make([]float64, year+1)
+			cashFlows[0] = -initialInvestment
+
+			// Annual costs for years 1 to year-1
+			for t := 1; t < year; t++ {
+				cashFlows[t] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost)
+			}
+
+			// Final year: annual cost + sale proceeds (gross cash from saleCashData)
+			saleProceeds := saleCashData[year-1].GrossCash[i]
+			cashFlows[year] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost) + saleProceeds
+
+			irr := calculateIRR(cashFlows)
+			if math.IsNaN(irr) {
+				irrs[i] = -999 // Indicator for non-convergence
+			} else {
+				irrs[i] = round2(irr * 100) // Convert to %
+			}
+		}
+		irrData = append(irrData, model.IRRProjection{Year: year, IRR: irrs})
+
+		if year == durationYears {
+			irrByScenarioFinal = irrs
 		}
 	}
 
@@ -404,6 +764,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		NotaryFees:       round2(notaryFees),
 		AgencyFees:       round2(agencyFees),
 		BankFees:         round2(bankFees),
+		GuaranteeFees:    round2(guaranteeFees),
 		RenovationCost:   round2(renovationCost),
 		TotalProjectCost: round2(totalProjectCost),
 		IncomeMonthly:      round2(incomeMonthly),
@@ -419,9 +780,403 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		IrrecoverableBreakdown: irrecoverableBreakdown,
 		RentVsBuyData:          rentVsBuyData,
 		SaleCashData:     saleCashData,
+		IRRData:          irrData,
+		IRRByScenario:    irrByScenarioFinal,
+		Ownership:                  ownership,
+		PropertySale:               propertySale,
+		CurrentPropertyProjection:  currentPropertyProjection,
+		AidEligibility:             aidEligibility,
+		LoanLineResults:  loanLineResults,
+		EquivalentRent:   round2(equivalentRent),
 	}
 }
 
 func round2(v float64) float64 {
 	return math.Round(v*100) / 100
+}
+
+// npv calculates the Net Present Value at a given rate
+func npv(cashFlows []float64, rate float64) float64 {
+	result := 0.0
+	for t, cf := range cashFlows {
+		result += cf / math.Pow(1+rate, float64(t))
+	}
+	return result
+}
+
+// calculateIRR computes the Internal Rate of Return for a series of cash flows.
+// cashFlows[0] is the initial investment (negative), cashFlows[1..n] are annual flows.
+// Returns IRR as a decimal (0.05 = 5%). Returns NaN if no convergence.
+func calculateIRR(cashFlows []float64) float64 {
+	const maxIterations = 100
+	const tolerance = 1e-7
+
+	// Try Newton-Raphson with multiple initial guesses
+	initialGuesses := []float64{0.1, 0.0, -0.1, 0.2, -0.2, 0.05, -0.05}
+
+	for _, guess := range initialGuesses {
+		r := guess
+		converged := true
+
+		for i := 0; i < maxIterations; i++ {
+			npvVal := 0.0
+			dnpv := 0.0
+			for t, cf := range cashFlows {
+				discount := math.Pow(1+r, float64(t))
+				if discount == 0 {
+					converged = false
+					break
+				}
+				npvVal += cf / discount
+				if t > 0 {
+					dnpv -= float64(t) * cf / (discount * (1 + r))
+				}
+			}
+
+			if !converged {
+				break
+			}
+
+			if math.Abs(npvVal) < tolerance {
+				return r
+			}
+
+			if math.Abs(dnpv) < 1e-10 {
+				converged = false
+				break
+			}
+
+			newR := r - npvVal/dnpv
+
+			// Bounds check - IRR typically between -50% and 100%
+			if newR < -0.5 || newR > 1.0 {
+				converged = false
+				break
+			}
+
+			r = newR
+		}
+
+		if converged {
+			return r
+		}
+	}
+
+	// Fallback to bisection method
+	low := -0.5
+	high := 1.0
+
+	// Find bounds where NPV changes sign
+	npvLow := npv(cashFlows, low)
+	npvHigh := npv(cashFlows, high)
+
+	// If both have same sign, try to find better bounds
+	if npvLow*npvHigh > 0 {
+		// Expand search range
+		for _, testRate := range []float64{-0.9, -0.3, 0.5, 2.0} {
+			testNPV := npv(cashFlows, testRate)
+			if testNPV*npvLow < 0 {
+				high = testRate
+				npvHigh = testNPV
+				break
+			}
+			if testNPV*npvHigh < 0 {
+				low = testRate
+				npvLow = testNPV
+				break
+			}
+		}
+	}
+
+	// If still same sign, no IRR exists in reasonable range
+	if npvLow*npvHigh > 0 {
+		return math.NaN()
+	}
+
+	// Bisection
+	for i := 0; i < maxIterations; i++ {
+		mid := (low + high) / 2
+		npvMid := npv(cashFlows, mid)
+
+		if math.Abs(npvMid) < tolerance {
+			return mid
+		}
+
+		if npvMid*npvLow < 0 {
+			high = mid
+			npvHigh = npvMid
+		} else {
+			low = mid
+			npvLow = npvMid
+		}
+	}
+
+	return (low + high) / 2 // Return best approximation
+}
+
+// PTZ income ceilings by zone and household size (2024 barème)
+// Index: household size - 1 (0 = 1 person, 4 = 5+ persons)
+var ptzIncomeCeilings = map[string][]float64{
+	"A":    {49000, 73500, 88200, 102900, 117600},
+	"Abis": {49000, 73500, 88200, 102900, 117600},
+	"B1":   {34500, 51750, 62100, 72450, 82800},
+	"B2":   {31500, 47250, 56700, 66150, 75600},
+	"C":    {28500, 42750, 51300, 59850, 68400},
+}
+
+// PTZ maximum amount percentages by zone (% of property price, new housing)
+var ptzMaxPercentage = map[string]float64{
+	"A":    0.50,
+	"Abis": 0.50,
+	"B1":   0.40,
+	"B2":   0.20,
+	"C":    0.20,
+}
+
+// PAL (Prêt Action Logement) income ceilings by zone and household size (2024)
+var palIncomeCeilings = map[string][]float64{
+	"A":    {39363, 58831, 77174, 92159, 107049},
+	"Abis": {43475, 64958, 85175, 101693, 118146},
+	"B1":   {39363, 58831, 77174, 92159, 107049},
+	"B2":   {32814, 49042, 64312, 76799, 89208},
+	"C":    {32814, 49042, 64312, 76799, 89208},
+}
+
+// calculateCurrentPropertyProjection computes the E1/E2 split projection for the current property over time.
+func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64) []model.CurrentPropertyYearProjection {
+	// Date actuelle pour calculer les mois écoulés
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	// 1. Calculer la mensualité et durée restante pour chaque ligne de prêt
+	type loanAmort struct {
+		balance         float64
+		monthlyPayment  float64
+		monthlyRate     float64
+		remainingMonths int
+	}
+	loans := make([]loanAmort, len(input.CurrentLoanLines))
+
+	maxMonths := 0
+	totalBalance := 0.0
+	for i, line := range input.CurrentLoanLines {
+		if line.Balance <= 0 {
+			continue
+		}
+		monthlyRate := line.Rate / 100 / 12
+
+		// Calculer les mois restants à partir de la date de début et durée
+		remainingMonths := 15 * 12 // Défaut 15 ans
+		if line.DurationYears > 0 && line.StartYear > 0 {
+			// Mois écoulés depuis le début du prêt
+			startMonths := line.StartYear*12 + line.StartMonth
+			currentMonths := currentYear*12 + currentMonth
+			elapsedMonths := currentMonths - startMonths
+			if elapsedMonths < 0 {
+				elapsedMonths = 0
+			}
+			totalDuration := line.DurationYears * 12
+			remainingMonths = totalDuration - elapsedMonths
+			if remainingMonths < 0 {
+				remainingMonths = 0
+			}
+		}
+
+		if remainingMonths > maxMonths {
+			maxMonths = remainingMonths
+		}
+
+		var monthlyPayment float64
+		if monthlyRate == 0 || remainingMonths == 0 {
+			if remainingMonths > 0 {
+				monthlyPayment = line.Balance / float64(remainingMonths)
+			}
+		} else {
+			monthlyPayment = line.Balance * monthlyRate / (1 - math.Pow(1+monthlyRate, -float64(remainingMonths)))
+		}
+
+		loans[i] = loanAmort{
+			balance:         line.Balance,
+			monthlyPayment:  monthlyPayment,
+			monthlyRate:     monthlyRate,
+			remainingMonths: remainingMonths,
+		}
+		totalBalance += line.Balance
+	}
+
+	// Calculer le nombre d'années à projeter (durée max restante, plafonnée à 25 ans)
+	maxYears := (maxMonths + 11) / 12
+	if maxYears > 25 {
+		maxYears = 25
+	}
+	if maxYears == 0 {
+		return nil // Tous les prêts sont terminés
+	}
+
+	// 3. IRA total
+	totalIRA := input.EarlyRepaymentPenalty
+
+	// 4. Projeter année par année
+	projections := make([]model.CurrentPropertyYearProjection, 0, maxYears)
+
+	for year := 1; year <= maxYears; year++ {
+		// Calculer le CRD après year*12 mois
+		yearBalance := 0.0
+		for i := range loans {
+			if loans[i].balance <= 0 {
+				continue
+			}
+			remaining := loans[i].balance
+			for m := 0; m < year*12 && remaining > 0; m++ {
+				interest := remaining * loans[i].monthlyRate
+				principal := loans[i].monthlyPayment - interest
+				remaining -= principal
+			}
+			if remaining < 0 {
+				remaining = 0
+			}
+			yearBalance += remaining
+		}
+
+		// Valeur du bien et parts par scénario
+		propertyValues := make([]float64, len(rates))
+		proceeds1 := make([]float64, len(rates))
+		proceeds2 := make([]float64, len(rates))
+
+		for i, rate := range rates {
+			propertyValues[i] = input.CurrentSalePrice * math.Pow(1+rate, float64(year))
+
+			// Calcul du partage E1/E2
+			netProceeds := propertyValues[i] - yearBalance - totalIRA
+			if netProceeds < 0 {
+				netProceeds = 0
+			}
+
+			// Calculer les mois écoulés depuis le début du prêt le plus ancien
+			elapsedMonths := year * 12 // Simplification: on utilise l'année de projection
+
+			// Contribution totale E2 = apport initial + mensualités cumulées
+			apportE1 := input.CurrentDownPayment1
+			apportE2 := input.VirtualContribution2 + input.VirtualMonthlyPayment2*float64(elapsedMonths)
+			totalApports := apportE1 + apportE2
+
+			profit := netProceeds - totalApports
+			profitShareE2 := profit * input.VirtualProfitShare2 / 100
+
+			p1 := apportE1 + (profit - profitShareE2)
+			p2 := apportE2 + profitShareE2
+
+			// Éviter les valeurs négatives
+			if p1 < 0 {
+				p2 += p1
+				p1 = 0
+			}
+			if p2 < 0 {
+				p1 += p2
+				p2 = 0
+			}
+
+			proceeds1[i] = round2(p1)
+			proceeds2[i] = round2(p2)
+		}
+
+		projections = append(projections, model.CurrentPropertyYearProjection{
+			Year:          year,
+			PropertyValue: propertyValues,
+			LoanBalance:   round2(yearBalance),
+			Proceeds1:     proceeds1,
+			Proceeds2:     proceeds2,
+		})
+
+		// Arrêter si le prêt est remboursé
+		if yearBalance <= 0 {
+			break
+		}
+	}
+
+	return projections
+}
+
+// CalculateAidEligibility computes eligibility for PTZ, PAL, and BRS.
+func CalculateAidEligibility(input model.CreditInput) model.AidEligibility {
+	result := model.AidEligibility{}
+
+	// Sum RFRs from both borrowers
+	rfrYear1Total := input.RFRYear1_1 + input.RFRYear1_2
+	rfrYear2Total := input.RFRYear2_1 + input.RFRYear2_2
+
+	// Determine reference RFR (use max of N-1 and N-2 totals)
+	referenceRFR := math.Max(rfrYear1Total, rfrYear2Total)
+	result.PTZReferenceRFR = referenceRFR
+
+	// Household size index (capped at 5+ persons)
+	householdIndex := input.HouseholdSize - 1
+	if householdIndex < 0 {
+		householdIndex = 0
+	}
+	if householdIndex > 4 {
+		householdIndex = 4
+	}
+
+	// Get zone-specific ceilings
+	zone := input.PropertyZone
+	if zone == "" {
+		zone = "B1" // Default zone
+	}
+
+	// PTZ eligibility
+	ptzCeilings, ptzOK := ptzIncomeCeilings[zone]
+	if ptzOK && householdIndex < len(ptzCeilings) {
+		result.PTZIncomeCeiling = ptzCeilings[householdIndex]
+		result.PTZEligible = referenceRFR > 0 && referenceRFR <= result.PTZIncomeCeiling
+
+		if result.PTZEligible {
+			// Calculate max PTZ amount
+			maxPercentage := ptzMaxPercentage[zone]
+			// PTZ is capped at a percentage of the property price (including renovation)
+			baseAmount := input.PropertyPrice + input.RenovationCost
+			result.PTZMaxAmount = round2(baseAmount * maxPercentage)
+
+			// Apply PTZ ceiling limits (varies by zone and household size)
+			// Simplified: use a general cap of 150,000€ for zones A/Abis/B1
+			var ptzCap float64
+			switch zone {
+			case "A", "Abis":
+				ptzCap = 150000
+			case "B1":
+				ptzCap = 135000
+			case "B2":
+				ptzCap = 110000
+			case "C":
+				ptzCap = 100000
+			}
+			if result.PTZMaxAmount > ptzCap {
+				result.PTZMaxAmount = ptzCap
+			}
+		}
+	}
+
+	// PAL eligibility
+	palCeilings, palOK := palIncomeCeilings[zone]
+	if palOK && householdIndex < len(palCeilings) {
+		palCeiling := palCeilings[householdIndex]
+		result.PALEligible = referenceRFR > 0 && referenceRFR <= palCeiling
+
+		if result.PALEligible {
+			// PAL max amount is 40,000€ (2024)
+			result.PALMaxAmount = 40000
+		}
+	}
+
+	// BRS eligibility (uses same income ceilings as PAL/social housing)
+	// BRS is typically available in tense zones (A, Abis, B1)
+	if zone == "A" || zone == "Abis" || zone == "B1" {
+		if palOK && householdIndex < len(palCeilings) {
+			brsCeiling := palCeilings[householdIndex]
+			result.BRSEligible = referenceRFR > 0 && referenceRFR <= brsCeiling
+		}
+	}
+
+	return result
 }

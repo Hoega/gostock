@@ -49,3 +49,33 @@ Templates use `html/template` with custom functions:
 - French localization throughout (month names, labels, formatting)
 - Calculator package is pure functions with no side effects
 - All monetary calculations round to 2 decimal places
+
+### Features
+
+#### Multi-loan Support
+The simulator supports multiple loan lines (prêt principal, PTZ, PAL, etc.):
+- Each loan line has its own amount, rate, duration, and insurance rate
+- Monthly payments and costs are calculated separately then summed
+- Results display a detailed breakdown by loan line
+
+#### Aid Eligibility (PTZ/PAL/BRS)
+Calculates eligibility for French housing assistance programs:
+- **PTZ** (Prêt à Taux Zéro): Income ceilings by zone (A/Abis/B1/B2/C) and household size
+- **PAL** (Prêt Action Logement): 40,000€ max at 1% rate
+- **BRS** (Bail Réel Solidaire): Available in tense zones (A/Abis/B1)
+
+RFR (Revenu Fiscal de Référence) inputs:
+- Separate RFR N-1 and N-2 for each borrower
+- Automatically summed for joint declarations
+- Reference RFR = max(N-1 total, N-2 total)
+
+#### Fees Structure
+- **Notary fees**: Percentage of property price (default ~7.5% for old properties)
+- **Agency fees**: Percentage or fixed amount
+- **Bank fees**: Flat processing fee
+- **Guarantee fees**: Hypothèque, caution (Crédit Logement), or PPD
+
+#### Data Persistence
+Form inputs are persisted to SQLite (`~/.local/share/gostock/gostock.db`):
+- Auto-migration for new columns
+- Single-row storage with upsert pattern
