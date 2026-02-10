@@ -88,7 +88,8 @@ type CreditResult struct {
 	LoanLineResults       []NewLoanLineResult // Détail des résultats par ligne de crédit
 	EquivalentRent        float64             // Loyer équivalent mensuel (coûts irrécupérables récurrents / mois)
 	MonthlySchedule       []MonthlySchedule   // Planning mensuel lissé avec répartition par prêt
-	CurrentLoanSchedule   []MonthlySchedule   // Planning mensuel des prêts en cours (bien actuel)
+	CurrentLoanSchedule    []MonthlySchedule        // Planning mensuel des prêts en cours (bien actuel)
+	CurrentBorrowerPayments []CurrentBorrowerPayment // Versements cumulés par emprunteur (bien actuel)
 }
 
 // AidEligibility holds the eligibility results for housing assistance programs.
@@ -143,6 +144,13 @@ type CurrentPropertyMonthProjection struct {
 type IRRProjection struct {
 	Year int
 	IRR  []float64 // TRI pour chaque scénario (-1%, 0%, +1%)
+}
+
+// CurrentBorrowerPayment holds cumulative payments per borrower at each month for current property.
+type CurrentBorrowerPayment struct {
+	Month         int     `json:"month"`
+	CumulPayment1 float64 `json:"cumulPayment1"` // Versements cumulés E1 (mensualités prêt)
+	CumulPayment2 float64 `json:"cumulPayment2"` // Versements cumulés E2 (contributions virtuelles)
 }
 
 // IrrecoverableDetail holds the breakdown of irrecoverable costs.

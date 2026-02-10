@@ -82,20 +82,8 @@
 
     if (!currentLoanSchedule || currentLoanSchedule.length === 0) return;
 
-    // Calculer la durée maximale parmi toutes les lignes de prêt
-    let maxDurationMonths = currentLoanSchedule.length;
-    let maxFromLoans = 0;
-    if (currentLoanLines && currentLoanLines.length > 0) {
-        currentLoanLines.forEach(loan => {
-            const durationMonths = ((loan.durationYears || 0) * 12) + (loan.deferralMonths || 0);
-            if (durationMonths > maxFromLoans) {
-                maxFromLoans = durationMonths;
-            }
-        });
-    }
-    if (maxFromLoans > maxDurationMonths) {
-        maxDurationMonths = maxFromLoans;
-    }
+    // La durée maximale est calculée côté backend en tenant compte des décalages entre prêts
+    const maxDurationMonths = currentLoanSchedule.length;
 
     // Info de durée sera affichée après calcul de chartStartYear/chartStartMonth
 
@@ -130,17 +118,46 @@
         }
     });
 
-    // Trouver la date de début : utiliser la date globale ou celle du premier prêt
+    // Utiliser la date globale de début des crédits en cours
     let chartStartYear = globalStartYear || new Date().getFullYear();
     let chartStartMonth = (globalStartMonth || 1) - 1; // Convertir en 0-indexed
-    // Surcharger avec la date du prêt si renseignée
-    for (const loan of currentLoanLines) {
-        if (loan.startYear && loan.startYear > 0) {
-            chartStartYear = loan.startYear;
-            chartStartMonth = (loan.startMonth || 1) - 1;
-            break;
+
+    // Calculer le mois courant (index 0-based par rapport au début du prêt)
+    const now = new Date();
+    const currentMonthIndex = (now.getFullYear() - chartStartYear) * 12 + now.getMonth() - chartStartMonth;
+
+    // Plugin pour dessiner la ligne "Aujourd'hui"
+    const currentMonthPlugin = {
+        id: 'currentMonthLine',
+        afterDraw: function(chart) {
+            if (currentMonthIndex < 0 || currentMonthIndex >= maxDurationMonths) return;
+
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            const xPos = xAxis.getPixelForValue(currentMonthIndex);
+
+            ctx.save();
+
+            // Ligne verticale
+            ctx.beginPath();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // red-500
+            ctx.lineWidth = 2;
+            ctx.moveTo(xPos, yAxis.top);
+            ctx.lineTo(xPos, yAxis.bottom);
+            ctx.stroke();
+
+            // Label "Aujourd'hui"
+            ctx.setLineDash([]);
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillText("Aujourd'hui", xPos, yAxis.top - 5);
+
+            ctx.restore();
         }
-    }
+    };
 
     // Afficher info de durée et debug
     const durationInfo = document.getElementById('current-chart-duration-info');
@@ -199,6 +216,7 @@
             labels: labels,
             datasets: datasets
         },
+        plugins: [currentMonthPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,

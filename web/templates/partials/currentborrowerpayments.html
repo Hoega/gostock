@@ -1,0 +1,407 @@
+{{define "currentborrowerpayments.html"}}
+{{if gt (len .Result.CurrentLoanSchedule) 0}}
+{{if gt (len .Result.CurrentBorrowerPayments) 0}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">
+        Versements cumul&eacute;s par emprunteur - Bien actuel
+    </h2>
+
+    <div class="flex items-start gap-2 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <svg class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-blue-800">Suivi des versements</strong> :
+            Ce graphique montre le cumul des versements effectu&eacute;s par chaque emprunteur sur le bien actuel au fil du temps.
+        </div>
+    </div>
+
+    <!-- Hypothèses utilisées -->
+    <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="text-sm font-medium text-gray-700 mb-2">Hypoth&egrave;ses de calcul</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+                <span class="text-gray-500">Apport E1 :</span>
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.CurrentDownPayment1}}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Contribution E2 :</span>
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.VirtualContribution2}}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Mensualit&eacute; E2 :</span>
+                {{if gt (len .Input.VirtualPaymentTiers2) 0}}
+                <span class="font-semibold text-gray-800">paliers</span>
+                {{else}}
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.VirtualMonthlyPayment2}}</span>
+                {{end}}
+            </div>
+            <div>
+                <span class="text-gray-500">D&eacute;but pr&ecirc;t :</span>
+                <span class="font-semibold text-gray-800">{{.Input.CurrentLoanStartMonth}}/{{.Input.CurrentLoanStartYear}}</span>
+            </div>
+        </div>
+        {{if gt (len .Input.VirtualPaymentTiers2) 0}}
+        <div class="mt-3 pt-3 border-t border-gray-200">
+            <div class="text-sm font-medium text-amber-700 mb-2">Paliers de remboursement E2</div>
+            <div class="flex flex-wrap gap-2 text-xs">
+                {{range $i, $tier := .Input.VirtualPaymentTiers2}}
+                <div class="px-2 py-1 bg-amber-50 border border-amber-200 rounded">
+                    <span class="text-amber-600">Mois {{$tier.StartMonth}}-{{$tier.EndMonth}} :</span>
+                    <span class="font-semibold text-amber-800">{{formatMoney $tier.MonthlyPayment}}/mois</span>
+                </div>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Bar chart évolution (pleine largeur) -->
+    <div style="position: relative; height: 400px;">
+        <canvas id="currentBorrowerPaymentsChart"></canvas>
+    </div>
+
+    <!-- Donut répartition finale (centré) -->
+    {{$lastIdx := subInt (len .Result.CurrentBorrowerPayments) 1}}
+    {{$lastPayment := index .Result.CurrentBorrowerPayments $lastIdx}}
+    <div class="mt-6">
+        <h3 class="text-lg font-semibold text-gray-700 text-center mb-4">R&eacute;partition finale des versements</h3>
+        <div class="flex justify-center">
+            <div style="width: 300px; height: 300px;">
+                <canvas id="currentBorrowerPaymentsDonut"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Légende avec totaux -->
+    <div class="mt-4 flex flex-wrap justify-center gap-6 text-sm">
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded" style="background: rgba(99, 102, 241, 0.7);"></span>
+            <span>Emprunteur 1 : <strong>{{formatMoney $lastPayment.CumulPayment1}}</strong></span>
+        </div>
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded" style="background: rgba(16, 185, 129, 0.7);"></span>
+            <span>Emprunteur 2 : <strong>{{formatMoney $lastPayment.CumulPayment2}}</strong></span>
+        </div>
+        {{if gt (len .Input.VirtualPaymentTiers2) 0}}
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-1 rounded" style="background: rgba(245, 158, 11, 0.8); border: 1px dashed rgba(245, 158, 11, 1);"></span>
+            <span>Changement de palier E2</span>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Explications méthodologiques -->
+    <details class="mt-6 bg-gray-50 rounded-lg border border-gray-200">
+        <summary class="p-4 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-gray-600 space-y-4">
+            <div>
+                <strong class="text-gray-800">Objectif</strong>
+                <p class="mt-1">
+                    Ce graphique permet de visualiser l'&eacute;volution des versements cumul&eacute;s par chaque emprunteur
+                    sur le bien actuel. Cela permet de suivre la contribution de chacun au fil du temps.
+                </p>
+            </div>
+            <div>
+                <strong class="text-gray-800">Emprunteur 1 (E1)</strong>
+                <ul class="mt-1 list-disc list-inside space-y-1 ml-2">
+                    <li>Apport initial : <strong>{{formatMoney .Input.CurrentDownPayment1}}</strong></li>
+                    <li>+ Cumul des mensualit&eacute;s officielles pay&eacute;es sur le(s) pr&ecirc;t(s)</li>
+                    <li>Inclut : capital + int&eacute;r&ecirc;ts + assurance + int&eacute;r&ecirc;ts intercalaires (diff&eacute;r&eacute;)</li>
+                </ul>
+            </div>
+            <div>
+                <strong class="text-gray-800">Emprunteur 2 (E2)</strong>
+                <ul class="mt-1 list-disc list-inside space-y-1 ml-2">
+                    <li>Contribution initiale virtuelle (apport non officiel)</li>
+                    <li>+ Participation mensuelle virtuelle cumul&eacute;e</li>
+                    {{if gt (len .Input.VirtualPaymentTiers2) 0}}
+                    <li>Les paliers de paiement d&eacute;finis sont pris en compte</li>
+                    {{end}}
+                </ul>
+            </div>
+            <div>
+                <strong class="text-gray-800">Note importante</strong>
+                <p class="mt-1">
+                    Les versements de E2 sont "virtuels" car ils ne figurent pas sur le contrat de pr&ecirc;t.
+                    Ce suivi permet n&eacute;anmoins de calculer &eacute;quitablement la part de chacun en cas de revente.
+                </p>
+            </div>
+        </div>
+    </details>
+</div>
+
+<script>
+(function() {
+    const paymentsData = {{toJSON .Result.CurrentBorrowerPayments}};
+    const e2Tiers = {{toJSON .Input.VirtualPaymentTiers2}};
+    const startYear = {{.Input.CurrentLoanStartYear}};
+    const startMonth = {{.Input.CurrentLoanStartMonth}}; // 1-12
+
+    // Noms des mois en français
+    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+    // Calculer la date calendaire pour un décalage de mois donné
+    function getDateForMonth(monthOffset) {
+        const target = new Date(startYear, startMonth - 1 + monthOffset, 1);
+        return monthNames[target.getMonth()] + ' ' + target.getFullYear();
+    }
+
+    const labels = paymentsData.map(d => d.month);
+
+    // Calculer le mois courant (index 0-based par rapport au début du prêt)
+    const now = new Date();
+    const currentMonthIndex = (now.getFullYear() - startYear) * 12 + now.getMonth() - (startMonth - 1);
+    const maxMonths = paymentsData.length;
+
+    // Plugin pour dessiner la ligne "Aujourd'hui"
+    const currentMonthPlugin = {
+        id: 'currentMonthLine',
+        afterDraw: function(chart) {
+            if (currentMonthIndex < 0 || currentMonthIndex >= maxMonths) return;
+
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            // Pour un bar chart, on doit trouver l'index correspondant au mois courant
+            const dataIndex = paymentsData.findIndex(d => d.month === currentMonthIndex + 1);
+            if (dataIndex < 0) return;
+
+            const xPos = xAxis.getPixelForValue(dataIndex);
+
+            ctx.save();
+
+            // Ligne verticale
+            ctx.beginPath();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // red-500
+            ctx.lineWidth = 2;
+            ctx.moveTo(xPos, yAxis.top);
+            ctx.lineTo(xPos, yAxis.bottom);
+            ctx.stroke();
+
+            // Label "Aujourd'hui"
+            ctx.setLineDash([]);
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillText("Aujourd'hui", xPos, yAxis.top - 5);
+
+            ctx.restore();
+        }
+    };
+
+    // Plugin pour dessiner les lignes verticales des paliers E2
+    const tierLinesPlugin = {
+        id: 'tierLines',
+        afterDraw: function(chart) {
+            if (!e2Tiers || e2Tiers.length === 0) return;
+
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+
+            ctx.save();
+
+            // Dessiner une ligne verticale au début de chaque palier (sauf le premier)
+            e2Tiers.forEach((tier, index) => {
+                if (index === 0) return; // Pas de ligne pour le premier palier
+
+                const tierStartMonth = tier.startMonth;
+                // Trouver l'index correspondant dans les données
+                const dataIndex = paymentsData.findIndex(d => d.month === tierStartMonth);
+                if (dataIndex < 0) return;
+
+                // Position X au milieu de la barre précédente et actuelle
+                const xPos = xAxis.getPixelForValue(dataIndex) - (xAxis.getPixelForValue(1) - xAxis.getPixelForValue(0)) / 2;
+
+                // Ligne verticale pointillée
+                ctx.beginPath();
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)'; // Amber
+                ctx.lineWidth = 2;
+                ctx.moveTo(xPos, yAxis.top);
+                ctx.lineTo(xPos, yAxis.bottom);
+                ctx.stroke();
+
+                // Label du palier
+                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(245, 158, 11, 1)';
+                ctx.font = 'bold 11px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                const labelText = tier.monthlyPayment.toLocaleString('fr-FR') + ' €/mois';
+
+                // Background pour le label
+                const textMetrics = ctx.measureText(labelText);
+                const padding = 4;
+                const labelY = yAxis.top + 5;
+                ctx.fillStyle = 'rgba(255, 251, 235, 0.9)';
+                ctx.fillRect(
+                    xPos - textMetrics.width / 2 - padding,
+                    labelY - padding,
+                    textMetrics.width + padding * 2,
+                    14 + padding * 2
+                );
+                ctx.strokeStyle = 'rgba(245, 158, 11, 0.8)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(
+                    xPos - textMetrics.width / 2 - padding,
+                    labelY - padding,
+                    textMetrics.width + padding * 2,
+                    14 + padding * 2
+                );
+
+                // Texte du label
+                ctx.fillStyle = 'rgba(180, 83, 9, 1)';
+                ctx.fillText(labelText, xPos, labelY);
+            });
+
+            ctx.restore();
+        }
+    };
+
+    // ===== Stacked Bar Chart (évolution temporelle) =====
+    const ctxBar = document.getElementById('currentBorrowerPaymentsChart').getContext('2d');
+
+    new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Emprunteur 1 (apport + mensualités)',
+                    data: paymentsData.map(d => d.cumulPayment1),
+                    backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                    borderColor: 'rgb(99, 102, 241)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Emprunteur 2 (contributions virtuelles)',
+                    data: paymentsData.map(d => d.cumulPayment2),
+                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    mode: 'index',
+                    callbacks: {
+                        title: items => {
+                            const month = paymentsData[items[0].dataIndex].month;
+                            return 'Mois ' + month + ' - ' + getDateForMonth(month);
+                        },
+                        label: ctx => {
+                            const value = ctx.parsed.y;
+                            const total = ctx.chart.data.datasets.reduce((s, ds) => s + ds.data[ctx.dataIndex], 0);
+                            const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return ctx.dataset.label + ' : ' + value.toLocaleString('fr-FR') + ' \u20ac (' + pct + '%)';
+                        },
+                        footer: items => {
+                            const total = items.reduce((s, i) => s + i.parsed.y, 0);
+                            return 'Total versé : ' + total.toLocaleString('fr-FR') + ' \u20ac';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Mois'
+                    }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: { callback: v => v.toLocaleString('fr-FR') + ' \u20ac' },
+                    title: {
+                        display: true,
+                        text: 'Versements cumulés (\u20ac)'
+                    }
+                }
+            }
+        },
+        plugins: [tierLinesPlugin, currentMonthPlugin]
+    });
+
+    // ===== Donut Chart (répartition finale) =====
+    const lastData = paymentsData[paymentsData.length - 1];
+    const finalE1 = lastData.cumulPayment1;
+    const finalE2 = lastData.cumulPayment2;
+    const totalVerse = finalE1 + finalE2;
+
+    // Plugin pour afficher le total au centre du donut
+    const centerTextPlugin = {
+        id: 'centerText',
+        afterDraw: function(chart) {
+            if (chart.config.type !== 'doughnut') return;
+            const ctx = chart.ctx;
+            const width = chart.width;
+            const height = chart.height;
+            ctx.restore();
+            ctx.font = 'bold 16px sans-serif';
+            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#374151';
+            const text = totalVerse.toLocaleString('fr-FR') + ' \u20ac';
+            ctx.fillText('Total versé', width / 2, height / 2 - 12);
+            ctx.fillText(text, width / 2, height / 2 + 12);
+            ctx.save();
+        }
+    };
+
+    const ctxDonut = document.getElementById('currentBorrowerPaymentsDonut').getContext('2d');
+
+    new Chart(ctxDonut, {
+        type: 'doughnut',
+        data: {
+            labels: ['Emprunteur 1', 'Emprunteur 2'],
+            datasets: [{
+                data: [finalE1, finalE2],
+                backgroundColor: [
+                    'rgba(99, 102, 241, 0.7)',
+                    'rgba(16, 185, 129, 0.7)'
+                ],
+                borderColor: [
+                    'rgb(99, 102, 241)',
+                    'rgb(16, 185, 129)'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            const value = ctx.parsed;
+                            const pct = totalVerse > 0 ? ((value / totalVerse) * 100).toFixed(1) : 0;
+                            return ctx.label + ' : ' + value.toLocaleString('fr-FR') + ' \u20ac (' + pct + '%)';
+                        }
+                    }
+                }
+            }
+        },
+        plugins: [centerTextPlugin]
+    });
+})();
+</script>
+{{end}}
+{{end}}
+{{end}}

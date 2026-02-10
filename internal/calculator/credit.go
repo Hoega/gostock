@@ -199,8 +199,9 @@ func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths
 				principal = 0
 			} else {
 				interest = s.balance * s.monthlyRate
-				// Get payment from tier
-				tierPayment = getPaymentForMonth(s.tiers, month)
+				// Get payment from tier - offset by deferral months
+				amortizationMonth := month - s.deferralMonths
+				tierPayment = getPaymentForMonth(s.tiers, amortizationMonth)
 				// Payment covers: principal + interest (insurance is separate)
 				principal = tierPayment - interest
 				if principal < 0 {
@@ -874,9 +875,45 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	// Calculate current property projection if applicable
 	var currentPropertyProjection []model.CurrentPropertyMonthProjection
 	var currentLoanSchedule []model.MonthlySchedule
+	var currentBorrowerPayments []model.CurrentBorrowerPayment
 	if input.CurrentSalePrice > 0 && len(input.CurrentLoanLines) > 0 {
 		currentPropertyProjection = calculateCurrentPropertyProjection(input, resaleRates)
 		currentLoanSchedule = calculateCurrentLoanSchedule(input.CurrentLoanLines)
+
+		// Calculate cumulative payments per borrower for current property
+		// Only if E2 has contributions (virtual contribution or monthly payments)
+		if input.VirtualContribution2 > 0 || input.VirtualMonthlyPayment2 > 0 || len(input.VirtualPaymentTiers2) > 0 {
+			// Determine max months: max of loan schedule and E2 payment tiers
+			maxMonths := len(currentLoanSchedule)
+			for _, tier := range input.VirtualPaymentTiers2 {
+				if tier.EndMonth > maxMonths {
+					maxMonths = tier.EndMonth
+				}
+			}
+
+			currentBorrowerPayments = make([]model.CurrentBorrowerPayment, maxMonths)
+			// E1 starts with initial down payment, then adds monthly loan payments
+			// BUT we subtract E2's monthly reimbursements (E2 pays E1 to cover part of the loan)
+			cumulLoanPayments := 0.0
+			cumulE2MonthlyReimbursements := 0.0
+			for month := 1; month <= maxMonths; month++ {
+				// Add E1 loan payment if within loan schedule
+				if month <= len(currentLoanSchedule) {
+					cumulLoanPayments += currentLoanSchedule[month-1].TotalAmount
+				}
+				// E2's monthly reimbursements to E1 (excluding initial contribution)
+				cumulE2MonthlyReimbursements = calculateE2AccumulatedContribution(0, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, month)
+				// E1 NET = down payment + loan payments - what E2 reimburses monthly
+				cumulPaymentE1 := input.CurrentDownPayment1 + cumulLoanPayments - cumulE2MonthlyReimbursements
+				// E2 NET = initial contribution + monthly reimbursements
+				cumulPaymentE2 := input.VirtualContribution2 + cumulE2MonthlyReimbursements
+				currentBorrowerPayments[month-1] = model.CurrentBorrowerPayment{
+					Month:         month,
+					CumulPayment1: round2(cumulPaymentE1),
+					CumulPayment2: round2(cumulPaymentE2),
+				}
+			}
+		}
 	}
 
 	// Ownership shares (quotes-parts) calculation
@@ -1020,10 +1057,11 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		PropertySale:               propertySale,
 		CurrentPropertyProjection:  currentPropertyProjection,
 		AidEligibility:             aidEligibility,
-		LoanLineResults:       loanLineResults,
-		EquivalentRent:        round2(equivalentRent),
-		MonthlySchedule:       monthlySchedule,
-		CurrentLoanSchedule:   currentLoanSchedule,
+		LoanLineResults:         loanLineResults,
+		EquivalentRent:          round2(equivalentRent),
+		MonthlySchedule:         monthlySchedule,
+		CurrentLoanSchedule:     currentLoanSchedule,
+		CurrentBorrowerPayments: currentBorrowerPayments,
 	}
 }
 
@@ -1298,16 +1336,23 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 			}
 
 			// Contribution totale E2 = apport initial + mensualités cumulées (avec paliers si définis)
+			// E2's monthly payments reimburse E1, so we need to calculate E1's NET contribution
+			e2MonthlyReimbursements := calculateE2AccumulatedContribution(0, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, month)
 			principalRepaid := totalBalance - monthBalance
-			apportE1 := input.CurrentDownPayment1 + principalRepaid
-			apportE2 := calculateE2AccumulatedContribution(input.VirtualContribution2, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, month)
+			// E1 NET = down payment + principal repaid - what E2 reimbursed monthly
+			apportE1 := input.CurrentDownPayment1 + principalRepaid - e2MonthlyReimbursements
+			// E2 = initial contribution + monthly reimbursements
+			apportE2 := input.VirtualContribution2 + e2MonthlyReimbursements
 			totalApports := apportE1 + apportE2
 
-			profit := netProceeds - totalApports
-			profitShareE2 := profit * input.VirtualProfitShare2 / 100
+			// E2's share is proportional to their actual contribution
+			var shareE2 float64
+			if totalApports > 0 {
+				shareE2 = apportE2 / totalApports
+			}
 
-			p1 := apportE1 + (profit - profitShareE2)
-			p2 := apportE2 + profitShareE2
+			p1 := netProceeds * (1 - shareE2)
+			p2 := netProceeds * shareE2
 
 			// Éviter les valeurs négatives
 			if p1 < 0 {
@@ -1369,9 +1414,11 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 		}
 
 		// Also check max endMonth from tiers
+		// Tiers represent post-deferral amortization months, so add deferralMonths
 		for _, tier := range line.Tiers {
-			if tier.EndMonth > totalMonths {
-				totalMonths = tier.EndMonth
+			tierTotal := tier.EndMonth + line.DeferralMonths
+			if tierTotal > totalMonths {
+				totalMonths = tierTotal
 			}
 		}
 
@@ -1423,8 +1470,9 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 			if month <= s.deferralMonths && s.balance > 0 {
 				tierPayment = s.balance * s.deferralRate
 			} else {
-				// Get payment from tier
-				tierPayment = getPaymentForMonth(s.tiers, month)
+				// Get payment from tier - offset by deferral months
+				amortizationMonth := month - s.deferralMonths
+				tierPayment = getPaymentForMonth(s.tiers, amortizationMonth)
 			}
 
 			payments[i] = model.LoanMonthPayment{

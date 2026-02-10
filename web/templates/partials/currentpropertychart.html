@@ -16,23 +16,56 @@
         </div>
     </div>
 
-    <!-- Sélecteur de scénario -->
-    <div class="mb-4 flex items-center gap-4">
-        <label class="text-sm font-medium text-gray-700">Sc&eacute;nario de valorisation :</label>
-        <select id="currentPropScenario" onchange="updateCurrentPropChart()"
-                class="rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-            <option value="1" selected>0% / an (stable)</option>
-            <option value="0">-1% / an (baisse)</option>
-            <option value="2">+1% / an (hausse)</option>
-        </select>
+    <!-- Hypothèses utilisées -->
+    <div class="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <div class="text-sm font-medium text-gray-700 mb-2">Hypoth&egrave;ses de calcul</div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+                <span class="text-gray-500">Prix de vente :</span>
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.CurrentSalePrice}}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">CRD initial :</span>
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.CurrentLoanBalance}}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">Apport E1 :</span>
+                <span class="font-semibold text-gray-800">{{formatMoney .Input.CurrentDownPayment1}}</span>
+            </div>
+            <div>
+                <span class="text-gray-500">D&eacute;but pr&ecirc;t :</span>
+                <span class="font-semibold text-gray-800">{{.Input.CurrentLoanStartMonth}}/{{.Input.CurrentLoanStartYear}}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contrôles : scénario + slider prix -->
+    <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="flex items-center gap-4">
+            <label class="text-sm font-medium text-gray-700">Sc&eacute;nario :</label>
+            <select id="currentPropScenario" onchange="updateCurrentPropChart()"
+                    class="rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="1" selected>0% / an (stable)</option>
+                <option value="0">-1% / an (baisse)</option>
+                <option value="2">+1% / an (hausse)</option>
+            </select>
+        </div>
+        <div class="flex items-center gap-3">
+            <label class="text-sm font-medium text-gray-700 whitespace-nowrap">Prix de vente :</label>
+            <input type="range" id="currentPropPriceSlider"
+                   min="0.7" max="1.3" step="0.01" value="1"
+                   onchange="updateCurrentPropChart()" oninput="updatePriceLabel()"
+                   class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            <span id="currentPropPriceLabel" class="text-sm font-semibold text-gray-800 min-w-[100px] text-right">{{formatMoney .Input.CurrentSalePrice}}</span>
+        </div>
     </div>
 
     <div style="position: relative; height: 400px;">
         <canvas id="currentPropChart"></canvas>
     </div>
 
-    <!-- Légende -->
-    <div class="mt-4 flex gap-6 text-sm">
+    <!-- Légende emprunteurs -->
+    <div class="mt-4 flex flex-wrap gap-6 text-sm">
         <div class="flex items-center gap-2">
             <span class="w-4 h-4 rounded" style="background: rgba(99, 102, 241, 0.7);"></span>
             <span>Emprunteur 1</span>
@@ -42,6 +75,23 @@
             <span>Emprunteur 2</span>
         </div>
     </div>
+
+    <!-- Légende paliers E2 -->
+    {{if gt (len .Input.VirtualPaymentTiers2) 0}}
+    <div class="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+        <div class="text-sm font-medium text-emerald-800 mb-2">Paliers de contribution E2</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 text-sm" id="tiersLegend">
+            {{range .Input.VirtualPaymentTiers2}}
+            <div class="flex items-center gap-2 text-emerald-700">
+                <span class="font-mono text-xs bg-emerald-100 px-1.5 py-0.5 rounded">{{formatMoney .MonthlyPayment}}/mois</span>
+                <span class="text-emerald-600" data-start="{{.StartMonth}}" data-end="{{.EndMonth}}">
+                    Mois {{.StartMonth}}-{{.EndMonth}}
+                </span>
+            </div>
+            {{end}}
+        </div>
+    </div>
+    {{end}}
 
     <!-- Explications méthodologiques -->
     <details class="mt-6 bg-gray-50 rounded-lg border border-gray-200">
@@ -83,39 +133,117 @@
     const projData = {{toJSON .Result.CurrentPropertyProjection}};
     const startYear = {{.Input.CurrentLoanStartYear}};
     const startMonth = {{.Input.CurrentLoanStartMonth}}; // 1-12
+    const baseSalePrice = {{.Input.CurrentSalePrice}};
     let chart = null;
 
     // Noms des mois en français
     const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
                         'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+    const shortMonthNames = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin',
+                             'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
-    // Calculer la date calendaire pour un décalage de mois donné depuis la date de début du crédit
+    // Calculer la date calendaire pour un décalage de mois donné
     function getDateForMonth(monthOffset) {
-        // startMonth est 1-12, JavaScript attend 0-11
         const target = new Date(startYear, startMonth - 1 + monthOffset, 1);
         return monthNames[target.getMonth()] + ' ' + target.getFullYear();
     }
 
+    function getShortDateForMonth(monthOffset) {
+        const target = new Date(startYear, startMonth - 1 + monthOffset, 1);
+        return shortMonthNames[target.getMonth()] + ' ' + target.getFullYear();
+    }
+
+    // Calculer le mois courant (index 0-based par rapport au début du prêt)
+    const now = new Date();
+    const currentMonthIndex = (now.getFullYear() - startYear) * 12 + now.getMonth() - (startMonth - 1);
+    const maxMonths = projData.length;
+
+    // Plugin pour dessiner la ligne "Aujourd'hui"
+    const currentMonthPlugin = {
+        id: 'currentMonthLine',
+        afterDraw: function(chart) {
+            if (currentMonthIndex < 0 || currentMonthIndex >= maxMonths) return;
+
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            // Pour un bar chart, on doit trouver l'index correspondant au mois courant
+            const dataIndex = projData.findIndex(d => d.Month === currentMonthIndex + 1);
+            if (dataIndex < 0) return;
+
+            const xPos = xAxis.getPixelForValue(dataIndex);
+
+            ctx.save();
+
+            // Ligne verticale
+            ctx.beginPath();
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)'; // red-500
+            ctx.lineWidth = 2;
+            ctx.moveTo(xPos, yAxis.top);
+            ctx.lineTo(xPos, yAxis.bottom);
+            ctx.stroke();
+
+            // Label "Aujourd'hui"
+            ctx.setLineDash([]);
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillText("Aujourd'hui", xPos, yAxis.top - 5);
+
+            ctx.restore();
+        }
+    };
+
+    // Mettre à jour le label du slider
+    window.updatePriceLabel = function() {
+        const slider = document.getElementById('currentPropPriceSlider');
+        const ratio = parseFloat(slider.value);
+        const newPrice = Math.round(baseSalePrice * ratio);
+        const pct = Math.round((ratio - 1) * 100);
+        const sign = pct >= 0 ? '+' : '';
+        document.getElementById('currentPropPriceLabel').textContent =
+            newPrice.toLocaleString('fr-FR') + ' \u20ac (' + sign + pct + '%)';
+    };
+
     window.updateCurrentPropChart = function() {
         const idx = parseInt(document.getElementById('currentPropScenario').value);
+        const priceRatio = parseFloat(document.getElementById('currentPropPriceSlider').value);
         const labels = projData.map(d => d.Month);
+
+        // Ajuster les données avec le ratio de prix
+        // La valeur récupérable change proportionnellement au prix de vente
+        const adjustedData1 = projData.map(d => {
+            const originalTotal = d.Proceeds1[idx] + d.Proceeds2[idx];
+            const priceDelta = baseSalePrice * (priceRatio - 1);
+            // La part E1/E2 reste proportionnelle, mais le total augmente/diminue
+            const newTotal = originalTotal + priceDelta;
+            if (originalTotal <= 0) return d.Proceeds1[idx];
+            return Math.max(0, d.Proceeds1[idx] / originalTotal * newTotal);
+        });
+
+        const adjustedData2 = projData.map(d => {
+            const originalTotal = d.Proceeds1[idx] + d.Proceeds2[idx];
+            const priceDelta = baseSalePrice * (priceRatio - 1);
+            const newTotal = originalTotal + priceDelta;
+            if (originalTotal <= 0) return d.Proceeds2[idx];
+            return Math.max(0, d.Proceeds2[idx] / originalTotal * newTotal);
+        });
 
         const datasets = [
             {
                 label: 'Emprunteur 1',
-                data: projData.map(d => d.Proceeds1[idx]),
+                data: adjustedData1,
                 backgroundColor: 'rgba(99, 102, 241, 0.7)',
                 borderColor: 'rgb(99, 102, 241)',
-                borderWidth: 1,
-                fill: true
+                borderWidth: 1
             },
             {
                 label: 'Emprunteur 2',
-                data: projData.map(d => d.Proceeds2[idx]),
+                data: adjustedData2,
                 backgroundColor: 'rgba(16, 185, 129, 0.7)',
                 borderColor: 'rgb(16, 185, 129)',
-                borderWidth: 1,
-                fill: '-1'
+                borderWidth: 1
             }
         ];
 
@@ -123,8 +251,9 @@
 
         const ctx = document.getElementById('currentPropChart').getContext('2d');
         chart = new Chart(ctx, {
-            type: 'line',
+            type: 'bar',
             data: { labels, datasets },
+            plugins: [currentMonthPlugin],
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -136,11 +265,15 @@
                                 const month = projData[items[0].dataIndex].Month;
                                 return 'Mois ' + month + ' - ' + getDateForMonth(month);
                             },
-                            label: ctx => ctx.dataset.label + ' : ' +
-                                ctx.parsed.y.toLocaleString('fr-FR') + ' \u20ac',
+                            label: ctx => {
+                                const value = ctx.parsed.y;
+                                const total = ctx.chart.data.datasets.reduce((s, ds) => s + ds.data[ctx.dataIndex], 0);
+                                const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                return ctx.dataset.label + ' : ' + Math.round(value).toLocaleString('fr-FR') + ' \u20ac (' + pct + '%)';
+                            },
                             footer: items => {
                                 const total = items.reduce((s, i) => s + i.parsed.y, 0);
-                                return 'Total : ' + total.toLocaleString('fr-FR') + ' \u20ac';
+                                return 'Total : ' + Math.round(total).toLocaleString('fr-FR') + ' \u20ac';
                             }
                         }
                     }
@@ -160,9 +293,24 @@
                 }
             }
         });
+
+        updatePriceLabel();
     };
 
+    // Mettre à jour les dates des paliers dans la légende
+    function updateTiersLegendDates() {
+        const tiersLegend = document.getElementById('tiersLegend');
+        if (!tiersLegend) return;
+
+        tiersLegend.querySelectorAll('[data-start]').forEach(el => {
+            const startM = parseInt(el.dataset.start);
+            const endM = parseInt(el.dataset.end);
+            el.textContent = getShortDateForMonth(startM) + ' → ' + getShortDateForMonth(endM);
+        });
+    }
+
     updateCurrentPropChart();
+    updateTiersLegendDates();
 })();
 </script>
 {{end}}
