@@ -13,6 +13,7 @@ type FormInputs struct {
 	AgencyFixed             float64 `db:"agency_fixed"`
 	BankFees                float64 `db:"bank_fees"`
 	GuaranteeFees           float64 `db:"guarantee_fees"`
+	BrokerFees              float64 `db:"broker_fees"`
 	StartYear               int     `db:"start_year"`
 	StartMonth              int     `db:"start_month"`
 	NetIncome1              float64 `db:"net_income_1"`
@@ -32,8 +33,10 @@ type FormInputs struct {
 	CurrentSalePrice        float64 `db:"current_sale_price"`
 	CurrentLoanBalance      float64 `db:"current_loan_balance"`
 	CurrentLoanRate         float64 `db:"current_loan_rate"`
-	CurrentLoanLines        string  `db:"current_loan_lines"`
-	CurrentOriginalLoan     float64 `db:"current_original_loan"`
+	CurrentLoanLines      string  `db:"current_loan_lines"`
+	CurrentLoanStartYear  int     `db:"current_loan_start_year"`
+	CurrentLoanStartMonth int     `db:"current_loan_start_month"`
+	CurrentOriginalLoan   float64 `db:"current_original_loan"`
 	CurrentDownPayment1     float64 `db:"current_down_payment_1"`
 	CurrentRenovationCost   float64 `db:"current_renovation_cost"`
 	CurrentRenovationShare2 float64 `db:"current_renovation_share_2"`
@@ -42,6 +45,7 @@ type FormInputs struct {
 	VirtualContribution2    float64 `db:"virtual_contribution_2"`
 	VirtualProfitShare2     float64 `db:"virtual_profit_share_2"`
 	VirtualMonthlyPayment2  float64 `db:"virtual_monthly_payment_2"`
+	VirtualPaymentTiers2    string  `db:"virtual_payment_tiers_2"`
 	RFRYear2_1              float64 `db:"rfr_year_2_1"`
 	RFRYear1_1              float64 `db:"rfr_year_1_1"`
 	RFRYear2_2              float64 `db:"rfr_year_2_2"`
@@ -83,8 +87,10 @@ func DefaultInputs() *FormInputs {
 		MaintenanceRate:     1.00,
 		RenovationValueRate: 70.00,
 		PaymentSplitMode:    "prorata",
-		SalePropertyShare1:  50.00,
-		HouseholdSize:       1,
-		PropertyZone:        "B1",
+		SalePropertyShare1:     50.00,
+		CurrentLoanStartYear:   2020,
+		CurrentLoanStartMonth:  1,
+		HouseholdSize:          1,
+		PropertyZone:           "B1",
 	}
 }

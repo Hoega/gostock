@@ -76,29 +76,203 @@ func ConvertLegacyToWorkLines(renovationCost, renovationValueRate float64) []mod
 	}
 }
 
-// calculateLoanLine computes the monthly payment and totals for a single loan line.
-func calculateLoanLine(amount float64, rate float64, durationMonths int, insuranceRate float64) (monthlyPayment, monthlyInsurance, totalInterest, totalInsurance float64) {
-	monthlyRate := rate / 100 / 12
-	n := durationMonths
+// tierLoanState tracks the amortization state for a single loan with payment tiers.
+type tierLoanState struct {
+	label            string
+	amount           float64
+	rate             float64
+	monthlyRate      float64
+	durationMonths   int
+	insuranceRate    float64
+	balance          float64
+	monthlyInsurance float64
+	deferralMonths   int     // Nombre de mois de différé (paiement intérêts seuls)
+	deferralRate     float64 // Taux mensuel pour les intérêts intercalaires
+	tiers            []model.PaymentTier
+}
 
-	if monthlyRate == 0 {
-		monthlyPayment = amount / float64(n)
-	} else {
-		monthlyPayment = amount * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-n)))
+// getPaymentForMonth returns the monthly payment for a given month based on tiers.
+// Returns 0 if no tier covers the month.
+func getPaymentForMonth(tiers []model.PaymentTier, month int) float64 {
+	for _, tier := range tiers {
+		if month >= tier.StartMonth && month <= tier.EndMonth {
+			return tier.MonthlyPayment
+		}
+	}
+	return 0
+}
+
+// calculateE2AccumulatedContribution calculates the total contribution of Borrower 2 up to a given month.
+// If tiers is empty, uses flatMonthlyPayment * month for backward compatibility.
+// Otherwise, sums the payments from each tier month by month.
+func calculateE2AccumulatedContribution(initialContribution, flatMonthlyPayment float64, tiers []model.PaymentTier, month int) float64 {
+	if len(tiers) == 0 {
+		// Backward compatibility: use flat monthly payment
+		return initialContribution + flatMonthlyPayment*float64(month)
 	}
 
-	monthlyInsurance = insuranceRate / 100 / 12 * amount
+	// Sum payments from tiers month by month
+	var totalPayments float64
+	for m := 1; m <= month; m++ {
+		totalPayments += getPaymentForMonth(tiers, m)
+	}
+	return initialContribution + totalPayments
+}
 
-	// Calculate total interest
+// calculateTierBasedSchedule computes the month-by-month payment schedule using manual tiers.
+// Each loan line has user-defined payment tiers specifying the payment for each period.
+func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths int) []model.MonthlySchedule {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// Initialize loan states
+	states := make([]*tierLoanState, 0, len(lines))
+	var maxDuration int
+
+	for _, line := range lines {
+		if line.Amount <= 0 {
+			continue
+		}
+		durationMonths := line.DurationYears*12 + line.DeferralMonths
+		if durationMonths <= 0 {
+			durationMonths = defaultDurationMonths
+		}
+		if durationMonths > maxDuration {
+			maxDuration = durationMonths
+		}
+
+		monthlyRate := line.Rate / 100 / 12
+		monthlyInsurance := line.InsuranceRate / 100 / 12 * line.Amount
+
+		// Taux d'intérêts intercalaires : utiliser DeferralRate si défini, sinon Rate
+		deferralRate := line.DeferralRate
+		if deferralRate == 0 {
+			deferralRate = line.Rate
+		}
+		monthlyDeferralRate := deferralRate / 100 / 12
+
+		state := &tierLoanState{
+			label:            line.Label,
+			amount:           line.Amount,
+			rate:             line.Rate,
+			monthlyRate:      monthlyRate,
+			durationMonths:   durationMonths,
+			insuranceRate:    line.InsuranceRate,
+			balance:          line.Amount,
+			monthlyInsurance: monthlyInsurance,
+			deferralMonths:   line.DeferralMonths,
+			deferralRate:     monthlyDeferralRate,
+			tiers:            line.Tiers,
+		}
+		states = append(states, state)
+	}
+
+	if len(states) == 0 {
+		return nil
+	}
+
+	schedule := make([]model.MonthlySchedule, 0, maxDuration)
+
+	for month := 1; month <= maxDuration; month++ {
+		payments := make([]model.LoanMonthPayment, 0, len(states))
+		var monthTotal float64
+
+		for _, s := range states {
+			if month > s.durationMonths || s.balance <= 0 {
+				payments = append(payments, model.LoanMonthPayment{
+					Label: s.label,
+				})
+				continue
+			}
+
+			insurance := s.monthlyInsurance
+
+			var principal float64
+			var tierPayment float64
+			var interest float64
+
+			// Pendant le différé : paiement des intérêts intercalaires seuls (pas de capital)
+			if month <= s.deferralMonths {
+				interest = s.balance * s.deferralRate
+				tierPayment = interest
+				principal = 0
+			} else {
+				interest = s.balance * s.monthlyRate
+				// Get payment from tier
+				tierPayment = getPaymentForMonth(s.tiers, month)
+				// Payment covers: principal + interest (insurance is separate)
+				principal = tierPayment - interest
+				if principal < 0 {
+					principal = 0
+				}
+				if principal > s.balance {
+					principal = s.balance
+				}
+			}
+
+			total := tierPayment + insurance
+			s.balance -= principal
+			if s.balance < 0.01 {
+				s.balance = 0
+			}
+
+			payments = append(payments, model.LoanMonthPayment{
+				Label:     s.label,
+				Principal: round2(principal),
+				Interest:  round2(interest),
+				Insurance: round2(insurance),
+				Total:     round2(total),
+			})
+			monthTotal += total
+		}
+
+		schedule = append(schedule, model.MonthlySchedule{
+			Month:       month,
+			Payments:    payments,
+			TotalAmount: round2(monthTotal),
+		})
+	}
+
+	return schedule
+}
+
+// calculateLoanLineTotals computes totals for a loan line based on its tiers.
+func calculateLoanLineTotals(amount float64, rate float64, durationMonths int, insuranceRate float64, deferralMonths int, deferralRate float64, tiers []model.PaymentTier) (totalInterest, totalInsurance float64) {
+	monthlyRate := rate / 100 / 12
+	monthlyInsurance := insuranceRate / 100 / 12 * amount
+
+	// Taux d'intérêts intercalaires : utiliser deferralRate si défini, sinon rate
+	if deferralRate == 0 {
+		deferralRate = rate
+	}
+	monthlyDeferralRate := deferralRate / 100 / 12
+
 	remaining := amount
-	for m := 1; m <= n; m++ {
-		interest := remaining * monthlyRate
-		principal := monthlyPayment - interest
+	for m := 1; m <= durationMonths && remaining > 0; m++ {
+		var interest float64
+		var principal float64
+
+		// Pendant le différé : intérêts intercalaires, pas de remboursement du capital
+		if m <= deferralMonths {
+			interest = remaining * monthlyDeferralRate
+			principal = 0
+		} else {
+			interest = remaining * monthlyRate
+			payment := getPaymentForMonth(tiers, m)
+			principal = payment - interest
+			if principal < 0 {
+				principal = 0
+			}
+			if principal > remaining {
+				principal = remaining
+			}
+		}
 		remaining -= principal
 		totalInterest += interest
 	}
 
-	totalInsurance = monthlyInsurance * float64(n)
+	totalInsurance = monthlyInsurance * float64(durationMonths)
 	return
 }
 
@@ -111,32 +285,51 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 	// Check if we have multiple loan lines
 	if len(input.NewLoanLines) > 0 {
-		// Calculate each loan line separately
+		// Calculate each loan line separately using tier-based approach
 		for _, line := range input.NewLoanLines {
 			if line.Amount <= 0 {
 				continue
 			}
-			durationMonths := line.DurationYears * 12
+			durationMonths := line.DurationYears*12 + line.DeferralMonths
 			if durationMonths <= 0 {
 				durationMonths = input.DurationMonths
 			}
 
-			mp, mi, ti, tis := calculateLoanLine(line.Amount, line.Rate, durationMonths, line.InsuranceRate)
+			// Calculate totals based on tiers
+			ti, tis := calculateLoanLineTotals(line.Amount, line.Rate, durationMonths, line.InsuranceRate, line.DeferralMonths, line.DeferralRate, line.Tiers)
+
+			// Calculate average monthly payment from tiers for display
+			var totalPayments float64
+			var activeMonths int
+			for _, tier := range line.Tiers {
+				months := tier.EndMonth - tier.StartMonth + 1
+				if months > 0 {
+					totalPayments += tier.MonthlyPayment * float64(months)
+					activeMonths += months
+				}
+			}
+			var avgMonthlyPayment float64
+			if activeMonths > 0 {
+				avgMonthlyPayment = totalPayments / float64(activeMonths)
+			}
+
+			mi := line.InsuranceRate / 100 / 12 * line.Amount
 
 			loanLineResults = append(loanLineResults, model.NewLoanLineResult{
 				Label:            line.Label,
 				Amount:           line.Amount,
 				Rate:             line.Rate,
 				DurationYears:    line.DurationYears,
+				DeferralMonths:   line.DeferralMonths,
 				InsuranceRate:    line.InsuranceRate,
-				MonthlyPayment:   round2(mp),
+				MonthlyPayment:   round2(avgMonthlyPayment),
 				MonthlyInsurance: round2(mi),
-				MonthlyTotal:     round2(mp + mi),
+				MonthlyTotal:     round2(avgMonthlyPayment + mi),
 				TotalInterest:    round2(ti),
 				TotalInsurance:   round2(tis),
 			})
 
-			monthlyPayment += mp
+			monthlyPayment += avgMonthlyPayment
 			monthlyInsurance += mi
 			totalInterest += ti
 			totalInsurance += tis
@@ -149,11 +342,26 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		}
 	} else {
 		// Use single loan parameters (backward compatibility)
+		// No tiers = assume constant payment
 		capital = input.LoanAmount
 		n = input.DurationMonths
-		monthlyPayment, monthlyInsurance, totalInterest, totalInsurance = calculateLoanLine(
-			capital, input.InterestRate, n, input.InsuranceRate,
-		)
+		monthlyRate := input.InterestRate / 100 / 12
+		if monthlyRate == 0 {
+			monthlyPayment = capital / float64(n)
+		} else {
+			monthlyPayment = capital * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-n)))
+		}
+		monthlyInsurance = input.InsuranceRate / 100 / 12 * capital
+
+		// Calculate total interest
+		remaining := capital
+		for m := 1; m <= n; m++ {
+			interest := remaining * monthlyRate
+			principal := monthlyPayment - interest
+			remaining -= principal
+			totalInterest += interest
+		}
+		totalInsurance = monthlyInsurance * float64(n)
 	}
 
 	// Ensure we have a duration
@@ -236,8 +444,9 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	totalLoanCost := totalInterest + totalInsurance
 	bankFees := input.BankFees
 	guaranteeFees := input.GuaranteeFees
+	brokerFees := input.BrokerFees
 	renovationCost := input.RenovationCost
-	totalProjectCost := input.PropertyPrice + notaryFees + agencyFees + bankFees + guaranteeFees + renovationCost + totalInterest + totalInsurance
+	totalProjectCost := input.PropertyPrice + notaryFees + agencyFees + bankFees + guaranteeFees + brokerFees + renovationCost + totalInterest + totalInsurance
 
 	// Income comparison
 	incomeMonthly := input.NetIncome1 + input.NetIncome2
@@ -339,7 +548,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 		// Coûts irrécupérables = frais fixes + intérêts + assurance + charges + taxe foncière + entretien
 		// Le capital remboursé n'est PAS un coût irrécupérable (c'est une épargne forcée)
-		irrecoverableCosts := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
+		irrecoverableCosts := notaryFees + agencyFees + bankFees + brokerFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
 		scenarios := make([]float64, len(resaleRates))
 		// Calculate work value at this year (evolves over time based on category rates)
@@ -379,7 +588,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		// Sale Cash projection: cash récupéré à la revente
 		// Coûts irrécupérables = frais fixes + intérêts cumulés + assurance cumulée + taxe foncière + charges copro + entretien
 		// Note: cumulInterest, cumulInsurance, cumulCondoFees, cumulPropertyTax, cumulMaintenance déjà calculés ci-dessus
-		irrecoverableCost := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
+		irrecoverableCost := notaryFees + agencyFees + bankFees + brokerFees + cumulInterest + cumulInsurance + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
 		grossCash := make([]float64, len(resaleRates))
 		netCash := make([]float64, len(resaleRates))
@@ -427,7 +636,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 				cumulCondoFees := input.CondoFees * float64(year*12)
 				cumulPropertyTax := input.PropertyTax * float64(year)
 				cumulMaintenance := annualMaintenanceCost * float64(year)
-				irrecoverableCosts := notaryFees + agencyFees + bankFees + totalInterestAtEnd + totalInsuranceAtEnd + cumulCondoFees + cumulPropertyTax + cumulMaintenance
+				irrecoverableCosts := notaryFees + agencyFees + bankFees + brokerFees + totalInterestAtEnd + totalInsuranceAtEnd + cumulCondoFees + cumulPropertyTax + cumulMaintenance
 
 				// Calculate work value at this year
 				workValueExtended := CalculateTotalWorkValueAtYear(effectiveWorkLines, year)
@@ -457,12 +666,13 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		NotaryFees:       round2(notaryFees),
 		AgencyFees:       round2(agencyFees),
 		BankFees:         round2(bankFees),
+		BrokerFees:       round2(brokerFees),
 		TotalInterest:    round2(finalCumulInterest),
 		TotalInsurance:   round2(finalCumulInsurance),
 		TotalCondoFees:   round2(finalCumulCondoFees),
 		TotalPropertyTax: round2(finalCumulPropertyTax),
 		TotalMaintenance: round2(finalCumulMaintenance),
-		Total:            round2(notaryFees + agencyFees + bankFees + finalCumulInterest + finalCumulInsurance + finalCumulCondoFees + finalCumulPropertyTax + finalCumulMaintenance),
+		Total:            round2(notaryFees + agencyFees + bankFees + brokerFees + finalCumulInterest + finalCumulInsurance + finalCumulCondoFees + finalCumulPropertyTax + finalCumulMaintenance),
 	}
 
 	// Rent vs Buy comparison
@@ -535,7 +745,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			cumulPropertyTax := input.PropertyTax * float64(year)
 			cumulCondoFees := input.CondoFees * float64(year*12)
 			cumulMaintenanceRvB := annualMaintenanceCost * float64(year)
-			irrecoverableCosts := notaryFees + agencyFees + bankFees + cumulInterest + cumulInsurance + cumulPropertyTax + cumulCondoFees + cumulMaintenanceRvB
+			irrecoverableCosts := notaryFees + agencyFees + bankFees + brokerFees + cumulInterest + cumulInsurance + cumulPropertyTax + cumulCondoFees + cumulMaintenanceRvB
 
 			buyWealth := make([]float64, len(resaleRates))
 			// Calculate work value for rent vs buy comparison
@@ -608,8 +818,23 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		// 1. Chacun récupère d'abord son apport initial
 		// 2. Le bénéfice (ou la perte) est partagé selon le % convenu
 
+		// Calcul des mois écoulés depuis le début du prêt pour E2
+		now := time.Now()
+		currentYear := now.Year()
+		currentMonth := int(now.Month())
+		loanStartYear := input.CurrentLoanStartYear
+		loanStartMonth := input.CurrentLoanStartMonth
+		if loanStartYear == 0 {
+			loanStartYear = currentYear
+			loanStartMonth = currentMonth
+		}
+		monthsElapsed := (currentYear-loanStartYear)*12 + (currentMonth - loanStartMonth)
+		if monthsElapsed < 0 {
+			monthsElapsed = 0
+		}
+
 		apportE1 := input.CurrentDownPayment1
-		apportE2 := input.VirtualContribution2
+		apportE2 := calculateE2AccumulatedContribution(input.VirtualContribution2, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, monthsElapsed)
 		totalApports := apportE1 + apportE2
 
 		// Calcul du bénéfice (ou perte) = Produit net - Total des apports
@@ -647,9 +872,11 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	}
 
 	// Calculate current property projection if applicable
-	var currentPropertyProjection []model.CurrentPropertyYearProjection
+	var currentPropertyProjection []model.CurrentPropertyMonthProjection
+	var currentLoanSchedule []model.MonthlySchedule
 	if input.CurrentSalePrice > 0 && len(input.CurrentLoanLines) > 0 {
 		currentPropertyProjection = calculateCurrentPropertyProjection(input, resaleRates)
+		currentLoanSchedule = calculateCurrentLoanSchedule(input.CurrentLoanLines)
 	}
 
 	// Ownership shares (quotes-parts) calculation
@@ -715,7 +942,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 	// Initial investment (year 0 outflow)
 	// Includes: down payment + notary fees + agency fees + bank fees + guarantee fees + renovation cost
-	initialInvestment := downPayment + notaryFees + agencyFees + bankFees + guaranteeFees + renovationCost
+	initialInvestment := downPayment + notaryFees + agencyFees + bankFees + guaranteeFees + brokerFees + renovationCost
 
 	// Annual cost during loan period (same every year)
 	// Includes: loan payments + insurance + property tax + condo fees + maintenance
@@ -754,6 +981,12 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		}
 	}
 
+	// Calculate tier-based monthly schedule if multiple loan lines
+	var monthlySchedule []model.MonthlySchedule
+	if len(input.NewLoanLines) > 0 {
+		monthlySchedule = calculateTierBasedSchedule(input.NewLoanLines, input.DurationMonths)
+	}
+
 	return model.CreditResult{
 		MonthlyPayment:   round2(monthlyPayment),
 		MonthlyInsurance: round2(monthlyInsurance),
@@ -765,6 +998,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		AgencyFees:       round2(agencyFees),
 		BankFees:         round2(bankFees),
 		GuaranteeFees:    round2(guaranteeFees),
+		BrokerFees:       round2(brokerFees),
 		RenovationCost:   round2(renovationCost),
 		TotalProjectCost: round2(totalProjectCost),
 		IncomeMonthly:      round2(incomeMonthly),
@@ -786,8 +1020,10 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		PropertySale:               propertySale,
 		CurrentPropertyProjection:  currentPropertyProjection,
 		AidEligibility:             aidEligibility,
-		LoanLineResults:  loanLineResults,
-		EquivalentRent:   round2(equivalentRent),
+		LoanLineResults:       loanLineResults,
+		EquivalentRent:        round2(equivalentRent),
+		MonthlySchedule:       monthlySchedule,
+		CurrentLoanSchedule:   currentLoanSchedule,
 	}
 }
 
@@ -943,7 +1179,7 @@ var palIncomeCeilings = map[string][]float64{
 }
 
 // calculateCurrentPropertyProjection computes the E1/E2 split projection for the current property over time.
-func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64) []model.CurrentPropertyYearProjection {
+func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64) []model.CurrentPropertyMonthProjection {
 	// Date actuelle pour calculer les mois écoulés
 	now := time.Now()
 	currentYear := now.Year()
@@ -967,19 +1203,24 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 		monthlyRate := line.Rate / 100 / 12
 
 		// Calculer les mois restants à partir de la date de début et durée
-		remainingMonths := 15 * 12 // Défaut 15 ans
-		if line.DurationYears > 0 && line.StartYear > 0 {
-			// Mois écoulés depuis le début du prêt
-			startMonths := line.StartYear*12 + line.StartMonth
-			currentMonths := currentYear*12 + currentMonth
-			elapsedMonths := currentMonths - startMonths
-			if elapsedMonths < 0 {
-				elapsedMonths = 0
-			}
+		remainingMonths := 20 * 12 // Défaut 20 ans
+		if line.DurationYears > 0 {
 			totalDuration := line.DurationYears * 12
-			remainingMonths = totalDuration - elapsedMonths
-			if remainingMonths < 0 {
-				remainingMonths = 0
+			if line.StartYear > 0 {
+				// Mois écoulés depuis le début du prêt
+				startMonths := line.StartYear*12 + line.StartMonth
+				currentMonths := currentYear*12 + currentMonth
+				elapsedMonths := currentMonths - startMonths
+				if elapsedMonths < 0 {
+					elapsedMonths = 0
+				}
+				remainingMonths = totalDuration - elapsedMonths
+				if remainingMonths < 0 {
+					remainingMonths = 0
+				}
+			} else {
+				// Pas de date de début, utiliser la durée totale
+				remainingMonths = totalDuration
 			}
 		}
 
@@ -1005,38 +1246,40 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 		totalBalance += line.Balance
 	}
 
-	// Calculer le nombre d'années à projeter (durée max restante, plafonnée à 25 ans)
-	maxYears := (maxMonths + 11) / 12
-	if maxYears > 25 {
-		maxYears = 25
+	// Calculer le nombre de mois à projeter (durée max restante, plafonnée à 25 ans)
+	if maxMonths > 25*12 {
+		maxMonths = 25 * 12
 	}
-	if maxYears == 0 {
+	if maxMonths == 0 {
 		return nil // Tous les prêts sont terminés
 	}
 
 	// 3. IRA total
 	totalIRA := input.EarlyRepaymentPenalty
 
-	// 4. Projeter année par année
-	projections := make([]model.CurrentPropertyYearProjection, 0, maxYears)
+	// 4. Projeter mois par mois
+	projections := make([]model.CurrentPropertyMonthProjection, 0, maxMonths)
 
-	for year := 1; year <= maxYears; year++ {
-		// Calculer le CRD après year*12 mois
-		yearBalance := 0.0
+	// Garder le solde courant pour chaque prêt (calcul incrémental)
+	currentBalances := make([]float64, len(loans))
+	for i := range loans {
+		currentBalances[i] = loans[i].balance
+	}
+
+	for month := 1; month <= maxMonths; month++ {
+		// Calculer le CRD après ce mois (incrémental)
+		monthBalance := 0.0
 		for i := range loans {
-			if loans[i].balance <= 0 {
+			if currentBalances[i] <= 0 {
 				continue
 			}
-			remaining := loans[i].balance
-			for m := 0; m < year*12 && remaining > 0; m++ {
-				interest := remaining * loans[i].monthlyRate
-				principal := loans[i].monthlyPayment - interest
-				remaining -= principal
+			interest := currentBalances[i] * loans[i].monthlyRate
+			principal := loans[i].monthlyPayment - interest
+			currentBalances[i] -= principal
+			if currentBalances[i] < 0 {
+				currentBalances[i] = 0
 			}
-			if remaining < 0 {
-				remaining = 0
-			}
-			yearBalance += remaining
+			monthBalance += currentBalances[i]
 		}
 
 		// Valeur du bien et parts par scénario
@@ -1045,20 +1288,19 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 		proceeds2 := make([]float64, len(rates))
 
 		for i, rate := range rates {
-			propertyValues[i] = input.CurrentSalePrice * math.Pow(1+rate, float64(year))
+			// Valorisation du bien avec taux annuel converti en mois
+			propertyValues[i] = input.CurrentSalePrice * math.Pow(1+rate, float64(month)/12.0)
 
 			// Calcul du partage E1/E2
-			netProceeds := propertyValues[i] - yearBalance - totalIRA
+			netProceeds := propertyValues[i] - monthBalance - totalIRA
 			if netProceeds < 0 {
 				netProceeds = 0
 			}
 
-			// Calculer les mois écoulés depuis le début du prêt le plus ancien
-			elapsedMonths := year * 12 // Simplification: on utilise l'année de projection
-
-			// Contribution totale E2 = apport initial + mensualités cumulées
-			apportE1 := input.CurrentDownPayment1
-			apportE2 := input.VirtualContribution2 + input.VirtualMonthlyPayment2*float64(elapsedMonths)
+			// Contribution totale E2 = apport initial + mensualités cumulées (avec paliers si définis)
+			principalRepaid := totalBalance - monthBalance
+			apportE1 := input.CurrentDownPayment1 + principalRepaid
+			apportE2 := calculateE2AccumulatedContribution(input.VirtualContribution2, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, month)
 			totalApports := apportE1 + apportE2
 
 			profit := netProceeds - totalApports
@@ -1081,21 +1323,125 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 			proceeds2[i] = round2(p2)
 		}
 
-		projections = append(projections, model.CurrentPropertyYearProjection{
-			Year:          year,
+		projections = append(projections, model.CurrentPropertyMonthProjection{
+			Month:         month,
 			PropertyValue: propertyValues,
-			LoanBalance:   round2(yearBalance),
+			LoanBalance:   round2(monthBalance),
 			Proceeds1:     proceeds1,
 			Proceeds2:     proceeds2,
 		})
 
 		// Arrêter si le prêt est remboursé
-		if yearBalance <= 0 {
+		if monthBalance <= 0 {
 			break
 		}
 	}
 
 	return projections
+}
+
+// calculateCurrentLoanSchedule computes the month-by-month payment schedule for existing loans.
+// Uses manual tiers defined by the user for each loan line, with deferral support.
+func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedule {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	// currentLoanState tracks display info for a single existing loan
+	type currentLoanState struct {
+		label          string
+		totalMonths    int
+		deferralMonths int
+		balance        float64
+		deferralRate   float64 // Taux mensuel pour intérêts intercalaires
+		tiers          []model.PaymentTier
+	}
+
+	// Create a state for EVERY line to keep alignment with input array
+	states := make([]*currentLoanState, len(lines))
+	var maxTotalMonths int
+
+	for i, line := range lines {
+		// Determine total months from durationYears + deferralMonths or max tier endMonth
+		totalMonths := 0
+		if line.DurationYears > 0 {
+			totalMonths = line.DurationYears*12 + line.DeferralMonths
+		}
+
+		// Also check max endMonth from tiers
+		for _, tier := range line.Tiers {
+			if tier.EndMonth > totalMonths {
+				totalMonths = tier.EndMonth
+			}
+		}
+
+		// Default if nothing set
+		if totalMonths == 0 {
+			totalMonths = 20 * 12
+		}
+
+		if totalMonths > maxTotalMonths {
+			maxTotalMonths = totalMonths
+		}
+
+		// Taux d'intérêts intercalaires
+		deferralRate := line.DeferralRate
+		if deferralRate == 0 {
+			deferralRate = line.Rate
+		}
+
+		states[i] = &currentLoanState{
+			label:          line.Label,
+			totalMonths:    totalMonths,
+			deferralMonths: line.DeferralMonths,
+			balance:        line.OriginalAmount,
+			deferralRate:   deferralRate / 100 / 12,
+			tiers:          line.Tiers,
+		}
+	}
+
+	if maxTotalMonths == 0 {
+		return nil
+	}
+
+	schedule := make([]model.MonthlySchedule, 0, maxTotalMonths)
+
+	for month := 1; month <= maxTotalMonths; month++ {
+		payments := make([]model.LoanMonthPayment, len(states))
+		var monthTotal float64
+
+		for i, s := range states {
+			payments[i] = model.LoanMonthPayment{Label: s.label}
+
+			if month > s.totalMonths {
+				continue
+			}
+
+			var tierPayment float64
+
+			// Pendant le différé : intérêts intercalaires seulement
+			if month <= s.deferralMonths && s.balance > 0 {
+				tierPayment = s.balance * s.deferralRate
+			} else {
+				// Get payment from tier
+				tierPayment = getPaymentForMonth(s.tiers, month)
+			}
+
+			payments[i] = model.LoanMonthPayment{
+				Label: s.label,
+				Total: round2(tierPayment),
+			}
+			monthTotal += tierPayment
+		}
+
+		schedule = append(schedule, model.MonthlySchedule{
+			Month:       month,
+			Payments:    payments,
+			TotalAmount: round2(monthTotal),
+		})
+	}
+
+	return schedule
 }
 
 // CalculateAidEligibility computes eligibility for PTZ, PAL, and BRS.

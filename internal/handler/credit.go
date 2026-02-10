@@ -57,6 +57,9 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	currentRenovationCost := parseFloat(r.FormValue("current_renovation_cost"), 0)
 	currentRenovationShare2 := parseFloat(r.FormValue("current_renovation_share_2"), 0)
 
+	currentLoanStartYear := parseInt(r.FormValue("current_loan_start_year"), 2020)
+	currentLoanStartMonth := parseInt(r.FormValue("current_loan_start_month"), 1)
+
 	// Parse loan lines JSON
 	var loanLines []model.LoanLine
 	if currentLoanLinesJSON != "" && currentLoanLinesJSON != "[]" {
@@ -83,6 +86,14 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	virtualContribution2 := parseFloat(r.FormValue("virtual_contribution_2"), 0)
 	virtualProfitShare2 := parseFloat(r.FormValue("virtual_profit_share_2"), 0)
 	virtualMonthlyPayment2 := parseFloat(r.FormValue("virtual_monthly_payment_2"), 0)
+	virtualPaymentTiers2JSON := r.FormValue("virtual_payment_tiers_2")
+	var virtualPaymentTiers2 []model.PaymentTier
+	if virtualPaymentTiers2JSON != "" && virtualPaymentTiers2JSON != "[]" {
+		if err := json.Unmarshal([]byte(virtualPaymentTiers2JSON), &virtualPaymentTiers2); err != nil {
+			log.Printf("Failed to parse virtual payment tiers 2 JSON: %v", err)
+			virtualPaymentTiers2 = []model.PaymentTier{}
+		}
+	}
 
 	// Calculate sale proceeds
 	saleProceeds := currentSalePrice - currentLoanBalance - earlyRepaymentPenalty
@@ -108,6 +119,7 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	agencyFixed := parseFloat(r.FormValue("agency_fixed"), 0)
 	bankFees := parseFloat(r.FormValue("bank_fees"), 0)
 	guaranteeFees := parseFloat(r.FormValue("guarantee_fees"), 0)
+	brokerFees := parseFloat(r.FormValue("broker_fees"), 0)
 	startYear := parseInt(r.FormValue("start_year"), 0)
 	startMonth := parseInt(r.FormValue("start_month"), 0)
 	netIncome1 := parseFloat(r.FormValue("net_income_1"), 0)
@@ -163,6 +175,7 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		AgencyFixed:           agencyFixed,
 		BankFees:              bankFees,
 		GuaranteeFees:         guaranteeFees,
+		BrokerFees:            brokerFees,
 		StartYear:             startYear,
 		StartMonth:            startMonth,
 		NetIncome1:            netIncome1,
@@ -179,9 +192,11 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		DownPayment1:          downPayment1,
 		DownPayment2:          downPayment2,
 		PaymentSplitMode:      paymentSplitMode,
-		CurrentSalePrice:      currentSalePrice,
-		CurrentLoanBalance:    currentLoanBalance,
-		CurrentLoanLines:      currentLoanLinesJSON,
+		CurrentSalePrice:       currentSalePrice,
+		CurrentLoanBalance:     currentLoanBalance,
+		CurrentLoanLines:       currentLoanLinesJSON,
+		CurrentLoanStartYear:   currentLoanStartYear,
+		CurrentLoanStartMonth:  currentLoanStartMonth,
 		CurrentOriginalLoan:    currentOriginalLoan,
 		CurrentDownPayment1:    currentDownPayment1,
 		CurrentRenovationCost:  currentRenovationCost,
@@ -191,6 +206,7 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		VirtualContribution2:    virtualContribution2,
 		VirtualProfitShare2:     virtualProfitShare2,
 		VirtualMonthlyPayment2:  virtualMonthlyPayment2,
+		VirtualPaymentTiers2:    virtualPaymentTiers2JSON,
 		RFRYear2_1:              rfrYear2_1,
 		RFRYear1_1:              rfrYear1_1,
 		RFRYear2_2:              rfrYear2_2,
@@ -215,6 +231,7 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		AgencyFixed:           agencyFixed,
 		BankFees:              bankFees,
 		GuaranteeFees:         guaranteeFees,
+		BrokerFees:            brokerFees,
 		StartYear:             startYear,
 		StartMonth:            startMonth,
 		NetIncome1:            netIncome1,
@@ -232,15 +249,18 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		DownPayment1:          downPayment1,
 		DownPayment2:          downPayment2,
 		PaymentSplitMode:      paymentSplitMode,
-		CurrentSalePrice:      currentSalePrice,
-		CurrentLoanBalance:    currentLoanBalance,
-		CurrentLoanLines:      loanLines,
+		CurrentSalePrice:       currentSalePrice,
+		CurrentLoanBalance:     currentLoanBalance,
+		CurrentLoanLines:       loanLines,
+		CurrentLoanStartYear:   currentLoanStartYear,
+		CurrentLoanStartMonth:  currentLoanStartMonth,
 		EarlyRepaymentPenalty:  earlyRepaymentPenalty,
 		CurrentDownPayment1:    currentDownPayment1,
 		SalePropertyShare1:     salePropertyShare1,
 		VirtualContribution2:   virtualContribution2,
 		VirtualProfitShare2:    virtualProfitShare2,
 		VirtualMonthlyPayment2: virtualMonthlyPayment2,
+		VirtualPaymentTiers2:   virtualPaymentTiers2,
 		RFRYear2_1:             rfrYear2_1,
 		RFRYear1_1:             rfrYear1_1,
 		RFRYear2_2:             rfrYear2_2,
@@ -275,12 +295,12 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "salecash.html", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "loancomposition.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "currentpropertychart.html", data); err != nil {
+	if err := h.templates.ExecuteTemplate(w, "salecash.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

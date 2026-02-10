@@ -62,6 +62,14 @@
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
                     <p class="mt-1 text-xs text-gray-500">Hypoth&egrave;que, caution (Cr&eacute;dit Logement), ou PPD</p>
                 </div>
+
+                <!-- Frais de courtage -->
+                <div>
+                    <label for="broker_fees" class="block text-sm font-medium text-gray-700">Frais de courtage (&euro;)</label>
+                    <input type="number" name="broker_fees" id="broker_fees" value="{{.BrokerFees}}" step="100" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <p class="mt-1 text-xs text-gray-500">Honoraires du courtier en pr&ecirc;t immobilier</p>
+                </div>
             </div>
         </div>
 
@@ -214,35 +222,11 @@
             <!-- Lignes de prêt dynamiques -->
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Lignes de cr&eacute;dit</label>
-                <p class="text-xs text-gray-500 mb-3">Ajoutez vos diff&eacute;rentes lignes de cr&eacute;dit (pr&ecirc;t principal, PTZ, PAL...). Si aucune ligne n'est ajout&eacute;e, le montant sera calcul&eacute; automatiquement.</p>
+                <p class="text-xs text-gray-500 mb-3">Ajoutez vos lignes de cr&eacute;dit avec leurs paliers de paiement. Chaque palier d&eacute;finit la mensualit&eacute; pour une p&eacute;riode donn&eacute;e.</p>
                 <input type="hidden" name="new_loan_lines" id="new_loan_lines" value="{{.NewLoanLines}}">
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="new_loan_lines_table">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Libell&eacute;</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Montant (&euro;)</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Taux (%)</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dur&eacute;e (ans)</th>
-                                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Assurance (%)</th>
-                                <th class="px-3 py-2"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="new_loan_lines_body" class="bg-white divide-y divide-gray-200">
-                        </tbody>
-                        <tfoot class="bg-gray-50">
-                            <tr>
-                                <td class="px-3 py-2 font-semibold text-gray-700">Total</td>
-                                <td class="px-3 py-2 font-semibold text-gray-900" id="total_new_loan_amount">0 &euro;</td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2"></td>
-                                <td class="px-3 py-2"></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                <div id="new_loan_lines_container" class="space-y-4">
                 </div>
-                <div class="flex gap-2 mt-2">
+                <div class="flex flex-wrap gap-2 mt-4">
                     <button type="button" onclick="addNewLoanLine('Pr\u00eat principal', 0, parseFloat(document.getElementById('interest_rate').value) || 3.5, parseInt(document.getElementById('duration_years').value) || 20, parseFloat(document.getElementById('insurance_rate').value) || 0.34)"
                         class="px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-medium rounded border border-indigo-300">
                         + Pr&ecirc;t principal
@@ -295,53 +279,68 @@
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
                 </div>
 
+                <!-- Date de début des prêts du bien actuel -->
+                <div>
+                    <label for="current_loan_start_month" class="block text-sm font-medium text-gray-700">D&eacute;but remboursement</label>
+                    <div class="flex gap-2 mt-1">
+                        <select name="current_loan_start_month" id="current_loan_start_month"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                            <option value="1"{{if eq .CurrentLoanStartMonth 1}} selected{{end}}>Janvier</option>
+                            <option value="2"{{if eq .CurrentLoanStartMonth 2}} selected{{end}}>F&eacute;vrier</option>
+                            <option value="3"{{if eq .CurrentLoanStartMonth 3}} selected{{end}}>Mars</option>
+                            <option value="4"{{if eq .CurrentLoanStartMonth 4}} selected{{end}}>Avril</option>
+                            <option value="5"{{if eq .CurrentLoanStartMonth 5}} selected{{end}}>Mai</option>
+                            <option value="6"{{if eq .CurrentLoanStartMonth 6}} selected{{end}}>Juin</option>
+                            <option value="7"{{if eq .CurrentLoanStartMonth 7}} selected{{end}}>Juillet</option>
+                            <option value="8"{{if eq .CurrentLoanStartMonth 8}} selected{{end}}>Ao&ucirc;t</option>
+                            <option value="9"{{if eq .CurrentLoanStartMonth 9}} selected{{end}}>Septembre</option>
+                            <option value="10"{{if eq .CurrentLoanStartMonth 10}} selected{{end}}>Octobre</option>
+                            <option value="11"{{if eq .CurrentLoanStartMonth 11}} selected{{end}}>Novembre</option>
+                            <option value="12"{{if eq .CurrentLoanStartMonth 12}} selected{{end}}>D&eacute;cembre</option>
+                        </select>
+                        <input type="number" name="current_loan_start_year" id="current_loan_start_year" value="{{.CurrentLoanStartYear}}" step="1" min="2000" max="2040"
+                            class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Date de d&eacute;but des pr&ecirc;ts du bien actuel</p>
+                </div>
+
                 <!-- Lignes de prêt dynamiques -->
                 <div class="lg:col-span-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Pr&ecirc;ts en cours sur le bien actuel</label>
-                    <p class="text-xs text-gray-500 mb-3">Ajoutez toutes vos lignes de pr&ecirc;t (pr&ecirc;t principal, travaux, PTZ...). L'IRA est calcul&eacute; automatiquement ligne par ligne.</p>
+                    <p class="text-xs text-gray-500 mb-3">Ajoutez vos lignes de pr&ecirc;t avec leurs paliers de paiement. L'IRA est calcul&eacute; automatiquement.</p>
                     <input type="hidden" name="current_loan_lines" id="current_loan_lines" value="{{.CurrentLoanLines}}">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200" id="loan_lines_table">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Libell&eacute;</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Capital restant d&ucirc;</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Taux (%)</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">D&eacute;but</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Dur&eacute;e</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">IRA Max</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">IRA</th>
-                                    <th class="px-3 py-2"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="loan_lines_body" class="bg-white divide-y divide-gray-200">
-                            </tbody>
-                            <tfoot class="bg-gray-50">
-                                <tr>
-                                    <td class="px-3 py-2 font-semibold text-gray-700">Total</td>
-                                    <td class="px-3 py-2 font-semibold text-gray-900" id="total_loan_balance">0 &euro;</td>
-                                    <td class="px-3 py-2"></td>
-                                    <td class="px-3 py-2"></td>
-                                    <td class="px-3 py-2"></td>
-                                    <td class="px-3 py-2 font-semibold text-gray-900" id="total_ira_max">0 &euro;</td>
-                                    <td class="px-3 py-2 font-semibold text-gray-900" id="total_ira">0 &euro;</td>
-                                    <td class="px-3 py-2"></td>
-                                </tr>
-                            </tfoot>
-                        </table>
+                    <div id="current_loan_lines_container" class="space-y-4">
                     </div>
                     <button type="button" onclick="addLoanLine()"
-                        class="mt-2 px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-medium rounded border border-indigo-300">
+                        class="mt-4 px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-medium rounded border border-indigo-300">
                         + Ajouter une ligne de pr&ecirc;t
                     </button>
+
+                    <!-- Totaux -->
+                    <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="grid grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-600">Capital restant d&ucirc; total:</span>
+                                <span class="font-semibold text-gray-900 ml-2" id="total_loan_balance">0 &euro;</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">IRA total:</span>
+                                <span class="font-semibold text-gray-900 ml-2" id="total_ira">0 &euro;</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Montant initial du prêt -->
                 <div>
                     <label for="current_original_loan" class="block text-sm font-medium text-gray-700">Montant initial du pr&ecirc;t (&euro;)</label>
-                    <input type="number" name="current_original_loan" id="current_original_loan" value="{{.CurrentOriginalLoan}}" step="any" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
-                        onchange="calculateFairShare()" oninput="calculateFairShare()">
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="number" name="current_original_loan" id="current_original_loan" value="{{.CurrentOriginalLoan}}" step="any" min="0"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                            onchange="calculateFairShare()" oninput="calculateFairShare()">
+                        <button type="button" onclick="fillOriginalLoanTotal()"
+                            class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700 text-xs shrink-0">Auto</button>
+                    </div>
                     <p class="mt-1 text-xs text-gray-500">Montant emprunt&eacute; &agrave; l'origine</p>
                 </div>
 
@@ -390,12 +389,39 @@
                 </div>
 
                 <!-- Participation mensuelle emprunteur 2 -->
-                <div>
+                <div class="lg:col-span-2">
                     <label for="virtual_monthly_payment_2" class="block text-sm font-medium text-gray-700">Participation mensuelle E2 (&euro;)</label>
-                    <input type="number" name="virtual_monthly_payment_2" id="virtual_monthly_payment_2" value="{{.VirtualMonthlyPayment2}}" step="10" min="0"
+                    <input type="number" name="virtual_monthly_payment_2" id="virtual_monthly_payment_2" value="{{.VirtualMonthlyPayment2}}" step="1" min="0"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
                         onchange="calculateFairShare()" oninput="calculateFairShare()">
-                    <p class="mt-1 text-xs text-gray-500">Mensualit&eacute; pay&eacute;e par E2 (non-officielle)</p>
+                    <p class="mt-1 text-xs text-gray-500">Mensualit&eacute; fixe pay&eacute;e par E2 (utilis&eacute;e si aucun palier d&eacute;fini)</p>
+
+                    <!-- Paliers de participation E2 -->
+                    <input type="hidden" name="virtual_payment_tiers_2" id="virtual_payment_tiers_2" value="{{.VirtualPaymentTiers2}}">
+                    <details class="mt-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+                            D&eacute;finir des paliers (optionnel)
+                        </summary>
+                        <div class="p-4 pt-2">
+                            <p class="text-xs text-gray-500 mb-3">D&eacute;finissez des paliers pour faire varier la participation mensuelle dans le temps. Les mois non couverts par un palier comptent comme 0&euro;.</p>
+                            <table class="min-w-full text-sm mb-3">
+                                <thead class="bg-gray-100">
+                                    <tr>
+                                        <th class="px-2 py-1 text-left text-xs text-gray-500">Mois d&eacute;but</th>
+                                        <th class="px-2 py-1 text-left text-xs text-gray-500">Mois fin</th>
+                                        <th class="px-2 py-1 text-left text-xs text-gray-500">Montant (&euro;/mois)</th>
+                                        <th class="px-2 py-1"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="virtual_payment_tiers_2_body">
+                                </tbody>
+                            </table>
+                            <button type="button" onclick="addVirtualPaymentTier2()"
+                                class="px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-medium rounded border border-indigo-300">
+                                + Ajouter un palier
+                            </button>
+                        </div>
+                    </details>
                 </div>
 
                 <!-- Part du bénéfice emprunteur 2 -->
@@ -733,84 +759,181 @@
         return value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' \u20ac';
     }
 
+    // Calcul de la mensualité d'une ligne de prêt (hors assurance, hors lissage)
+    // Formule identique à calculateSmoothedSchedule dans credit.go
+    function computeNewLoanLinePayment(amount, rate, durationYears, deferralMonths) {
+        if (amount <= 0 || durationYears <= 0) return 0;
+        const durationMonths = durationYears * 12;
+        const activeMonths = durationMonths - (deferralMonths || 0);
+        if (activeMonths <= 0) return 0;
+
+        if (rate === 0 || rate === null || rate === undefined) {
+            // Taux zéro : remboursement linéaire
+            return amount / activeMonths;
+        }
+
+        // Formule d'amortissement standard
+        const monthlyRate = rate / 100 / 12;
+        return (amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -activeMonths));
+    }
+
+    // Calcul de la mensualité pour un prêt actuel (basé sur le CRD)
+    function computeCurrentLoanPayment(balance, rate, durationYears, deferralMonths) {
+        if (balance <= 0 || durationYears <= 0) return 0;
+        const durationMonths = durationYears * 12;
+        const activeMonths = durationMonths - (deferralMonths || 0);
+        if (activeMonths <= 0) return 0;
+
+        if (rate === 0 || rate === null || rate === undefined) {
+            return balance / activeMonths;
+        }
+
+        const monthlyRate = rate / 100 / 12;
+        return (balance * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -activeMonths));
+    }
+
     function renderLoanLines() {
-        const tbody = document.getElementById('loan_lines_body');
-        tbody.innerHTML = '';
+        const container = document.getElementById('current_loan_lines_container');
+        container.innerHTML = '';
 
         loanLines.forEach((line, index) => {
             const iraMax = calculateLineIRAMax(line.balance, line.rate);
             const startMonth = line.startMonth || 1;
             const startYear = line.startYear || new Date().getFullYear();
             const durationYears = line.durationYears || 20;
+            const tiers = line.tiers || [];
+            const originalAmount = line.originalAmount || 0;
+            const insuranceRate = line.insuranceRate || 0;
 
-            const tr = document.createElement('tr');
-            tr.id = 'loan_line_' + index;
-            tr.innerHTML = `
-                <td class="px-3 py-2">
-                    <input type="text" value="${escapeHtml(line.label)}"
-                        onchange="updateLoanLineValue(${index}, 'label', this.value)"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.balance}" step="any" min="0"
-                        oninput="updateLoanLineValue(${index}, 'balance', parseFloat(this.value) || 0)"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.rate}" step="0.01" min="0"
-                        oninput="updateLoanLineValue(${index}, 'rate', parseFloat(this.value) || 0)"
-                        class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                </td>
-                <td class="px-3 py-2">
-                    <div class="flex gap-1">
-                        <select onchange="updateLoanLineValue(${index}, 'startMonth', parseInt(this.value))"
-                            class="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-1 py-1 text-xs">
-                            <option value="1"${startMonth === 1 ? ' selected' : ''}>Jan</option>
-                            <option value="2"${startMonth === 2 ? ' selected' : ''}>F&eacute;v</option>
-                            <option value="3"${startMonth === 3 ? ' selected' : ''}>Mar</option>
-                            <option value="4"${startMonth === 4 ? ' selected' : ''}>Avr</option>
-                            <option value="5"${startMonth === 5 ? ' selected' : ''}>Mai</option>
-                            <option value="6"${startMonth === 6 ? ' selected' : ''}>Jun</option>
-                            <option value="7"${startMonth === 7 ? ' selected' : ''}>Jul</option>
-                            <option value="8"${startMonth === 8 ? ' selected' : ''}>Ao&ucirc;</option>
-                            <option value="9"${startMonth === 9 ? ' selected' : ''}>Sep</option>
-                            <option value="10"${startMonth === 10 ? ' selected' : ''}>Oct</option>
-                            <option value="11"${startMonth === 11 ? ' selected' : ''}>Nov</option>
-                            <option value="12"${startMonth === 12 ? ' selected' : ''}>D&eacute;c</option>
-                        </select>
-                        <input type="number" value="${startYear}" min="2000" max="2040"
-                            oninput="updateLoanLineValue(${index}, 'startYear', parseInt(this.value) || ${new Date().getFullYear()})"
-                            class="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-1 py-1 text-xs">
+            let tiersHtml = '';
+            tiers.forEach((tier, tierIndex) => {
+                tiersHtml += `
+                    <tr>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.startMonth}" step="1" min="1"
+                                oninput="updateCurrentLoanTier(${index}, ${tierIndex}, 'startMonth', parseInt(this.value) || 1)"
+                                class="w-20 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.endMonth}" step="1" min="1"
+                                oninput="updateCurrentLoanTier(${index}, ${tierIndex}, 'endMonth', parseInt(this.value) || 1)"
+                                class="w-20 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.monthlyPayment}" step="0.01" min="0"
+                                oninput="updateCurrentLoanTier(${index}, ${tierIndex}, 'monthlyPayment', parseFloat(this.value) || 0)"
+                                class="w-24 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <button type="button" onclick="removeCurrentLoanTier(${index}, ${tierIndex})"
+                                class="text-red-500 hover:text-red-700 text-sm">
+                                &times;
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const colorScheme = loanColorSchemes[index % loanColorSchemes.length];
+            const div = document.createElement('div');
+            div.className = 'border-2 rounded-lg p-4 ' + colorScheme.bg;
+            div.style.borderColor = colorScheme.border;
+            div.id = 'loan_line_' + index;
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-4">
+                        <span class="w-4 h-4 rounded-full" style="background-color: ${colorScheme.chart}"></span>
+                        <input type="text" value="${escapeHtml(line.label)}"
+                            onchange="updateLoanLineValue(${index}, 'label', this.value)"
+                            class="font-medium text-gray-900 border-gray-300 rounded px-2 py-1">
+                        <button type="button" onclick="removeLoanLine(${index})"
+                            class="text-red-600 hover:text-red-800 text-sm">
+                            Supprimer
+                        </button>
                     </div>
-                </td>
-                <td class="px-3 py-2">
-                    <div class="flex items-center gap-1">
-                        <input type="number" value="${durationYears}" min="1" max="30"
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-500">Montant emprunt&eacute;</label>
+                        <input type="number" value="${originalAmount}" step="any" min="0"
+                            oninput="updateLoanLineValue(${index}, 'originalAmount', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Capital restant d&ucirc;</label>
+                        <input type="number" value="${line.balance}" step="any" min="0"
+                            oninput="updateLoanLineValue(${index}, 'balance', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux (%)</label>
+                        <input type="number" value="${line.rate}" step="0.01" min="0"
+                            oninput="updateLoanLineValue(${index}, 'rate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Dur&eacute;e totale (ans)</label>
+                        <input type="number" value="${durationYears}" step="1" min="1" max="30"
                             oninput="updateLoanLineValue(${index}, 'durationYears', parseInt(this.value) || 20)"
-                            class="w-12 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-1 py-1 text-xs">
-                        <span class="text-xs text-gray-500">ans</span>
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
                     </div>
-                </td>
-                <td class="px-3 py-2 text-sm text-gray-600" id="ira_max_${index}">${formatMoney(iraMax)}</td>
-                <td class="px-3 py-2">
-                    <div class="flex items-center gap-1">
-                        <input type="number" value="${line.ira}" step="any" min="0"
-                            oninput="updateLoanLineValue(${index}, 'ira', parseFloat(this.value) || 0)"
-                            class="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                        <button type="button" onclick="fillLineIRAMax(${index})"
-                            class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700 text-xs">Max</button>
+                    <div>
+                        <label class="block text-xs text-gray-500">Diff&eacute;r&eacute; (mois)</label>
+                        <input type="number" value="${line.deferralMonths || 0}" step="1" min="0" max="60"
+                            oninput="updateLoanLineValue(${index}, 'deferralMonths', parseInt(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1"
+                            title="Nombre de mois pendant lesquels seuls les int&eacute;r&ecirc;ts sont pay&eacute;s">
                     </div>
-                </td>
-                <td class="px-3 py-2">
-                    <button type="button" onclick="removeLoanLine(${index})"
-                        class="text-red-600 hover:text-red-800">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                    </button>
-                </td>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux intercalaire (%)</label>
+                        <input type="number" value="${line.deferralRate || line.rate || 0}" step="0.01" min="0"
+                            oninput="updateLoanLineValue(${index}, 'deferralRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1"
+                            title="Taux d'int&eacute;r&ecirc;ts pendant la p&eacute;riode de diff&eacute;r&eacute;">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Assurance (%)</label>
+                        <input type="number" value="${insuranceRate}" step="0.01" min="0"
+                            oninput="updateLoanLineValue(${index}, 'insuranceRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">IRA</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" value="${line.ira}" step="any" min="0"
+                                oninput="updateLoanLineValue(${index}, 'ira', parseFloat(this.value) || 0)"
+                                class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                            <button type="button" onclick="fillLineIRAMax(${index})"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700 text-xs whitespace-nowrap"
+                                title="IRA max: ${formatMoney(iraMax)}">Max</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Paliers de paiement</span>
+                        <button type="button" onclick="addCurrentLoanTier(${index})"
+                            class="text-xs px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded">
+                            + Ajouter palier
+                        </button>
+                    </div>
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mois d&eacute;but</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mois fin</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mensualit&eacute; (&euro;)</th>
+                                <th class="px-2 py-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="current_loan_tiers_${index}">
+                            ${tiersHtml}
+                        </tbody>
+                    </table>
+                    ${tiers.length === 0 ? '<p class="text-xs text-gray-400 mt-2 italic">Aucun palier d&eacute;fini</p>' : ''}
+                </div>
             `;
-            tbody.appendChild(tr);
+            container.appendChild(div);
         });
 
         updateTotalsDisplay();
@@ -818,31 +941,30 @@
 
     function updateTotalsDisplay() {
         let totalBalance = 0;
-        let totalIRAMax = 0;
         let totalIRA = 0;
 
-        loanLines.forEach((line, index) => {
-            const iraMax = calculateLineIRAMax(line.balance, line.rate);
+        loanLines.forEach((line) => {
             totalBalance += line.balance;
-            totalIRAMax += iraMax;
             totalIRA += line.ira;
-
-            // Update IRA max display for this line if element exists
-            const iraMaxEl = document.getElementById('ira_max_' + index);
-            if (iraMaxEl) {
-                iraMaxEl.textContent = formatMoney(iraMax);
-            }
         });
 
         // Update totals
         document.getElementById('total_loan_balance').textContent = formatMoney(totalBalance);
-        document.getElementById('total_ira_max').textContent = formatMoney(totalIRAMax);
         document.getElementById('total_ira').textContent = formatMoney(totalIRA);
 
         // Update hidden field
         document.getElementById('current_loan_lines').value = JSON.stringify(loanLines);
 
         // Update fair share calculation
+        calculateFairShare();
+    }
+
+    function fillOriginalLoanTotal() {
+        let total = 0;
+        loanLines.forEach(line => {
+            total += line.originalAmount || 0;
+        });
+        document.getElementById('current_original_loan').value = Math.round(total * 100) / 100;
         calculateFairShare();
     }
 
@@ -854,15 +976,47 @@
 
     function addLoanLine() {
         const currentYear = new Date().getFullYear();
+        const durationYears = 20;
+        const durationMonths = durationYears * 12;
         loanLines.push({
             label: 'Pr\u00eat ' + (loanLines.length + 1),
+            originalAmount: 0,
             balance: 0,
             rate: 0,
             ira: 0,
             startMonth: 1,
             startYear: currentYear,
-            durationYears: 20
+            durationYears: durationYears,
+            insuranceRate: 0,
+            deferralMonths: 0,
+            deferralRate: 0,
+            tiers: [{startMonth: 1, endMonth: durationMonths, monthlyPayment: 0}]
         });
+        renderLoanLines();
+    }
+
+    function addCurrentLoanTier(loanIndex) {
+        if (!loanLines[loanIndex].tiers) {
+            loanLines[loanIndex].tiers = [];
+        }
+        const tiers = loanLines[loanIndex].tiers;
+        const lastEnd = tiers.length > 0 ? tiers[tiers.length - 1].endMonth : 0;
+        const durationMonths = loanLines[loanIndex].durationYears * 12;
+        tiers.push({
+            startMonth: lastEnd + 1,
+            endMonth: durationMonths,
+            monthlyPayment: 0
+        });
+        renderLoanLines();
+    }
+
+    function updateCurrentLoanTier(loanIndex, tierIndex, field, value) {
+        loanLines[loanIndex].tiers[tierIndex][field] = value;
+        updateTotalsDisplay();
+    }
+
+    function removeCurrentLoanTier(loanIndex, tierIndex) {
+        loanLines[loanIndex].tiers.splice(tierIndex, 1);
         renderLoanLines();
     }
 
@@ -943,76 +1097,299 @@
         }
     }
 
-    // Initialize from saved data
-    // New loan lines management (for new mortgage)
-    let newLoanLines = [];
+    // Virtual payment tiers for E2
+    let virtualPaymentTiers2 = [];
 
-    function renderNewLoanLines() {
-        const tbody = document.getElementById('new_loan_lines_body');
+    function renderVirtualPaymentTiers2() {
+        const tbody = document.getElementById('virtual_payment_tiers_2_body');
         tbody.innerHTML = '';
 
-        newLoanLines.forEach((line, index) => {
+        virtualPaymentTiers2.forEach((tier, index) => {
             const tr = document.createElement('tr');
-            tr.id = 'new_loan_line_' + index;
             tr.innerHTML = `
-                <td class="px-3 py-2">
-                    <input type="text" value="${escapeHtml(line.label)}"
-                        onchange="updateNewLoanLineValue(${index}, 'label', this.value)"
-                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                <td class="px-2 py-1">
+                    <input type="number" value="${tier.startMonth}" step="1" min="1"
+                        oninput="updateVirtualPaymentTier2(${index}, 'startMonth', parseInt(this.value) || 1)"
+                        class="w-20 rounded border-gray-300 text-sm px-2 py-1">
                 </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.amount}" step="any" min="0"
-                        oninput="updateNewLoanLineValue(${index}, 'amount', parseFloat(this.value) || 0)"
-                        class="w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                <td class="px-2 py-1">
+                    <input type="number" value="${tier.endMonth}" step="1" min="1"
+                        oninput="updateVirtualPaymentTier2(${index}, 'endMonth', parseInt(this.value) || 1)"
+                        class="w-20 rounded border-gray-300 text-sm px-2 py-1">
                 </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.rate}" step="0.01" min="0"
-                        oninput="updateNewLoanLineValue(${index}, 'rate', parseFloat(this.value) || 0)"
-                        class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                <td class="px-2 py-1">
+                    <input type="number" value="${tier.monthlyPayment}" step="1" min="0"
+                        oninput="updateVirtualPaymentTier2(${index}, 'monthlyPayment', parseFloat(this.value) || 0)"
+                        class="w-24 rounded border-gray-300 text-sm px-2 py-1">
                 </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.durationYears}" step="1" min="1" max="30"
-                        oninput="updateNewLoanLineValue(${index}, 'durationYears', parseInt(this.value) || 20)"
-                        class="w-16 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                </td>
-                <td class="px-3 py-2">
-                    <input type="number" value="${line.insuranceRate}" step="0.01" min="0"
-                        oninput="updateNewLoanLineValue(${index}, 'insuranceRate', parseFloat(this.value) || 0)"
-                        class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
-                </td>
-                <td class="px-3 py-2">
-                    <button type="button" onclick="removeNewLoanLine(${index})"
-                        class="text-red-600 hover:text-red-800">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
+                <td class="px-2 py-1">
+                    <button type="button" onclick="removeVirtualPaymentTier2(${index})"
+                        class="text-red-500 hover:text-red-700 text-sm">
+                        &times;
                     </button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
 
+        document.getElementById('virtual_payment_tiers_2').value = JSON.stringify(virtualPaymentTiers2);
+    }
+
+    function addVirtualPaymentTier2() {
+        const lastEnd = virtualPaymentTiers2.length > 0 ? virtualPaymentTiers2[virtualPaymentTiers2.length - 1].endMonth : 0;
+        virtualPaymentTiers2.push({
+            startMonth: lastEnd + 1,
+            endMonth: lastEnd + 12,
+            monthlyPayment: 0
+        });
+        renderVirtualPaymentTiers2();
+    }
+
+    function updateVirtualPaymentTier2(index, field, value) {
+        virtualPaymentTiers2[index][field] = value;
+        document.getElementById('virtual_payment_tiers_2').value = JSON.stringify(virtualPaymentTiers2);
+    }
+
+    function removeVirtualPaymentTier2(index) {
+        virtualPaymentTiers2.splice(index, 1);
+        renderVirtualPaymentTiers2();
+        htmx.trigger(document.querySelector('form'), 'submit');
+    }
+
+    // Initialize from saved data
+    // Couleurs des lignes de prêt (cohérentes avec les graphiques)
+    const loanColorSchemes = [
+        { bg: 'bg-indigo-50', border: '#6366f1', chart: '#6366f1', name: 'indigo' },
+        { bg: 'bg-emerald-50', border: '#10b981', chart: '#10b981', name: 'emerald' },
+        { bg: 'bg-amber-50', border: '#f59e0b', chart: '#f59e0b', name: 'amber' },
+        { bg: 'bg-rose-50', border: '#f43f5e', chart: '#f43f5e', name: 'rose' },
+        { bg: 'bg-cyan-50', border: '#06b6d4', chart: '#06b6d4', name: 'cyan' },
+        { bg: 'bg-purple-50', border: '#a855f7', chart: '#a855f7', name: 'purple' },
+        { bg: 'bg-orange-50', border: '#f97316', chart: '#f97316', name: 'orange' },
+        { bg: 'bg-teal-50', border: '#14b8a6', chart: '#14b8a6', name: 'teal' }
+    ];
+
+    // Fonction pour obtenir la couleur d'une ligne de prêt
+    function getLoanColor(index) {
+        return loanColorSchemes[index % loanColorSchemes.length].chart;
+    }
+
+    // New loan lines management (for new mortgage)
+    let newLoanLines = [];
+
+    function renderNewLoanLines() {
+        const container = document.getElementById('new_loan_lines_container');
+        container.innerHTML = '';
+
+        newLoanLines.forEach((line, index) => {
+            const tiers = line.tiers || [];
+            const colorScheme = loanColorSchemes[index % loanColorSchemes.length];
+            const div = document.createElement('div');
+            div.className = 'border-2 rounded-lg p-4 ' + colorScheme.bg;
+            div.style.borderColor = colorScheme.border;
+            div.id = 'new_loan_line_' + index;
+
+            let tiersHtml = '';
+            tiers.forEach((tier, tierIndex) => {
+                tiersHtml += `
+                    <tr>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.startMonth}" step="1" min="1"
+                                oninput="updateNewLoanTier(${index}, ${tierIndex}, 'startMonth', parseInt(this.value) || 1)"
+                                class="w-20 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.endMonth}" step="1" min="1"
+                                oninput="updateNewLoanTier(${index}, ${tierIndex}, 'endMonth', parseInt(this.value) || 1)"
+                                class="w-20 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.monthlyPayment}" step="0.01" min="0"
+                                oninput="updateNewLoanTier(${index}, ${tierIndex}, 'monthlyPayment', parseFloat(this.value) || 0)"
+                                class="w-24 rounded border-gray-300 text-sm px-2 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <button type="button" onclick="removeNewLoanTier(${index}, ${tierIndex})"
+                                class="text-red-500 hover:text-red-700 text-sm">
+                                &times;
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const deferralMonths = line.deferralMonths || 0;
+            const deferralRate = line.deferralRate || line.rate || 0;
+
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-4">
+                        <span class="w-4 h-4 rounded-full" style="background-color: ${colorScheme.chart}"></span>
+                        <input type="text" value="${escapeHtml(line.label)}"
+                            onchange="updateNewLoanLineValue(${index}, 'label', this.value)"
+                            class="font-medium text-gray-900 border-gray-300 rounded px-2 py-1">
+                        <button type="button" onclick="removeNewLoanLine(${index})"
+                            class="text-red-600 hover:text-red-800 text-sm">
+                            Supprimer
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-7 gap-4 mb-4">
+                    <div>
+                        <label class="block text-xs text-gray-500">Montant (&euro;)</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" value="${line.amount}" step="any" min="0"
+                                oninput="updateNewLoanLineValue(${index}, 'amount', parseFloat(this.value) || 0)"
+                                class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                            <button type="button" onclick="fillRemainingAmount(${index})"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-600 text-xs whitespace-nowrap"
+                                title="Calculer le montant restant &agrave; emprunter">
+                                Auto
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux (%)</label>
+                        <input type="number" value="${line.rate}" step="0.01" min="0"
+                            oninput="updateNewLoanLineValue(${index}, 'rate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Dur&eacute;e (ans)</label>
+                        <input type="number" value="${line.durationYears}" step="1" min="1" max="30"
+                            oninput="updateNewLoanLineValue(${index}, 'durationYears', parseInt(this.value) || 20)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Diff&eacute;r&eacute; (mois)</label>
+                        <input type="number" value="${deferralMonths}" step="1" min="0" max="60"
+                            oninput="updateNewLoanLineValue(${index}, 'deferralMonths', parseInt(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1"
+                            title="Nombre de mois pendant lesquels seuls les int&eacute;r&ecirc;ts sont pay&eacute;s">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux intercalaire (%)</label>
+                        <input type="number" value="${deferralRate}" step="0.01" min="0"
+                            oninput="updateNewLoanLineValue(${index}, 'deferralRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1"
+                            title="Taux d'int&eacute;r&ecirc;ts pendant la p&eacute;riode de diff&eacute;r&eacute;">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Assurance (%)</label>
+                        <input type="number" value="${line.insuranceRate}" step="0.01" min="0"
+                            oninput="updateNewLoanLineValue(${index}, 'insuranceRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-gray-700">Paliers de paiement</span>
+                        <button type="button" onclick="addNewLoanTier(${index})"
+                            class="text-xs px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded">
+                            + Ajouter palier
+                        </button>
+                    </div>
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mois d&eacute;but</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mois fin</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mensualit&eacute; (&euro;)</th>
+                                <th class="px-2 py-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="new_loan_tiers_${index}">
+                            ${tiersHtml}
+                        </tbody>
+                    </table>
+                    ${tiers.length === 0 ? '<p class="text-xs text-gray-400 mt-2 italic">Aucun palier d&eacute;fini</p>' : ''}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
         updateNewLoanTotals();
     }
 
     function updateNewLoanTotals() {
-        let totalAmount = 0;
-        newLoanLines.forEach(line => {
-            totalAmount += line.amount;
-        });
-
-        document.getElementById('total_new_loan_amount').textContent = formatMoney(totalAmount);
         document.getElementById('new_loan_lines').value = JSON.stringify(newLoanLines);
     }
 
-    function addNewLoanLine(label, amount, rate, durationYears, insuranceRate) {
+    // Calcule le montant restant à emprunter
+    function calculateRemainingLoanAmount() {
+        const propertyPrice = parseFloat(document.getElementById('property_price').value) || 0;
+        const downPayment1 = parseFloat(document.getElementById('down_payment_1').value) || 0;
+        const downPayment2 = parseFloat(document.getElementById('down_payment_2').value) || 0;
+        const currentSalePrice = parseFloat(document.getElementById('current_sale_price').value) || 0;
+
+        // Calculer le produit net de vente (somme des CRD + IRA des prêts en cours)
+        let totalLoanBalance = 0;
+        let totalIRA = 0;
+        loanLines.forEach(line => {
+            totalLoanBalance += line.balance || 0;
+            totalIRA += line.ira || 0;
+        });
+        const saleProceeds = Math.max(0, currentSalePrice - totalLoanBalance - totalIRA);
+
+        // Somme des montants déjà saisis dans les autres lignes de prêt
+        let existingLoansAmount = 0;
+        newLoanLines.forEach(line => {
+            existingLoansAmount += line.amount || 0;
+        });
+
+        const remaining = propertyPrice - downPayment1 - downPayment2 - saleProceeds - existingLoansAmount;
+        return Math.max(0, remaining);
+    }
+
+    // Met à jour le montant d'une ligne avec le montant restant
+    function fillRemainingAmount(index) {
+        // Temporairement mettre le montant de cette ligne à 0 pour le calcul
+        const currentAmount = newLoanLines[index].amount || 0;
+        newLoanLines[index].amount = 0;
+        const remaining = calculateRemainingLoanAmount();
+        newLoanLines[index].amount = remaining;
+        renderNewLoanLines();
+    }
+
+    function addNewLoanLine(label, amount, rate, durationYears, insuranceRate, deferralMonths, deferralRate) {
+        const durationMonthsTotal = durationYears * 12;
+        // Si c'est la première ligne et que le montant est 0, calculer automatiquement
+        const calculatedAmount = (amount === 0 && newLoanLines.length === 0) ? calculateRemainingLoanAmount() : amount;
         newLoanLines.push({
             label: label,
-            amount: amount,
+            amount: calculatedAmount,
             rate: rate,
             durationYears: durationYears,
-            insuranceRate: insuranceRate
+            insuranceRate: insuranceRate,
+            deferralMonths: deferralMonths || 0,
+            deferralRate: deferralRate || rate,
+            tiers: [{startMonth: 1, endMonth: durationMonthsTotal, monthlyPayment: 0}]
         });
+        renderNewLoanLines();
+    }
+
+    function addNewLoanTier(loanIndex) {
+        if (!newLoanLines[loanIndex].tiers) {
+            newLoanLines[loanIndex].tiers = [];
+        }
+        const tiers = newLoanLines[loanIndex].tiers;
+        const lastEnd = tiers.length > 0 ? tiers[tiers.length - 1].endMonth : 0;
+        const durationMonths = newLoanLines[loanIndex].durationYears * 12;
+        tiers.push({
+            startMonth: lastEnd + 1,
+            endMonth: durationMonths,
+            monthlyPayment: 0
+        });
+        renderNewLoanLines();
+    }
+
+    function updateNewLoanTier(loanIndex, tierIndex, field, value) {
+        newLoanLines[loanIndex].tiers[tierIndex][field] = value;
+        updateNewLoanTotals();
+    }
+
+    function removeNewLoanTier(loanIndex, tierIndex) {
+        newLoanLines[loanIndex].tiers.splice(tierIndex, 1);
         renderNewLoanLines();
     }
 
@@ -1052,6 +1429,19 @@
             }
         }
         renderLoanLines();
+
+        // Load virtual payment tiers for E2
+        const savedVirtualTiers2 = document.getElementById('virtual_payment_tiers_2').value;
+        if (savedVirtualTiers2 && savedVirtualTiers2 !== '[]' && savedVirtualTiers2 !== '') {
+            try {
+                virtualPaymentTiers2 = JSON.parse(savedVirtualTiers2);
+            } catch (e) {
+                console.error('Failed to parse virtual payment tiers 2:', e);
+                virtualPaymentTiers2 = [];
+            }
+        }
+        renderVirtualPaymentTiers2();
+
         calculateFairShare();
 
         // Load new mortgage loan lines

@@ -1,0 +1,265 @@
+{{define "currentloancomposition.html"}}
+{{if and (gt (len .Result.CurrentLoanSchedule) 0) (ge (len .Input.CurrentLoanLines) 1)}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Composition des cr&eacute;dits en cours</h2>
+    <p class="text-sm text-gray-500 mb-2">Dur&eacute;e affich&eacute;e : <span id="current-chart-duration-info" class="font-medium"></span></p>
+
+    <!-- Sous-titre explicatif avec icône info -->
+    <div class="flex items-start gap-2 mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+        <svg class="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-amber-800">Pr&ecirc;ts du bien actuel (avec lissage)</strong> : Le pr&ecirc;t marqu&eacute; "Lissage" s'ajuste pour maintenir une mensualit&eacute; totale constante
+            <span class="block text-amber-700 font-medium mt-1">
+                Les variations du pr&ecirc;t d'ajustement compensent les p&eacute;riodes de diff&eacute;r&eacute; des autres pr&ecirc;ts
+            </span>
+        </div>
+    </div>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Visualiser la r&eacute;partition de vos mensualit&eacute;s restantes sur le bien actuel entre les diff&eacute;rentes lignes de cr&eacute;dit (pr&ecirc;t principal, PTZ, travaux...).</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Lissage et diff&eacute;r&eacute;</p>
+                <p>Le pr&ecirc;t marqu&eacute; "Lissage" s'ajuste pour maintenir une mensualit&eacute; totale constante :</p>
+                <ul class="list-disc list-inside space-y-1 text-xs mt-2">
+                    <li><strong>Phase diff&eacute;r&eacute;</strong> : Le pr&ecirc;t ajustable compense l'absence des autres pr&ecirc;ts</li>
+                    <li><strong>Apr&egrave;s diff&eacute;r&eacute;</strong> : Le pr&ecirc;t ajustable r&eacute;duit sa mensualit&eacute; pour compenser</li>
+                    <li><strong>R&eacute;sultat</strong> : Mensualit&eacute; totale stable sur toute la dur&eacute;e</li>
+                </ul>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Comment lire</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li>Chaque couleur repr&eacute;sente une ligne de cr&eacute;dit existante</li>
+                    <li>La hauteur totale = votre mensualit&eacute; totale actuelle</li>
+                    <li>Les aires montrent la contribution de chaque pr&ecirc;t au fil du temps</li>
+                </ul>
+            </div>
+            <div class="bg-amber-50 p-2 rounded text-xs border border-amber-200">
+                <strong>Note :</strong> Ce graphique montre l'&eacute;volution si vous conservez le bien. En cas de vente, les pr&ecirc;ts seront rembours&eacute;s par anticipation.
+            </div>
+        </div>
+    </details>
+
+    <!-- Graphique empilé -->
+    <div class="chart-container" style="height: 400px;">
+        <canvas id="currentLoanCompositionChart"></canvas>
+    </div>
+
+    <!-- Légende détaillée des prêts -->
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {{range $index, $loan := .Input.CurrentLoanLines}}
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" id="current-loan-legend-{{$index}}" style="background-color: var(--current-loan-color-{{$index}}, #f59e0b);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">{{$loan.Label}}</span>
+                {{if gt $loan.OriginalAmount 0.0}}
+                <span class="text-gray-500 text-xs block">{{formatMoney $loan.OriginalAmount}} &euro; emprunt&eacute; &rarr; {{formatMoney $loan.Balance}} &euro; CRD</span>
+                {{else}}
+                <span class="text-gray-500 text-xs block">{{formatMoney $loan.Balance}} &euro; CRD</span>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<script>
+(function() {
+    const currentLoanSchedule = {{toJSON .Result.CurrentLoanSchedule}};
+    const currentLoanLines = {{toJSON .Input.CurrentLoanLines}};
+    const globalStartYear = {{.Input.CurrentLoanStartYear}};
+    const globalStartMonth = {{.Input.CurrentLoanStartMonth}};
+
+    if (!currentLoanSchedule || currentLoanSchedule.length === 0) return;
+
+    // Calculer la durée maximale parmi toutes les lignes de prêt
+    let maxDurationMonths = currentLoanSchedule.length;
+    let maxFromLoans = 0;
+    if (currentLoanLines && currentLoanLines.length > 0) {
+        currentLoanLines.forEach(loan => {
+            const durationMonths = ((loan.durationYears || 0) * 12) + (loan.deferralMonths || 0);
+            if (durationMonths > maxFromLoans) {
+                maxFromLoans = durationMonths;
+            }
+        });
+    }
+    if (maxFromLoans > maxDurationMonths) {
+        maxDurationMonths = maxFromLoans;
+    }
+
+    // Info de durée sera affichée après calcul de chartStartYear/chartStartMonth
+
+    // Couleurs pour les différentes lignes de crédit (cohérentes avec l'interface)
+    const loanColors = [
+        'rgba(99, 102, 241, 0.7)',   // indigo #6366f1
+        'rgba(16, 185, 129, 0.7)',   // emerald #10b981
+        'rgba(245, 158, 11, 0.7)',   // amber #f59e0b
+        'rgba(244, 63, 94, 0.7)',    // rose #f43f5e
+        'rgba(6, 182, 212, 0.7)',    // cyan #06b6d4
+        'rgba(168, 85, 247, 0.7)',   // purple #a855f7
+        'rgba(249, 115, 22, 0.7)',   // orange #f97316
+        'rgba(20, 184, 166, 0.7)'    // teal #14b8a6
+    ];
+
+    const loanBorderColors = [
+        '#6366f1',  // indigo
+        '#10b981',  // emerald
+        '#f59e0b',  // amber
+        '#f43f5e',  // rose
+        '#06b6d4',  // cyan
+        '#a855f7',  // purple
+        '#f97316',  // orange
+        '#14b8a6'   // teal
+    ];
+
+    // Appliquer les couleurs aux légendes
+    currentLoanLines.forEach((loan, i) => {
+        const legendEl = document.getElementById('current-loan-legend-' + i);
+        if (legendEl) {
+            legendEl.style.backgroundColor = loanColors[i % loanColors.length];
+        }
+    });
+
+    // Trouver la date de début : utiliser la date globale ou celle du premier prêt
+    let chartStartYear = globalStartYear || new Date().getFullYear();
+    let chartStartMonth = (globalStartMonth || 1) - 1; // Convertir en 0-indexed
+    // Surcharger avec la date du prêt si renseignée
+    for (const loan of currentLoanLines) {
+        if (loan.startYear && loan.startYear > 0) {
+            chartStartYear = loan.startYear;
+            chartStartMonth = (loan.startMonth || 1) - 1;
+            break;
+        }
+    }
+
+    // Afficher info de durée et debug
+    const durationInfo = document.getElementById('current-chart-duration-info');
+    if (durationInfo) {
+        const firstDate = new Date(chartStartYear, chartStartMonth, 1);
+        const debugInfo = 'Start: ' + firstDate.toLocaleDateString('fr-FR') + ' | globalStartYear=' + globalStartYear + ' globalStartMonth=' + globalStartMonth;
+        durationInfo.textContent = maxDurationMonths + ' mois | ' + debugInfo;
+    }
+
+    // Préparer les labels pour la durée maximale
+    const labels = [];
+    const fullDates = []; // Pour le tooltip
+    for (let m = 0; m < maxDurationMonths; m++) {
+        const date = new Date(chartStartYear, chartStartMonth + m, 1);
+        const day = '01';
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const dateStr = day + '/' + month + '/' + year;
+        labels.push(m + 1); // Numéro de mois uniquement sur l'axe X
+        fullDates.push(dateStr);
+    }
+
+    // Créer un dataset par ligne de crédit (tous les mois)
+    const datasets = [];
+    const numLoans = currentLoanSchedule[0].Payments ? currentLoanSchedule[0].Payments.length : 0;
+
+    for (let loanIdx = 0; loanIdx < numLoans; loanIdx++) {
+        const data = [];
+        for (let m = 0; m < maxDurationMonths; m++) {
+            if (m < currentLoanSchedule.length && currentLoanSchedule[m].Payments && currentLoanSchedule[m].Payments[loanIdx]) {
+                data.push(currentLoanSchedule[m].Payments[loanIdx].Total);
+            } else {
+                data.push(0);
+            }
+        }
+
+        const loanLabel = currentLoanLines[loanIdx] ? currentLoanLines[loanIdx].label : ('Pr\u00eat ' + (loanIdx + 1));
+
+        datasets.push({
+            label: loanLabel,
+            data: data,
+            backgroundColor: loanColors[loanIdx % loanColors.length],
+            borderColor: loanBorderColors[loanIdx % loanBorderColors.length],
+            borderWidth: 1,
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 4
+        });
+    }
+
+    const ctx = document.getElementById('currentLoanCompositionChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            return 'Mensualit\u00e9 #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' \u20ac';
+                        },
+                        footer: function(items) {
+                            const total = items.reduce((sum, item) => sum + item.parsed.y, 0);
+                            return 'Total : ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' \u20ac';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Num\u00e9ro de mensualit\u00e9'
+                    },
+                    ticks: {
+                        maxTicksAuto: true,
+                        autoSkip: true,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Mensualit\u00e9 (\u20ac)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' \u20ac';
+                        }
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
+{{end}}
+{{end}}

@@ -12,7 +12,7 @@
         </svg>
         <div class="text-sm">
             <strong class="text-blue-800">R&eacute;partition entre emprunteurs</strong> :
-            Ce graphique montre combien chaque emprunteur r&eacute;cup&egrave;re si le bien est vendu apr&egrave;s X ann&eacute;es.
+            Ce graphique montre combien chaque emprunteur r&eacute;cup&egrave;re si le bien est vendu apr&egrave;s X mois.
         </div>
     </div>
 
@@ -42,16 +42,63 @@
             <span>Emprunteur 2</span>
         </div>
     </div>
+
+    <!-- Explications méthodologiques -->
+    <details class="mt-6 bg-gray-50 rounded-lg border border-gray-200">
+        <summary class="p-4 cursor-pointer text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-gray-600 space-y-4">
+            <div>
+                <strong class="text-gray-800">Objectif</strong>
+                <p class="mt-1">
+                    Ce graphique projette le montant net r&eacute;cup&eacute;rable par chaque emprunteur
+                    en cas de revente du bien actuel apr&egrave;s X mois, selon diff&eacute;rents sc&eacute;narios
+                    d'&eacute;volution des prix immobiliers.
+                </p>
+            </div>
+            <div>
+                <strong class="text-gray-800">Hypoth&egrave;ses</strong>
+                <ul class="mt-1 list-disc list-inside space-y-1 ml-2">
+                    <li><strong>Valorisation du bien</strong> : -1%, 0% ou +1% par an selon le sc&eacute;nario choisi</li>
+                    <li><strong>Amortissement des pr&ecirc;ts</strong> : remboursement constant selon les mensualit&eacute;s d&eacute;finies</li>
+                    <li><strong>IRA</strong> : Indemnit&eacute;s de Remboursement Anticip&eacute; d&eacute;duites du produit net (6 mois d'int&eacute;r&ecirc;ts, plafonn&eacute;es &agrave; 3% du CRD)</li>
+                </ul>
+            </div>
+            <div>
+                <strong class="text-gray-800">M&eacute;thode de calcul</strong>
+                <ul class="mt-1 list-disc list-inside space-y-1 ml-2">
+                    <li><strong>Valeur du bien</strong> : Prix initial &times; (1 + taux)<sup>mois/12</sup></li>
+                    <li><strong>Capital Restant D&ucirc; (CRD)</strong> : calcul&eacute; mois par mois (capital initial - principal rembours&eacute;)</li>
+                    <li><strong>Produit net</strong> : Valeur du bien - CRD - IRA</li>
+                    <li><strong>R&eacute;partition E1/E2</strong> : au prorata des apports initiaux + mensualit&eacute;s cumul&eacute;es + part du b&eacute;n&eacute;fice/perte</li>
+                </ul>
+            </div>
+        </div>
+    </details>
 </div>
 
 <script>
 (function() {
     const projData = {{toJSON .Result.CurrentPropertyProjection}};
+    const startYear = {{.Input.CurrentLoanStartYear}};
+    const startMonth = {{.Input.CurrentLoanStartMonth}}; // 1-12
     let chart = null;
+
+    // Noms des mois en français
+    const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
+                        'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+
+    // Calculer la date calendaire pour un décalage de mois donné depuis la date de début du crédit
+    function getDateForMonth(monthOffset) {
+        // startMonth est 1-12, JavaScript attend 0-11
+        const target = new Date(startYear, startMonth - 1 + monthOffset, 1);
+        return monthNames[target.getMonth()] + ' ' + target.getFullYear();
+    }
 
     window.updateCurrentPropChart = function() {
         const idx = parseInt(document.getElementById('currentPropScenario').value);
-        const labels = projData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+        const labels = projData.map(d => d.Month);
 
         const datasets = [
             {
@@ -68,7 +115,7 @@
                 backgroundColor: 'rgba(16, 185, 129, 0.7)',
                 borderColor: 'rgb(16, 185, 129)',
                 borderWidth: 1,
-                fill: true
+                fill: '-1'
             }
         ];
 
@@ -85,6 +132,10 @@
                     tooltip: {
                         mode: 'index',
                         callbacks: {
+                            title: items => {
+                                const month = projData[items[0].dataIndex].Month;
+                                return 'Mois ' + month + ' - ' + getDateForMonth(month);
+                            },
                             label: ctx => ctx.dataset.label + ' : ' +
                                 ctx.parsed.y.toLocaleString('fr-FR') + ' \u20ac',
                             footer: items => {
@@ -95,7 +146,13 @@
                     }
                 },
                 scales: {
-                    x: { stacked: true },
+                    x: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'Mois'
+                        }
+                    },
                     y: {
                         stacked: true,
                         ticks: { callback: v => v.toLocaleString('fr-FR') + ' \u20ac' }

@@ -47,6 +47,7 @@ func NewSQLiteStore() (*SQLiteStore, error) {
 			agency_fixed REAL NOT NULL DEFAULT 0,
 			bank_fees REAL NOT NULL DEFAULT 0,
 			guarantee_fees REAL NOT NULL DEFAULT 0,
+			broker_fees REAL NOT NULL DEFAULT 0,
 			start_year INTEGER NOT NULL DEFAULT 2026,
 			start_month INTEGER NOT NULL DEFAULT 1,
 			net_income_1 REAL NOT NULL DEFAULT 0,
@@ -132,6 +133,11 @@ func runMigrations(db *sqlx.DB) {
 		`ALTER TABLE simulation_inputs ADD COLUMN work_lines TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE simulation_inputs ADD COLUMN maintenance_rate REAL NOT NULL DEFAULT 1.0`,
 		`ALTER TABLE simulation_inputs ADD COLUMN virtual_monthly_payment_2 REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE simulation_inputs ADD COLUMN broker_fees REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE simulation_inputs ADD COLUMN current_target_payment REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE simulation_inputs ADD COLUMN current_loan_start_year INTEGER NOT NULL DEFAULT 2020`,
+		`ALTER TABLE simulation_inputs ADD COLUMN current_loan_start_month INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE simulation_inputs ADD COLUMN virtual_payment_tiers_2 TEXT NOT NULL DEFAULT '[]'`,
 	}
 
 	for _, migration := range migrations {
@@ -157,8 +163,20 @@ func getDBPath() (string, error) {
 func (s *SQLiteStore) Load() (*FormInputs, error) {
 	inputs := &FormInputs{}
 
-	// sqlx.Get automatically maps columns to struct fields by db tag
-	err := s.db.Get(inputs, "SELECT * FROM simulation_inputs WHERE id = 1")
+	// Select explicit columns to avoid errors from stale columns in the DB
+	err := s.db.Get(inputs, `SELECT id, property_price, down_payment, interest_rate, duration_years,
+		insurance_rate, notary_rate, agency_rate, agency_fixed, bank_fees, guarantee_fees, broker_fees,
+		start_year, start_month, net_income_1, net_income_2, monthly_rent, rent_increase_rate,
+		savings_rate, inflation_rate, property_tax, condo_fees, maintenance_rate,
+		renovation_cost, renovation_value_rate, down_payment_1, down_payment_2,
+		payment_split_mode, current_sale_price, current_loan_balance, current_loan_rate,
+		current_loan_lines, current_loan_start_year, current_loan_start_month,
+		current_original_loan, current_down_payment_1,
+		current_renovation_cost, current_renovation_share_2, early_repayment_penalty,
+		sale_property_share_1, virtual_contribution_2, virtual_profit_share_2,
+		virtual_monthly_payment_2, virtual_payment_tiers_2, rfr_year_2_1, rfr_year_1_1, rfr_year_2_2, rfr_year_1_2,
+		household_size, property_zone, new_loan_lines, work_lines
+		FROM simulation_inputs WHERE id = 1`)
 
 	if err == sql.ErrNoRows {
 		return DefaultInputs(), nil
@@ -185,31 +203,33 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 		INSERT INTO simulation_inputs (
 			id, property_price, down_payment, interest_rate, duration_years,
 			insurance_rate, notary_rate, agency_rate, agency_fixed,
-			bank_fees, guarantee_fees, start_year, start_month,
+			bank_fees, guarantee_fees, broker_fees, start_year, start_month,
 			net_income_1, net_income_2, monthly_rent, rent_increase_rate,
 			savings_rate, inflation_rate, property_tax, condo_fees, maintenance_rate,
 			renovation_cost, renovation_value_rate, down_payment_1, down_payment_2,
 			payment_split_mode, current_sale_price, current_loan_balance,
-			current_loan_rate, current_loan_lines, current_original_loan,
-			current_down_payment_1, current_renovation_cost,
+			current_loan_rate, current_loan_lines, current_loan_start_year, current_loan_start_month,
+			current_original_loan, current_down_payment_1, current_renovation_cost,
 			current_renovation_share_2, early_repayment_penalty,
 			sale_property_share_1, virtual_contribution_2,
-			virtual_profit_share_2, virtual_monthly_payment_2, rfr_year_2_1, rfr_year_1_1,
+			virtual_profit_share_2, virtual_monthly_payment_2, virtual_payment_tiers_2,
+			rfr_year_2_1, rfr_year_1_1,
 			rfr_year_2_2, rfr_year_1_2, household_size, property_zone,
 			new_loan_lines, work_lines
 		) VALUES (
 			:id, :property_price, :down_payment, :interest_rate, :duration_years,
 			:insurance_rate, :notary_rate, :agency_rate, :agency_fixed,
-			:bank_fees, :guarantee_fees, :start_year, :start_month,
+			:bank_fees, :guarantee_fees, :broker_fees, :start_year, :start_month,
 			:net_income_1, :net_income_2, :monthly_rent, :rent_increase_rate,
 			:savings_rate, :inflation_rate, :property_tax, :condo_fees, :maintenance_rate,
 			:renovation_cost, :renovation_value_rate, :down_payment_1, :down_payment_2,
 			:payment_split_mode, :current_sale_price, :current_loan_balance,
-			:current_loan_rate, :current_loan_lines, :current_original_loan,
-			:current_down_payment_1, :current_renovation_cost,
+			:current_loan_rate, :current_loan_lines, :current_loan_start_year, :current_loan_start_month,
+			:current_original_loan, :current_down_payment_1, :current_renovation_cost,
 			:current_renovation_share_2, :early_repayment_penalty,
 			:sale_property_share_1, :virtual_contribution_2,
-			:virtual_profit_share_2, :virtual_monthly_payment_2, :rfr_year_2_1, :rfr_year_1_1,
+			:virtual_profit_share_2, :virtual_monthly_payment_2, :virtual_payment_tiers_2,
+			:rfr_year_2_1, :rfr_year_1_1,
 			:rfr_year_2_2, :rfr_year_1_2, :household_size, :property_zone,
 			:new_loan_lines, :work_lines
 		)
@@ -224,6 +244,7 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			agency_fixed = :agency_fixed,
 			bank_fees = :bank_fees,
 			guarantee_fees = :guarantee_fees,
+			broker_fees = :broker_fees,
 			start_year = :start_year,
 			start_month = :start_month,
 			net_income_1 = :net_income_1,
@@ -244,6 +265,8 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			current_loan_balance = :current_loan_balance,
 			current_loan_rate = :current_loan_rate,
 			current_loan_lines = :current_loan_lines,
+			current_loan_start_year = :current_loan_start_year,
+			current_loan_start_month = :current_loan_start_month,
 			current_original_loan = :current_original_loan,
 			current_down_payment_1 = :current_down_payment_1,
 			current_renovation_cost = :current_renovation_cost,
@@ -253,6 +276,7 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			virtual_contribution_2 = :virtual_contribution_2,
 			virtual_profit_share_2 = :virtual_profit_share_2,
 			virtual_monthly_payment_2 = :virtual_monthly_payment_2,
+			virtual_payment_tiers_2 = :virtual_payment_tiers_2,
 			rfr_year_2_1 = :rfr_year_2_1,
 			rfr_year_1_1 = :rfr_year_1_1,
 			rfr_year_2_2 = :rfr_year_2_2,

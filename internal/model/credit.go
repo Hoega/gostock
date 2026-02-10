@@ -12,6 +12,7 @@ type CreditInput struct {
 	AgencyFixed      float64 // Frais d'agence montant fixe (alternatif)
 	BankFees         float64 // Frais de dossier bancaire (€)
 	GuaranteeFees    float64 // Frais de garantie (hypothèque, caution, PPD) (€)
+	BrokerFees       float64 // Frais de courtage (€)
 	StartYear        int     // Année de début
 	StartMonth       int     // Mois de début (1-12)
 	NetIncome1       float64 // Revenu mensuel net emprunteur 1
@@ -32,12 +33,15 @@ type CreditInput struct {
 	CurrentSalePrice      float64    // Prix de vente estimé du bien actuel (€)
 	CurrentLoanBalance    float64    // Capital restant dû du prêt en cours (€) - total de toutes les lignes
 	CurrentLoanLines      []LoanLine // Détail des lignes de prêt
+	CurrentLoanStartYear  int        // Année de début des prêts du bien actuel
+	CurrentLoanStartMonth int        // Mois de début (1-12)
 	EarlyRepaymentPenalty float64    // Indemnités de remboursement anticipé - IRA (€) - total de toutes les lignes
 	CurrentDownPayment1   float64    // Apport initial emprunteur 1 sur le bien actuel (€)
 	SalePropertyShare1    float64 // Quote-part du bien actuel - Emprunteur 1 (%)
 	VirtualContribution2   float64 // Contribution non-officielle de l'emprunteur 2 au bien actuel (€)
-	VirtualProfitShare2    float64 // Part du bénéfice pour l'emprunteur 2 (%)
-	VirtualMonthlyPayment2 float64 // Participation mensuelle virtuelle E2 (€)
+	VirtualProfitShare2    float64       // Part du bénéfice pour l'emprunteur 2 (%)
+	VirtualMonthlyPayment2 float64       // Participation mensuelle virtuelle E2 (€)
+	VirtualPaymentTiers2   []PaymentTier // Paliers de participation E2
 	RFRYear2_1            float64 // RFR N-2 Emprunteur 1 (€)
 	RFRYear1_1            float64 // RFR N-1 Emprunteur 1 (€)
 	RFRYear2_2            float64 // RFR N-2 Emprunteur 2 (€)
@@ -59,6 +63,7 @@ type CreditResult struct {
 	AgencyFees       float64 // Frais d'agence
 	BankFees         float64 // Frais de dossier
 	GuaranteeFees    float64 // Frais de garantie
+	BrokerFees       float64 // Frais de courtage
 	RenovationCost   float64 // Travaux immédiats
 	TotalProjectCost float64 // Coût total du projet
 	IncomeMonthly    float64 // Revenus mensuels nets combinés
@@ -77,11 +82,13 @@ type CreditResult struct {
 	IRRData          []IRRProjection      // TRI par année et par scénario
 	IRRByScenario    []float64            // TRI annuel final par scénario (%, même ordre que ResaleRates)
 	Ownership        OwnershipShare       // Quotes-parts de propriété entre co-acheteurs
-	PropertySale                PropertySale                    // Résultat de la vente du bien actuel
-	CurrentPropertyProjection   []CurrentPropertyYearProjection // Projection bien actuel (E1/E2)
+	PropertySale                PropertySale                     // Résultat de la vente du bien actuel
+	CurrentPropertyProjection   []CurrentPropertyMonthProjection // Projection bien actuel (E1/E2)
 	AidEligibility              AidEligibility                  // Éligibilité aux aides (PTZ, PAL, BRS)
-	LoanLineResults   []NewLoanLineResult   // Détail des résultats par ligne de crédit
-	EquivalentRent    float64               // Loyer équivalent mensuel (coûts irrécupérables récurrents / mois)
+	LoanLineResults       []NewLoanLineResult // Détail des résultats par ligne de crédit
+	EquivalentRent        float64             // Loyer équivalent mensuel (coûts irrécupérables récurrents / mois)
+	MonthlySchedule       []MonthlySchedule   // Planning mensuel lissé avec répartition par prêt
+	CurrentLoanSchedule   []MonthlySchedule   // Planning mensuel des prêts en cours (bien actuel)
 }
 
 // AidEligibility holds the eligibility results for housing assistance programs.
@@ -123,9 +130,9 @@ type SaleCashProjection struct {
 	NetCash           []float64 // Cash net par scénario (cash brut - coûts irrécupérables)
 }
 
-// CurrentPropertyYearProjection holds one year's projection for the current property E1/E2 split.
-type CurrentPropertyYearProjection struct {
-	Year          int
+// CurrentPropertyMonthProjection holds one month's projection for the current property E1/E2 split.
+type CurrentPropertyMonthProjection struct {
+	Month         int       // Mois depuis aujourd'hui (1, 2, 3, ...)
 	PropertyValue []float64 // Valeur du bien par scénario (-1%, 0%, +1%)
 	LoanBalance   float64   // Capital restant dû total
 	Proceeds1     []float64 // Part E1 par scénario
@@ -143,6 +150,7 @@ type IrrecoverableDetail struct {
 	NotaryFees       float64 // Frais de notaire
 	AgencyFees       float64 // Frais d'agence
 	BankFees         float64 // Frais de dossier
+	BrokerFees       float64 // Frais de courtage
 	TotalInterest    float64 // Intérêts cumulés
 	TotalInsurance   float64 // Assurance cumulée
 	TotalCondoFees   float64 // Charges copro cumulées
@@ -187,24 +195,55 @@ type AmortizationRow struct {
 	RemainingBalance float64 // Capital restant dû
 }
 
+// PaymentTier represents a payment period with a fixed monthly payment.
+type PaymentTier struct {
+	StartMonth     int     `json:"startMonth"`     // Mois de début (1 = premier mois du prêt)
+	EndMonth       int     `json:"endMonth"`       // Mois de fin (inclus)
+	MonthlyPayment float64 `json:"monthlyPayment"` // Mensualité pour cette période
+}
+
 // LoanLine represents a single loan line for IRA calculation.
 type LoanLine struct {
-	Label         string  `json:"label"`         // Libellé du prêt (ex: "Prêt principal", "PTZ")
-	Balance       float64 `json:"balance"`       // Capital restant dû
-	Rate          float64 `json:"rate"`          // Taux d'intérêt (%)
-	IRA           float64 `json:"ira"`           // IRA saisi par l'utilisateur
-	StartYear     int     `json:"startYear"`     // Année de début du prêt
-	StartMonth    int     `json:"startMonth"`    // Mois de début (1-12)
-	DurationYears int     `json:"durationYears"` // Durée totale en années
+	Label          string        `json:"label"`          // Libellé du prêt (ex: "Prêt principal", "PTZ")
+	OriginalAmount float64       `json:"originalAmount"` // Montant emprunté initial
+	Balance        float64       `json:"balance"`        // Capital restant dû
+	Rate           float64       `json:"rate"`           // Taux d'intérêt (%)
+	IRA            float64       `json:"ira"`            // IRA saisi par l'utilisateur
+	StartYear      int           `json:"startYear"`      // Année de début du prêt
+	StartMonth     int           `json:"startMonth"`     // Mois de début (1-12)
+	DurationYears  int           `json:"durationYears"`  // Durée totale en années
+	InsuranceRate  float64       `json:"insuranceRate"`  // Taux assurance annuel (%)
+	DeferralMonths int           `json:"deferralMonths"` // Différé en mois (paiement intérêts seuls)
+	DeferralRate   float64       `json:"deferralRate"`   // Taux intérêts intercalaires (%)
+	Tiers          []PaymentTier `json:"tiers"`          // Paliers de paiement
 }
 
 // NewLoanLine represents a loan line for the new mortgage.
 type NewLoanLine struct {
-	Label         string  `json:"label"`         // Libellé du prêt (ex: "Prêt principal", "PTZ", "PAL")
-	Amount        float64 `json:"amount"`        // Montant emprunté (€)
-	Rate          float64 `json:"rate"`          // Taux d'intérêt annuel (%)
-	DurationYears int     `json:"durationYears"` // Durée en années
-	InsuranceRate float64 `json:"insuranceRate"` // Taux assurance annuel (%)
+	Label          string        `json:"label"`          // Libellé du prêt (ex: "Prêt principal", "PTZ", "PAL")
+	Amount         float64       `json:"amount"`         // Montant emprunté (€)
+	Rate           float64       `json:"rate"`           // Taux d'intérêt annuel (%)
+	DurationYears  int           `json:"durationYears"`  // Durée en années
+	InsuranceRate  float64       `json:"insuranceRate"`  // Taux assurance annuel (%)
+	DeferralMonths int           `json:"deferralMonths"` // Différé en mois (paiement intérêts seuls)
+	DeferralRate   float64       `json:"deferralRate"`   // Taux intérêts intercalaires (%)
+	Tiers          []PaymentTier `json:"tiers"`          // Paliers de paiement
+}
+
+// LoanMonthPayment holds the payment details for a single loan in a given month.
+type LoanMonthPayment struct {
+	Label     string  // Libellé du prêt
+	Principal float64 // Capital remboursé
+	Interest  float64 // Intérêts
+	Insurance float64 // Assurance
+	Total     float64 // Total pour ce prêt
+}
+
+// MonthlySchedule holds the payment breakdown for all loans in a given month.
+type MonthlySchedule struct {
+	Month       int                // Numéro du mois (1-based)
+	Payments    []LoanMonthPayment // Paiement par ligne de crédit
+	TotalAmount float64            // Somme des paiements
 }
 
 // NewLoanLineResult holds computed results for a single loan line.
@@ -213,6 +252,7 @@ type NewLoanLineResult struct {
 	Amount           float64 // Montant emprunté
 	Rate             float64 // Taux d'intérêt
 	DurationYears    int     // Durée
+	DeferralMonths   int     // Différé en mois
 	InsuranceRate    float64 // Taux assurance
 	MonthlyPayment   float64 // Mensualité hors assurance
 	MonthlyInsurance float64 // Mensualité assurance

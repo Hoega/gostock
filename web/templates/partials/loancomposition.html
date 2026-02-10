@@ -1,0 +1,280 @@
+{{define "loancomposition.html"}}
+{{if and (gt (len .Result.MonthlySchedule) 0) (gt (len .Result.LoanLineResults) 0)}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Composition des mensualit&eacute;s</h2>
+    <p class="text-sm text-gray-500 mb-2">Dur&eacute;e affich&eacute;e : <span id="chart-duration-info" class="font-medium"></span></p>
+
+    <!-- Sous-titre explicatif avec icône info -->
+    <div class="flex items-start gap-2 mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+        <svg class="w-5 h-5 text-indigo-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-indigo-800">Lissage des mensualit&eacute;s</strong> : R&eacute;partition de vos paiements entre les diff&eacute;rentes lignes de cr&eacute;dit
+            <span class="block text-indigo-700 font-medium mt-1">
+                La mensualit&eacute; totale reste constante gr&acirc;ce &agrave; l'ajustement du pr&ecirc;t principal
+            </span>
+        </div>
+    </div>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Visualiser la r&eacute;partition de votre mensualit&eacute; entre les diff&eacute;rentes lignes de cr&eacute;dit (pr&ecirc;t principal, PTZ, PAL...).</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Principe du lissage</p>
+                <p>Quand un pr&ecirc;t a un diff&eacute;r&eacute; (comme le PTZ), le pr&ecirc;t principal est ajust&eacute; pour que votre mensualit&eacute; totale reste stable :</p>
+                <ul class="list-disc list-inside space-y-1 text-xs mt-2">
+                    <li><strong>Phase 1</strong> (diff&eacute;r&eacute; actif) : Le pr&ecirc;t principal paie plus pour compenser l'absence de remboursement du PTZ</li>
+                    <li><strong>Phase 2</strong> (apr&egrave;s diff&eacute;r&eacute;) : Le PTZ entre en remboursement, le pr&ecirc;t principal paie moins</li>
+                </ul>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Comment lire</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li>Chaque couleur repr&eacute;sente une ligne de cr&eacute;dit</li>
+                    <li>La hauteur totale = votre mensualit&eacute; totale (constante)</li>
+                    <li>Les aires montrent la contribution de chaque pr&ecirc;t au fil du temps</li>
+                </ul>
+            </div>
+            <div class="bg-green-50 p-2 rounded text-xs border border-green-200">
+                <strong>Avantage :</strong> Le lissage vous permet de conna&icirc;tre votre mensualit&eacute; totale d&egrave;s le d&eacute;but, m&ecirc;me avec des pr&ecirc;ts &agrave; diff&eacute;r&eacute;.
+            </div>
+        </div>
+    </details>
+
+    <!-- Graphique empilé -->
+    <div class="chart-container" style="height: 400px;">
+        <canvas id="loanCompositionChart"></canvas>
+    </div>
+
+    <!-- Légende détaillée des prêts -->
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {{range $index, $loan := .Result.LoanLineResults}}
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" id="loan-legend-{{$index}}" style="background-color: var(--loan-color-{{$index}}, #6366f1);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">{{$loan.Label}}</span>
+                <span class="text-gray-500 text-xs block">{{formatMoney $loan.MonthlyTotal}} &euro;/mois</span>
+            </div>
+        </div>
+        {{end}}
+        <!-- Légende Total (ligne pointillée) -->
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 flex items-center justify-center">
+                <div class="w-full border-t-2 border-dashed border-gray-700"></div>
+            </div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Total</span>
+                <span class="text-gray-500 text-xs block">Mensualit&eacute; liss&eacute;e constante</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const monthlySchedule = {{toJSON .Result.MonthlySchedule}};
+    const loanLineResults = {{toJSON .Result.LoanLineResults}};
+    const newLoanLines = {{toJSON .Input.NewLoanLines}};
+    const startYear = {{.Input.StartYear}};
+    const startMonth = {{.Input.StartMonth}};
+
+    if (!monthlySchedule || monthlySchedule.length === 0) return;
+
+    // Calculer la durée maximale parmi toutes les lignes de prêt
+    let maxDurationMonths = monthlySchedule.length;
+    let maxFromLoans = 0;
+    if (newLoanLines && newLoanLines.length > 0) {
+        newLoanLines.forEach(loan => {
+            const durationMonths = ((loan.durationYears || 0) * 12) + (loan.deferralMonths || 0);
+            if (durationMonths > maxFromLoans) {
+                maxFromLoans = durationMonths;
+            }
+        });
+    }
+    if (maxFromLoans > maxDurationMonths) {
+        maxDurationMonths = maxFromLoans;
+    }
+
+    // Afficher info de durée
+    const durationInfo = document.getElementById('chart-duration-info');
+    if (durationInfo) {
+        durationInfo.textContent = maxDurationMonths + ' mois (' + (maxDurationMonths/12).toFixed(1) + ' ans) - Schedule: ' + monthlySchedule.length + ' mois, Prêts: ' + maxFromLoans + ' mois';
+    }
+
+    // Couleurs pour les différentes lignes de crédit (cohérentes avec l'interface)
+    const loanColors = [
+        'rgba(99, 102, 241, 0.7)',   // indigo #6366f1
+        'rgba(16, 185, 129, 0.7)',   // emerald #10b981
+        'rgba(245, 158, 11, 0.7)',   // amber #f59e0b
+        'rgba(244, 63, 94, 0.7)',    // rose #f43f5e
+        'rgba(6, 182, 212, 0.7)',    // cyan #06b6d4
+        'rgba(168, 85, 247, 0.7)',   // purple #a855f7
+        'rgba(249, 115, 22, 0.7)',   // orange #f97316
+        'rgba(20, 184, 166, 0.7)'    // teal #14b8a6
+    ];
+
+    const loanBorderColors = [
+        '#6366f1',  // indigo
+        '#10b981',  // emerald
+        '#f59e0b',  // amber
+        '#f43f5e',  // rose
+        '#06b6d4',  // cyan
+        '#a855f7',  // purple
+        '#f97316',  // orange
+        '#14b8a6'   // teal
+    ];
+
+    // Appliquer les couleurs aux légendes
+    loanLineResults.forEach((loan, i) => {
+        const legendEl = document.getElementById('loan-legend-' + i);
+        if (legendEl) {
+            legendEl.style.backgroundColor = loanColors[i % loanColors.length];
+        }
+    });
+
+    // Préparer les labels mensuels pour la durée maximale
+    const labels = [];
+    const fullDates = []; // Pour le tooltip
+    for (let m = 0; m < maxDurationMonths; m++) {
+        const date = new Date(startYear, startMonth - 1 + m, 1);
+        const day = '01';
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const dateStr = day + '/' + month + '/' + year;
+        labels.push(m + 1); // Numéro de mois uniquement sur l'axe X
+        fullDates.push(dateStr);
+    }
+
+    // Créer un dataset par ligne de crédit (données mensuelles)
+    const datasets = [];
+    const numLoans = monthlySchedule[0].Payments ? monthlySchedule[0].Payments.length : 0;
+
+    for (let loanIdx = 0; loanIdx < numLoans; loanIdx++) {
+        const data = [];
+        for (let m = 0; m < maxDurationMonths; m++) {
+            if (m < monthlySchedule.length && monthlySchedule[m].Payments && monthlySchedule[m].Payments[loanIdx]) {
+                data.push(monthlySchedule[m].Payments[loanIdx].Total);
+            } else {
+                data.push(0);
+            }
+        }
+
+        const loanLabel = loanLineResults[loanIdx] ? loanLineResults[loanIdx].Label : ('Prêt ' + (loanIdx + 1));
+
+        datasets.push({
+            label: loanLabel,
+            data: data,
+            backgroundColor: loanColors[loanIdx % loanColors.length],
+            borderColor: loanBorderColors[loanIdx % loanBorderColors.length],
+            borderWidth: 1,
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0,
+            pointHoverRadius: 4
+        });
+    }
+
+    // Dataset "Total" en ligne pointillée (non empilée)
+    const totalData = [];
+    for (let m = 0; m < maxDurationMonths; m++) {
+        if (m < monthlySchedule.length) {
+            totalData.push(monthlySchedule[m].TotalAmount || 0);
+        } else {
+            totalData.push(0);
+        }
+    }
+    datasets.push({
+        label: 'Total',
+        data: totalData,
+        borderColor: 'rgb(55, 65, 81)',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        fill: false,
+        tension: 0.1,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        stack: 'total',
+        order: 0
+    });
+
+    const ctx = document.getElementById('loanCompositionChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            return 'Mensualité #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+                        },
+                        footer: function(items) {
+                            // Récupérer le total depuis les données du schedule
+                            const monthIndex = items[0].dataIndex;
+                            const total = monthlySchedule[monthIndex].TotalAmount || 0;
+                            return 'Total : ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Numéro de mensualité'
+                    },
+                    ticks: {
+                        maxTicksAuto: true,
+                        autoSkip: true,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Mensualité (€)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+})();
+</script>
+{{end}}
+{{end}}
