@@ -1,0 +1,523 @@
+{{define "downpayment-impact.html"}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Apport vs Bourse</h2>
+
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Comparer deux strat&eacute;gies : mettre votre apport dans la maison (r&eacute;duire le cr&eacute;dit) ou le placer en bourse (int&eacute;r&ecirc;ts compos&eacute;s).</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Les deux strat&eacute;gies</p>
+                <ul class="list-disc list-inside space-y-1 text-xs">
+                    <li><span class="inline-block w-3 h-3 rounded" style="background: rgb(99, 102, 241);"></span> <strong>Strat&eacute;gie Apport</strong> : vous mettez l'apport dans la maison, la mensualit&eacute; baisse, et vous investissez l'&eacute;conomie mensuelle en bourse (DCA)</li>
+                    <li><span class="inline-block w-3 h-3 rounded" style="background: rgb(16, 185, 129);"></span> <strong>Strat&eacute;gie Bourse</strong> : vous gardez l'apport et le placez en bourse d&egrave;s le d&eacute;part (lump sum)</li>
+                </ul>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Point d'intersection</p>
+                <p class="text-xs">Quand les courbes se croisent, cela indique le moment o&ugrave; une strat&eacute;gie devient plus rentable que l'autre. Si la courbe verte passe au-dessus, il vaut mieux tout placer en bourse.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Euros constants</p>
+                <p class="text-xs">Les valeurs affich&eacute;es sont en <strong>euros constants</strong> (pouvoir d'achat r&eacute;el). L'inflation a un effet asym&eacute;trique : elle &eacute;rode la dette (ce qui favorise la strat&eacute;gie Bourse / lump sum), tandis que les contributions DCA mensuelles fixes perdent du pouvoir d'achat au fil du temps.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Fiscalit&eacute;</p>
+                <p class="text-xs">Les gains affich&eacute;s sont <strong>nets d'imp&ocirc;ts</strong>. En <strong>PEA</strong>, les plus-values sont tax&eacute;es &agrave; 30% avant 5 ans puis &agrave; 17,2% (pr&eacute;l&egrave;vements sociaux uniquement). En <strong>CTO</strong>, la flat tax de 30% s'applique syst&eacute;matiquement.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Courbes en pointill&eacute;s (capital amorti)</p>
+                <p class="text-xs">Les courbes en pointill&eacute;s montrent le capital amorti, c'est-&agrave;-dire la part du bien immobilier effectivement rembours&eacute;e. En d&eacute;but de pr&ecirc;t, la majorit&eacute; de la mensualit&eacute; sert &agrave; payer les int&eacute;r&ecirc;ts : l'amortissement est lent, puis s'acc&eacute;l&egrave;re au fil du temps.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Courbes tiret-point (cash &agrave; la vente)</p>
+                <p class="text-xs">Les courbes &laquo; Cash vente &raquo; repr&eacute;sentent le produit net si vous vendiez le bien &agrave; un instant donn&eacute; : <strong>valeur du bien appr&eacute;ci&eacute;e &minus; dette restante</strong>. Cela permet de voir la richesse immobili&egrave;re totale de chaque strat&eacute;gie. Le slider &laquo; Appr&eacute;ciation bien &raquo; ajuste le taux annuel de plus-value (ou moins-value si n&eacute;gatif).</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">Courbes pointill&eacute;es fines (apport disponible)</p>
+                <p class="text-xs">Les courbes &laquo; Apport dispo &raquo; montrent le patrimoine total liquidable :
+                <strong>cash de la revente + portefeuille boursier net d'imp&ocirc;ts</strong>.
+                C'est le montant d'apport dont vous disposeriez pour un prochain achat immobilier si vous vendiez le bien et liquidiez vos placements &agrave; cet instant.</p>
+            </div>
+            <div class="bg-amber-50 p-2 rounded text-xs">
+                <strong>Attention :</strong> Ce calcul est simplifi&eacute;. Il ne tient pas compte de la volatilit&eacute; des march&eacute;s. Le rendement boursier est suppos&eacute; constant et r&eacute;gulier.
+            </div>
+        </div>
+    </details>
+
+    <!-- Sliders -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Taux du cr&eacute;dit : <span id="dpCreditRateValue"></span>
+            </label>
+            <input type="range" id="dpCreditRate" min="0" max="10" step="0.05"
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Rendement bourse : <span id="dpStockReturnValue"></span>
+            </label>
+            <input type="range" id="dpStockReturn" min="0" max="15" step="0.1" value="7"
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-600">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Apport : <span id="dpDownPaymentValue"></span>
+            </label>
+            <input type="range" id="dpDownPayment" min="0" step="1000"
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-amber-600">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Inflation : <span id="dpInflationValue"></span>
+            </label>
+            <input type="range" id="dpInflation" min="0" max="10" step="0.1" value="{{.Input.InflationRate}}"
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-rose-600">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Appr&eacute;ciation bien : <span id="dpAppreciationValue"></span>
+            </label>
+            <input type="range" id="dpAppreciation" min="-5" max="10" step="0.1" value="2"
+                   class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-violet-600">
+        </div>
+    </div>
+
+    <!-- Enveloppe fiscale -->
+    <div class="flex items-center gap-3 mb-6">
+        <span class="text-sm font-medium text-gray-700">Enveloppe :</span>
+        <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+            <label class="cursor-pointer">
+                <input type="radio" name="dpEnvelope" value="pea" class="sr-only peer" checked>
+                <span class="block px-4 py-1.5 text-sm font-medium peer-checked:bg-indigo-600 peer-checked:text-white bg-white text-gray-700 transition-colors">
+                    PEA <span class="text-xs font-normal">(17,2% apr&egrave;s 5 ans)</span>
+                </span>
+            </label>
+            <label class="cursor-pointer border-l border-gray-300">
+                <input type="radio" name="dpEnvelope" value="cto" class="sr-only peer">
+                <span class="block px-4 py-1.5 text-sm font-medium peer-checked:bg-indigo-600 peer-checked:text-white bg-white text-gray-700 transition-colors">
+                    CTO <span class="text-xs font-normal">(flat tax 30%)</span>
+                </span>
+            </label>
+        </div>
+    </div>
+
+    <!-- R&eacute;capitulatif des deux strat&eacute;gies -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="rounded-lg border-2 border-indigo-200 bg-indigo-50 p-4">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="inline-block w-3 h-3 rounded" style="background: rgb(99, 102, 241);"></span>
+                <span class="text-sm font-semibold text-indigo-900">Strat&eacute;gie Apport</span>
+            </div>
+            <div class="space-y-1 text-sm text-indigo-800">
+                <div class="flex justify-between">
+                    <span>Montant emprunt&eacute;</span>
+                    <span class="font-medium" id="dpSummaryLoanApport"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Mensualit&eacute; cr&eacute;dit</span>
+                    <span class="font-medium" id="dpSummaryMpApport"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Co&ucirc;t total des int&eacute;r&ecirc;ts</span>
+                    <span class="font-medium" id="dpSummaryInterestApport"></span>
+                </div>
+                <div class="flex justify-between border-t border-indigo-200 pt-1 mt-1">
+                    <span>&Eacute;conomie investie / mois (DCA)</span>
+                    <span class="font-medium" id="dpSummaryDca"></span>
+                </div>
+            </div>
+        </div>
+        <div class="rounded-lg border-2 border-emerald-200 bg-emerald-50 p-4">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="inline-block w-3 h-3 rounded" style="background: rgb(16, 185, 129);"></span>
+                <span class="text-sm font-semibold text-emerald-900">Strat&eacute;gie Bourse</span>
+            </div>
+            <div class="space-y-1 text-sm text-emerald-800">
+                <div class="flex justify-between">
+                    <span>Montant emprunt&eacute;</span>
+                    <span class="font-medium" id="dpSummaryLoanBourse"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Mensualit&eacute; cr&eacute;dit</span>
+                    <span class="font-medium" id="dpSummaryMpBourse"></span>
+                </div>
+                <div class="flex justify-between">
+                    <span>Co&ucirc;t total des int&eacute;r&ecirc;ts</span>
+                    <span class="font-medium" id="dpSummaryInterestBourse"></span>
+                </div>
+                <div class="flex justify-between border-t border-emerald-200 pt-1 mt-1">
+                    <span>Capital plac&eacute; (lump sum)</span>
+                    <span class="font-medium" id="dpSummaryLump"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="position: relative; height: 400px;">
+        <canvas id="downpaymentImpactChart"></canvas>
+    </div>
+</div>
+
+<script>
+(function() {
+    const propertyPrice = {{.Input.PropertyPrice}};
+    const currentDownPayment = propertyPrice - {{.Input.LoanAmount}};
+    const currentRate = {{.Input.InterestRate}};
+    const durationMonths = {{.Input.DurationMonths}};
+    const durationYears = Math.round(durationMonths / 12);
+
+    const sliderRate = document.getElementById('dpCreditRate');
+    const sliderReturn = document.getElementById('dpStockReturn');
+    const sliderDP = document.getElementById('dpDownPayment');
+    const sliderInflation = document.getElementById('dpInflation');
+    const sliderAppreciation = document.getElementById('dpAppreciation');
+    const labelRate = document.getElementById('dpCreditRateValue');
+    const labelReturn = document.getElementById('dpStockReturnValue');
+    const labelDP = document.getElementById('dpDownPaymentValue');
+    const labelInflation = document.getElementById('dpInflationValue');
+    const labelAppreciation = document.getElementById('dpAppreciationValue');
+    const radioEnvelopes = document.querySelectorAll('input[name="dpEnvelope"]');
+
+    // Initialize slider values
+    sliderRate.value = currentRate;
+    sliderDP.max = propertyPrice;
+    sliderDP.value = Math.min(currentDownPayment, propertyPrice);
+
+    function formatEuro(v) {
+        return Math.round(v).toLocaleString('fr-FR') + ' \u20ac';
+    }
+
+    function updateLabels() {
+        labelRate.textContent = parseFloat(sliderRate.value).toFixed(2) + ' %';
+        labelReturn.textContent = parseFloat(sliderReturn.value).toFixed(1) + ' %';
+        labelDP.textContent = formatEuro(parseFloat(sliderDP.value));
+        labelInflation.textContent = parseFloat(sliderInflation.value).toFixed(1) + ' %';
+        labelAppreciation.textContent = parseFloat(sliderAppreciation.value).toFixed(1) + ' %';
+    }
+
+    // Compute monthly payment for a given principal, monthly rate, and number of months
+    function calcMonthlyPayment(principal, monthlyRate, months) {
+        if (principal <= 0 || months <= 0) return 0;
+        if (monthlyRate === 0) return principal / months;
+        return principal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -months));
+    }
+
+    function compute() {
+        const creditRate = parseFloat(sliderRate.value);
+        const stockReturn = parseFloat(sliderReturn.value);
+        const dp = parseFloat(sliderDP.value);
+        const inflation = parseFloat(sliderInflation.value);
+        const appreciation = parseFloat(sliderAppreciation.value);
+        const envelope = document.querySelector('input[name="dpEnvelope"]:checked').value;
+
+        const t = creditRate / 100 / 12; // monthly credit rate
+        const rMonthly = Math.pow(1 + stockReturn / 100, 1 / 12) - 1; // monthly stock return
+        const iMonthly = Math.pow(1 + inflation / 100, 1 / 12) - 1; // monthly inflation rate
+        const N = durationMonths;
+
+        // Tax rates: PEA = 30% before 5y, 17.2% after / CTO = always 30%
+        function taxRate(year) {
+            if (envelope === 'cto') return 0.30;
+            return year <= 5 ? 0.30 : 0.172;
+        }
+
+        const mpWithout = calcMonthlyPayment(propertyPrice, t, N);
+        const mpWith = calcMonthlyPayment(propertyPrice - dp, t, N);
+        const monthlySaving = mpWithout - mpWith; // what you save each month with down payment
+
+        const labels = [];
+        const apportData = []; // Strategy: use down payment, invest monthly savings (DCA)
+        const bourseData = []; // Strategy: keep cash, invest lump sum in stock market
+        const capitalAmortiApportData = []; // Cumulative principal repaid (Apport)
+        const capitalAmortiBoursData = []; // Cumulative principal repaid (Bourse)
+        const cashVenteApportData = []; // Cash if selling property (Apport)
+        const cashVenteBoursData = []; // Cash if selling property (Bourse)
+        const apportDispoApportData = []; // Total wealth if liquidating everything (Apport)
+        const apportDispoBoursData = []; // Total wealth if liquidating everything (Bourse)
+
+        // Simulate month by month
+        let dcaPortfolio = 0; // accumulated value of monthly DCA (nominal)
+        let lumpSum = dp;     // lump sum growing in stock market (nominal)
+        let realContribSum = 0; // cumulative DCA contributions in real euros
+        let balanceApport = propertyPrice - dp; // remaining balance - Apport strategy
+        let balanceBourse = propertyPrice;       // remaining balance - Bourse strategy
+
+        for (let m = 1; m <= N; m++) {
+            // DCA: invest the monthly saving, then grow the whole portfolio
+            dcaPortfolio = (dcaPortfolio + monthlySaving) * (1 + rMonthly);
+
+            // Lump sum: grows each month
+            lumpSum = lumpSum * (1 + rMonthly);
+
+            // Accumulate DCA contributions deflated to today's euros
+            realContribSum += monthlySaving / Math.pow(1 + iMonthly, m);
+
+            // Amortization tracking
+            const interestApport = balanceApport * t;
+            const principalApport = mpWith - interestApport;
+            balanceApport -= principalApport;
+
+            const interestBourse = balanceBourse * t;
+            const principalBourse = mpWithout - interestBourse;
+            balanceBourse -= principalBourse;
+
+            // Record at each year boundary
+            if (m % 12 === 0) {
+                const y = m / 12;
+                labels.push(y + ' an' + (y > 1 ? 's' : ''));
+                // Deflate nominal values to real (constant euros)
+                const deflator = Math.pow(1 + iMonthly, m);
+                const dcaGainBrut = (dcaPortfolio / deflator) - realContribSum;
+                const lumpGainBrut = (lumpSum / deflator) - dp;
+                // Apply tax on positive gains only
+                const tax = taxRate(y);
+                const dcaGain = dcaGainBrut > 0 ? dcaGainBrut * (1 - tax) : dcaGainBrut;
+                const lumpGain = lumpGainBrut > 0 ? lumpGainBrut * (1 - tax) : lumpGainBrut;
+                apportData.push(Math.round(dcaGain * 100) / 100);
+                bourseData.push(Math.round(lumpGain * 100) / 100);
+                capitalAmortiApportData.push(Math.round(((propertyPrice - dp) - balanceApport) * 100) / 100);
+                capitalAmortiBoursData.push(Math.round((propertyPrice - balanceBourse) * 100) / 100);
+                const propertyValueAtY = propertyPrice * Math.pow(1 + appreciation / 100, y);
+                const cashApport = propertyValueAtY - Math.max(balanceApport, 0);
+                const cashBourse = propertyValueAtY - Math.max(balanceBourse, 0);
+                cashVenteApportData.push(Math.round(cashApport * 100) / 100);
+                cashVenteBoursData.push(Math.round(cashBourse * 100) / 100);
+
+                // Net stock portfolio (nominal, after tax on gains)
+                const dcaContribs = monthlySaving * m;
+                const dcaNominalGain = dcaPortfolio - dcaContribs;
+                const netDcaPortfolio = dcaPortfolio - Math.max(0, dcaNominalGain) * tax;
+
+                const lumpNominalGain = lumpSum - dp;
+                const netLumpPortfolio = lumpSum - Math.max(0, lumpNominalGain) * tax;
+
+                // Total disponible = cash revente + portefeuille boursier net
+                apportDispoApportData.push(Math.round((cashApport + netDcaPortfolio) * 100) / 100);
+                apportDispoBoursData.push(Math.round((cashBourse + netLumpPortfolio) * 100) / 100);
+            }
+        }
+
+        const totalInterestApport = mpWith * N - (propertyPrice - dp);
+        const totalInterestBourse = mpWithout * N - propertyPrice;
+
+        return {
+            labels, apportData, bourseData,
+            capitalAmortiApportData, capitalAmortiBoursData,
+            cashVenteApportData, cashVenteBoursData,
+            apportDispoApportData, apportDispoBoursData,
+            totalInterestApport, totalInterestBourse,
+            loanApport: propertyPrice - dp,
+            loanBourse: propertyPrice,
+            mpApport: mpWith,
+            mpBourse: mpWithout,
+            monthlySaving: monthlySaving,
+            dp: dp
+        };
+    }
+
+    let chart = null;
+
+    function renderChart() {
+        updateLabels();
+        const result = compute();
+        const { labels, apportData, bourseData, capitalAmortiApportData, capitalAmortiBoursData, cashVenteApportData, cashVenteBoursData, apportDispoApportData, apportDispoBoursData } = result;
+
+        // Update summary cards
+        document.getElementById('dpSummaryLoanApport').textContent = formatEuro(result.loanApport);
+        document.getElementById('dpSummaryLoanBourse').textContent = formatEuro(result.loanBourse);
+        document.getElementById('dpSummaryMpApport').textContent = formatEuro(result.mpApport);
+        document.getElementById('dpSummaryMpBourse').textContent = formatEuro(result.mpBourse);
+        document.getElementById('dpSummaryInterestApport').textContent = formatEuro(result.totalInterestApport);
+        document.getElementById('dpSummaryInterestBourse').textContent = formatEuro(result.totalInterestBourse);
+        document.getElementById('dpSummaryDca').textContent = formatEuro(result.monthlySaving);
+        document.getElementById('dpSummaryLump').textContent = formatEuro(result.dp);
+
+        // Find intersection year for annotation
+        let intersectionYear = null;
+        for (let i = 1; i < apportData.length; i++) {
+            const prevDiff = apportData[i - 1] - bourseData[i - 1];
+            const currDiff = apportData[i] - bourseData[i];
+            if (prevDiff * currDiff < 0) {
+                const ratio = prevDiff / (prevDiff - currDiff);
+                intersectionYear = i - 1 + ratio;
+                break;
+            }
+        }
+
+        const annotations = {};
+        if (intersectionYear !== null) {
+            const yearLabel = Math.round((intersectionYear + 1) * 10) / 10;
+            annotations.intersection = {
+                type: 'line',
+                xMin: intersectionYear,
+                xMax: intersectionYear,
+                borderColor: 'rgba(239, 68, 68, 0.7)',
+                borderWidth: 2,
+                borderDash: [6, 6],
+                label: {
+                    display: true,
+                    content: 'Croisement ~' + yearLabel.toFixed(1) + ' ans',
+                    position: 'start',
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    color: 'white',
+                    font: { size: 11, weight: 'bold' }
+                }
+            };
+        }
+
+        const data = {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Apport + DCA mensuel',
+                    data: apportData,
+                    borderColor: 'rgb(99, 102, 241)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 2.5,
+                    fill: true
+                },
+                {
+                    label: 'Bourse (lump sum)',
+                    data: bourseData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.3,
+                    pointRadius: 2,
+                    borderWidth: 2.5,
+                    fill: true
+                },
+                {
+                    label: 'Capital amorti (Apport)',
+                    data: capitalAmortiApportData,
+                    borderColor: 'rgb(99, 102, 241)',
+                    borderDash: [6, 4],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    fill: false
+                },
+                {
+                    label: 'Capital amorti (Bourse)',
+                    data: capitalAmortiBoursData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderDash: [6, 4],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    fill: false
+                },
+                {
+                    label: 'Cash vente (Apport)',
+                    data: cashVenteApportData,
+                    borderColor: 'rgb(99, 102, 241)',
+                    borderDash: [12, 4, 2, 4],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    fill: false
+                },
+                {
+                    label: 'Cash vente (Bourse)',
+                    data: cashVenteBoursData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderDash: [12, 4, 2, 4],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 1.5,
+                    fill: false
+                },
+                {
+                    label: 'Apport dispo (Apport)',
+                    data: apportDispoApportData,
+                    borderColor: 'rgb(99, 102, 241)',
+                    borderDash: [2, 3],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    fill: false
+                },
+                {
+                    label: 'Apport dispo (Bourse)',
+                    data: apportDispoBoursData,
+                    borderColor: 'rgb(16, 185, 129)',
+                    borderDash: [2, 3],
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    fill: false
+                }
+            ]
+        };
+
+        const options = {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.parsed.y;
+                            const formatted = val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+                            return context.dataset.label + ' : ' + formatted + ' \u20ac';
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: annotations
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Dur\u00e9e'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Gain net r\u00e9el en \u20ac constants'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' \u20ac';
+                        }
+                    }
+                }
+            }
+        };
+
+        if (chart) {
+            chart.data = data;
+            chart.options = options;
+            chart.update();
+        } else {
+            const ctx = document.getElementById('downpaymentImpactChart').getContext('2d');
+            chart = new Chart(ctx, { type: 'line', data: data, options: options });
+        }
+    }
+
+    sliderRate.addEventListener('input', renderChart);
+    sliderReturn.addEventListener('input', renderChart);
+    sliderDP.addEventListener('input', renderChart);
+    sliderInflation.addEventListener('input', renderChart);
+    sliderAppreciation.addEventListener('input', renderChart);
+    radioEnvelopes.forEach(function(r) { r.addEventListener('change', renderChart); });
+
+    renderChart();
+})();
+</script>
+{{end}}

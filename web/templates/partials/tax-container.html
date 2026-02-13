@@ -1,0 +1,51 @@
+{{define "tax-container.html"}}
+<div class="space-y-6">
+    <!-- Tabs and Year selector -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div class="flex space-x-2">
+            <button hx-get="/tax?tab=stocks&year={{.SelectedYear}}"
+                    hx-target="#tax-container"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 rounded-md text-sm font-medium {{if eq .ActiveTab "stocks"}}bg-indigo-600 text-white{{else}}bg-gray-100 text-gray-700 hover:bg-gray-200{{end}}">
+                Actions (2042-C)
+            </button>
+            <button hx-get="/tax?tab=crypto&year={{.SelectedYear}}"
+                    hx-target="#tax-container"
+                    hx-swap="innerHTML"
+                    class="px-4 py-2 rounded-md text-sm font-medium {{if eq .ActiveTab "crypto"}}bg-indigo-600 text-white{{else}}bg-gray-100 text-gray-700 hover:bg-gray-200{{end}}">
+                Crypto (2086)
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <label for="tax-year" class="text-sm font-medium text-gray-700">Ann&eacute;e fiscale :</label>
+            <select id="tax-year"
+                    hx-get="/tax"
+                    hx-target="#tax-container"
+                    hx-swap="innerHTML"
+                    hx-include="this"
+                    name="year"
+                    class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                {{range .AvailableYears}}
+                <option value="{{.}}" {{if eq . $.SelectedYear}}selected{{end}}>{{.}}</option>
+                {{end}}
+            </select>
+            <input type="hidden" name="tab" value="{{.ActiveTab}}">
+        </div>
+    </div>
+
+    {{if eq .ActiveTab "stocks"}}
+    <!-- Stock Sales -->
+    <div id="tax-results">
+        {{template "tax-stock-table.html" .}}
+        {{template "tax-summary.html" .}}
+    </div>
+    {{else}}
+    <!-- Crypto Sales -->
+    <div id="tax-results">
+        {{template "tax-crypto-table.html" .}}
+        {{template "tax-summary.html" .}}
+    </div>
+    {{end}}
+</div>
+{{end}}

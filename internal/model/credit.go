@@ -49,6 +49,60 @@ type CreditInput struct {
 	HouseholdSize         int            // Nombre de personnes dans le foyer fiscal
 	PropertyZone          string         // Zone géographique (A, Abis, B1, B2, C)
 	NewLoanLines          []NewLoanLine  // Lignes de crédit du nouveau prêt (PTZ, PAL, etc.)
+	// Energy comparison fields
+	Energy1Gas            float64 // Gaz annuel bien 1 (€/an)
+	Energy1Electricity    float64 // Électricité annuelle bien 1 (€/an)
+	Energy1GasKWh         float64 // Consommation gaz bien 1 (kWh/an)
+	Energy1ElectricityKWh float64 // Consommation électricité bien 1 (kWh/an)
+	Energy1Other          float64 // Autres coûts annuels bien 1 (€/an) - ex: recharge VE
+	Energy1OtherLabel     string  // Label autres coûts bien 1
+	Energy1Label          string  // Label bien 1 (ex: "Bien actuel")
+	Energy2Gas            float64 // Gaz annuel bien 2 (€/an)
+	Energy2Electricity    float64 // Électricité annuelle bien 2 (€/an)
+	Energy2GasKWh         float64 // Consommation gaz bien 2 (kWh/an)
+	Energy2ElectricityKWh float64 // Consommation électricité bien 2 (kWh/an)
+	Energy2Other          float64 // Autres coûts annuels bien 2 (€/an) - ex: recharge VE
+	Energy2OtherLabel     string  // Label autres coûts bien 2
+	Energy2Label          string  // Label bien 2 (ex: "Nouveau bien")
+	Energy1Surface        float64 // Surface bien 1 (m²)
+	Energy1DPE            float64 // DPE bien 1 (kWh/m²/an)
+	Energy2Surface        float64 // Surface bien 2 (m²)
+	Energy2DPE            float64 // DPE bien 2 (kWh/m²/an)
+	Energy3Gas            float64 // Coût gaz annuel bien 3 (€/an)
+	Energy3Electricity    float64 // Coût électricité annuel bien 3 (€/an)
+	Energy3GasKWh         float64 // Consommation gaz bien 3 (kWh/an)
+	Energy3ElectricityKWh float64 // Consommation électricité bien 3 (kWh/an)
+	Energy3Other          float64 // Autres coûts énergétiques bien 3 (€/an)
+	Energy3OtherLabel     string  // Label autres coûts bien 3
+	Energy3Label          string  // Label bien 3
+	Energy3Surface        float64 // Surface bien 3 (m²)
+	Energy3DPE            float64 // DPE bien 3 (kWh/m²/an)
+	EnergyPriceIncrease   float64 // Augmentation annuelle prix énergie (%)
+}
+
+// EnergyComparisonYear holds the energy cost comparison data for one year.
+type EnergyComparisonYear struct {
+	Year         int
+	CumulGas1    float64 // Cumul gaz bien 1
+	CumulElec1   float64 // Cumul électricité bien 1
+	CumulOther1  float64 // Cumul autres coûts bien 1
+	CumulTotal1  float64 // Cumul total bien 1
+	CumulGas2    float64 // Cumul gaz bien 2
+	CumulElec2   float64 // Cumul électricité bien 2
+	CumulOther2  float64 // Cumul autres coûts bien 2
+	CumulTotal2  float64 // Cumul total bien 2
+	CumulSavings float64 // Total1 - Total2 (positif = bien 2 moins cher)
+	CumulGas3    float64 // Cumul gaz bien 3
+	CumulElec3   float64 // Cumul électricité bien 3
+	CumulOther3  float64 // Cumul autres coûts bien 3
+	CumulTotal3  float64 // Cumul total bien 3
+	// kWh tracking
+	CumulGasKWh1  float64 // Cumul kWh gaz bien 1
+	CumulElecKWh1 float64 // Cumul kWh électricité bien 1
+	CumulGasKWh2  float64 // Cumul kWh gaz bien 2
+	CumulElecKWh2 float64 // Cumul kWh électricité bien 2
+	CumulGasKWh3  float64 // Cumul kWh gaz bien 3
+	CumulElecKWh3 float64 // Cumul kWh électricité bien 3
 }
 
 // CreditResult holds the computed results of a mortgage simulation.
@@ -88,8 +142,9 @@ type CreditResult struct {
 	LoanLineResults       []NewLoanLineResult // Détail des résultats par ligne de crédit
 	EquivalentRent        float64             // Loyer équivalent mensuel (coûts irrécupérables récurrents / mois)
 	MonthlySchedule       []MonthlySchedule   // Planning mensuel lissé avec répartition par prêt
-	CurrentLoanSchedule    []MonthlySchedule        // Planning mensuel des prêts en cours (bien actuel)
-	CurrentBorrowerPayments []CurrentBorrowerPayment // Versements cumulés par emprunteur (bien actuel)
+	CurrentLoanSchedule     []MonthlySchedule         // Planning mensuel des prêts en cours (bien actuel)
+	CurrentBorrowerPayments []CurrentBorrowerPayment  // Versements cumulés par emprunteur (bien actuel)
+	EnergyComparisonData    []EnergyComparisonYear    // Données comparaison coûts énergétiques
 }
 
 // AidEligibility holds the eligibility results for housing assistance programs.
@@ -167,15 +222,37 @@ type IrrecoverableDetail struct {
 	Total            float64 // Total des coûts irrécupérables
 }
 
+// LoanPaymentDetail holds cumulative payment info for a single loan line.
+type LoanPaymentDetail struct {
+	Label     string  // Libellé du prêt
+	Amount    float64 // Montant cumulé des versements (total)
+	Principal float64 // Capital amorti cumulé
+	Interest  float64 // Intérêts cumulés
+	Insurance float64 // Assurance cumulée
+}
+
 // PropertySale holds the result of selling the current property.
 type PropertySale struct {
-	SalePrice   float64    // Prix de vente
-	LoanBalance float64    // Capital restant dû (total)
-	Penalty     float64    // IRA (total)
-	NetProceeds float64    // Produit net de vente
-	Proceeds1   float64    // Part emprunteur 1
-	Proceeds2   float64    // Part emprunteur 2
-	LoanLines   []LoanLine // Détail des lignes de prêt
+	SalePrice          float64             // Prix de vente
+	LoanBalance        float64             // Capital restant dû (total)
+	Penalty            float64             // IRA (total)
+	NetProceeds        float64             // Produit net de vente
+	Proceeds1          float64             // Part emprunteur 1
+	Proceeds2          float64             // Part emprunteur 2
+	LoanLines          []LoanLine          // Détail des lignes de prêt
+	ApportE1Initial    float64             // Apport initial E1 (down payment)
+	ApportE1Loans      float64             // Versements prêts cumulés E1
+	ApportE1LoansDetail []LoanPaymentDetail // Détail versements par ligne de prêt
+	ApportE1Total      float64             // Total contribution E1 (apport + prêts - remboursements E2)
+	ApportE2Initial    float64             // Apport initial E2
+	ApportE2Monthly    float64             // Mensualités cumulées E2
+	ApportE2Total      float64             // Total contribution E2
+	TotalApports       float64             // Total des apports (E1 + E2)
+	ContributionPctE1  float64             // Pourcentage contribution E1
+	ContributionPctE2  float64             // Pourcentage contribution E2
+	MonthsElapsed      int                 // Mois écoulés depuis début du prêt
+	Profit             float64             // Bénéfice (ProduitNet - TotalApports)
+	ProfitShareE2      float64             // Part du bénéfice pour E2
 }
 
 // OwnershipShare holds the ownership split between two co-buyers.
@@ -212,18 +289,19 @@ type PaymentTier struct {
 
 // LoanLine represents a single loan line for IRA calculation.
 type LoanLine struct {
-	Label          string        `json:"label"`          // Libellé du prêt (ex: "Prêt principal", "PTZ")
-	OriginalAmount float64       `json:"originalAmount"` // Montant emprunté initial
-	Balance        float64       `json:"balance"`        // Capital restant dû
-	Rate           float64       `json:"rate"`           // Taux d'intérêt (%)
-	IRA            float64       `json:"ira"`            // IRA saisi par l'utilisateur
-	StartYear      int           `json:"startYear"`      // Année de début du prêt
-	StartMonth     int           `json:"startMonth"`     // Mois de début (1-12)
-	DurationYears  int           `json:"durationYears"`  // Durée totale en années
-	InsuranceRate  float64       `json:"insuranceRate"`  // Taux assurance annuel (%)
-	DeferralMonths int           `json:"deferralMonths"` // Différé en mois (paiement intérêts seuls)
-	DeferralRate   float64       `json:"deferralRate"`   // Taux intérêts intercalaires (%)
-	Tiers          []PaymentTier `json:"tiers"`          // Paliers de paiement
+	Label            string        `json:"label"`            // Libellé du prêt (ex: "Prêt principal", "PTZ")
+	OriginalAmount   float64       `json:"originalAmount"`   // Montant emprunté initial
+	Balance          float64       `json:"balance"`          // Capital restant dû
+	Rate             float64       `json:"rate"`             // Taux d'intérêt (%)
+	IRA              float64       `json:"ira"`              // IRA saisi par l'utilisateur
+	StartYear        int           `json:"startYear"`        // Année de début du prêt
+	StartMonth       int           `json:"startMonth"`       // Mois de début (1-12)
+	DurationYears    int           `json:"durationYears"`    // Durée totale en années
+	InsuranceRate    float64       `json:"insuranceRate"`    // Taux assurance annuel (%)
+	InsuranceMonthly float64       `json:"insuranceMonthly"` // Mensualité assurance (€) - alternatif au taux
+	DeferralMonths   int           `json:"deferralMonths"`   // Différé en mois (paiement intérêts seuls)
+	DeferralRate     float64       `json:"deferralRate"`     // Taux intérêts intercalaires (%)
+	Tiers            []PaymentTier `json:"tiers"`            // Paliers de paiement
 }
 
 // NewLoanLine represents a loan line for the new mortgage.

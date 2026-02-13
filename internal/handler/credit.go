@@ -163,6 +163,45 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Parse energy comparison fields
+	energy1Gas := parseFloat(r.FormValue("energy_1_gas"), 0)
+	energy1Electricity := parseFloat(r.FormValue("energy_1_electricity"), 0)
+	energy1GasKWh := parseFloat(r.FormValue("energy_1_gas_kwh"), 0)
+	energy1ElectricityKWh := parseFloat(r.FormValue("energy_1_electricity_kwh"), 0)
+	energy1Other := parseFloat(r.FormValue("energy_1_other"), 0)
+	energy1OtherLabel := r.FormValue("energy_1_other_label")
+	energy1Label := r.FormValue("energy_1_label")
+	if energy1Label == "" {
+		energy1Label = "Bien actuel"
+	}
+	energy2Gas := parseFloat(r.FormValue("energy_2_gas"), 0)
+	energy2Electricity := parseFloat(r.FormValue("energy_2_electricity"), 0)
+	energy2GasKWh := parseFloat(r.FormValue("energy_2_gas_kwh"), 0)
+	energy2ElectricityKWh := parseFloat(r.FormValue("energy_2_electricity_kwh"), 0)
+	energy2Other := parseFloat(r.FormValue("energy_2_other"), 0)
+	energy2OtherLabel := r.FormValue("energy_2_other_label")
+	energy2Label := r.FormValue("energy_2_label")
+	if energy2Label == "" {
+		energy2Label = "Nouveau bien"
+	}
+	energy1Surface := parseFloat(r.FormValue("energy_1_surface"), 0)
+	energy1DPE := parseFloat(r.FormValue("energy_1_dpe"), 0)
+	energy2Surface := parseFloat(r.FormValue("energy_2_surface"), 0)
+	energy2DPE := parseFloat(r.FormValue("energy_2_dpe"), 0)
+	energy3Gas := parseFloat(r.FormValue("energy_3_gas"), 0)
+	energy3Electricity := parseFloat(r.FormValue("energy_3_electricity"), 0)
+	energy3GasKWh := parseFloat(r.FormValue("energy_3_gas_kwh"), 0)
+	energy3ElectricityKWh := parseFloat(r.FormValue("energy_3_electricity_kwh"), 0)
+	energy3Other := parseFloat(r.FormValue("energy_3_other"), 0)
+	energy3OtherLabel := r.FormValue("energy_3_other_label")
+	energy3Label := r.FormValue("energy_3_label")
+	if energy3Label == "" {
+		energy3Label = "Bien 3"
+	}
+	energy3Surface := parseFloat(r.FormValue("energy_3_surface"), 0)
+	energy3DPE := parseFloat(r.FormValue("energy_3_dpe"), 0)
+	energyPriceIncrease := parseFloat(r.FormValue("energy_price_increase"), 4.0)
+
 	// Save inputs to persistence
 	formInputs := &persistence.FormInputs{
 		PropertyPrice:         propertyPrice,
@@ -215,6 +254,34 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		PropertyZone:            propertyZone,
 		NewLoanLines:            newLoanLinesJSON,
 		WorkLines:               workLinesJSON,
+		Energy1Gas:              energy1Gas,
+		Energy1Electricity:      energy1Electricity,
+		Energy1GasKWh:           energy1GasKWh,
+		Energy1ElectricityKWh:   energy1ElectricityKWh,
+		Energy1Other:            energy1Other,
+		Energy1OtherLabel:       energy1OtherLabel,
+		Energy1Label:            energy1Label,
+		Energy2Gas:              energy2Gas,
+		Energy2Electricity:      energy2Electricity,
+		Energy2GasKWh:           energy2GasKWh,
+		Energy2ElectricityKWh:   energy2ElectricityKWh,
+		Energy2Other:            energy2Other,
+		Energy2OtherLabel:       energy2OtherLabel,
+		Energy2Label:            energy2Label,
+		Energy1Surface:          energy1Surface,
+		Energy1DPE:              energy1DPE,
+		Energy2Surface:          energy2Surface,
+		Energy2DPE:              energy2DPE,
+		Energy3Gas:              energy3Gas,
+		Energy3Electricity:      energy3Electricity,
+		Energy3GasKWh:           energy3GasKWh,
+		Energy3ElectricityKWh:   energy3ElectricityKWh,
+		Energy3Other:            energy3Other,
+		Energy3OtherLabel:       energy3OtherLabel,
+		Energy3Label:            energy3Label,
+		Energy3Surface:          energy3Surface,
+		Energy3DPE:              energy3DPE,
+		EnergyPriceIncrease:     energyPriceIncrease,
 	}
 	if err := h.store.Save(formInputs); err != nil {
 		log.Printf("Failed to save inputs: %v", err)
@@ -268,6 +335,34 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		HouseholdSize:          householdSize,
 		PropertyZone:           propertyZone,
 		NewLoanLines:           newLoanLines,
+		Energy1Gas:             energy1Gas,
+		Energy1Electricity:     energy1Electricity,
+		Energy1GasKWh:          energy1GasKWh,
+		Energy1ElectricityKWh:  energy1ElectricityKWh,
+		Energy1Other:           energy1Other,
+		Energy1OtherLabel:      energy1OtherLabel,
+		Energy1Label:           energy1Label,
+		Energy2Gas:             energy2Gas,
+		Energy2Electricity:     energy2Electricity,
+		Energy2GasKWh:          energy2GasKWh,
+		Energy2ElectricityKWh:  energy2ElectricityKWh,
+		Energy2Other:           energy2Other,
+		Energy2OtherLabel:      energy2OtherLabel,
+		Energy2Label:           energy2Label,
+		Energy1Surface:         energy1Surface,
+		Energy1DPE:             energy1DPE,
+		Energy2Surface:         energy2Surface,
+		Energy2DPE:             energy2DPE,
+		Energy3Gas:             energy3Gas,
+		Energy3Electricity:     energy3Electricity,
+		Energy3GasKWh:          energy3GasKWh,
+		Energy3ElectricityKWh:  energy3ElectricityKWh,
+		Energy3Other:           energy3Other,
+		Energy3OtherLabel:      energy3OtherLabel,
+		Energy3Label:           energy3Label,
+		Energy3Surface:         energy3Surface,
+		Energy3DPE:             energy3DPE,
+		EnergyPriceIncrease:    energyPriceIncrease,
 	}
 
 	result := calculator.Calculate(input)
@@ -300,7 +395,22 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.templates.ExecuteTemplate(w, "paymentbreakdown.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	if err := h.templates.ExecuteTemplate(w, "salecash.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "downpayment-impact.html", data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "energy-comparison.html", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

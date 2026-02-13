@@ -1,0 +1,237 @@
+{{define "tax-crypto-table.html"}}
+<div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Ventes de cryptomonnaies</h2>
+
+    <!-- Info box about French crypto taxation method -->
+    <div class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+        <strong>M&eacute;thode fran&ccedil;aise :</strong> La plus-value est calcul&eacute;e selon la formule :
+        <code class="bg-blue-100 px-1 rounded">PV = Prix cession - (Co&ucirc;t acquisition portefeuille &times; Prix cession / Valeur portefeuille)</code>
+    </div>
+
+    <!-- Add/Edit sale form -->
+    <form id="crypto-sale-form"
+          hx-post="/tax/crypto/sales"
+          hx-target="#tax-results"
+          hx-swap="innerHTML"
+          class="mb-6 p-4 bg-gray-50 rounded-lg">
+        <input type="hidden" name="crypto_sale_id" id="crypto_sale_id" value="">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Symbole</label>
+                <input type="text" name="symbol" id="crypto_symbol" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-mono"
+                       placeholder="BTC">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Nom</label>
+                <input type="text" name="name" id="crypto_name" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="Bitcoin">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Wallet</label>
+                <select name="wallet" id="crypto_wallet"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    <option value="ledger">Ledger</option>
+                    <option value="binance">Binance</option>
+                    <option value="kraken">Kraken</option>
+                    <option value="coinbase">Coinbase</option>
+                    <option value="autre">Autre</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Quantit&eacute;</label>
+                <input type="number" name="quantity" id="crypto_quantity" step="0.00000001" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="0.5">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Date achat</label>
+                <input type="date" name="purchase_date" id="crypto_purchase_date" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">PRU unitaire (&euro;)</label>
+                <input type="number" name="purchase_price" id="crypto_purchase_price" step="0.01" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="35000.00">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Frais achat</label>
+                <input type="number" name="purchase_fees" id="crypto_purchase_fees" step="0.01" value="0"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Date vente</label>
+                <input type="date" name="sale_date" id="crypto_sale_date" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Prix vente unit. (&euro;)</label>
+                <input type="number" name="sale_price" id="crypto_sale_price" step="0.01" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="45000.00">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Frais vente</label>
+                <input type="number" name="sale_fees" id="crypto_sale_fees" step="0.01" value="0"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Valeur portefeuille</label>
+                <input type="number" name="portfolio_value" id="crypto_portfolio_value" step="0.01"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="50000.00"
+                       title="Valeur totale du portefeuille crypto au moment de la vente">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Co&ucirc;t acq. portef.</label>
+                <input type="number" name="portfolio_cost" id="crypto_portfolio_cost" step="0.01"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="30000.00"
+                       title="Co&ucirc;t total d'acquisition du portefeuille crypto">
+            </div>
+            <div class="flex items-end col-span-2 md:col-span-1 gap-2">
+                <button type="submit" id="crypto_submit_btn"
+                        class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">
+                    Ajouter
+                </button>
+                <button type="button" id="crypto_cancel_btn" onclick="cancelCryptoSaleEdit()" style="display:none"
+                        class="bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-400">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    </form>
+
+    {{if eq (len .CryptoSummary.Sales) 0}}
+    <p class="text-gray-500 text-sm">Aucune vente enregistr&eacute;e pour cette ann&eacute;e.</p>
+    {{else}}
+    <!-- Sales table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Symbole</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Nom</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Wallet</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Qt&eacute;</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Achat</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Vente</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Produit cession</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Co&ucirc;t acq.</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">+/- Value</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {{range .CryptoSummary.Sales}}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-mono font-medium text-gray-900">{{.Symbol}}</td>
+                    <td class="px-3 py-2 text-gray-700">{{.Name}}</td>
+                    <td class="px-3 py-2">
+                        {{if eq .Wallet "ledger"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-white">Ledger</span>
+                        {{else if eq .Wallet "binance"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Binance</span>
+                        {{else if eq .Wallet "kraken"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Kraken</span>
+                        {{else if eq .Wallet "coinbase"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Coinbase</span>
+                        {{else}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{.Wallet}}</span>
+                        {{end}}
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono">{{printf "%.8f" .Quantity}}</td>
+                    <td class="px-3 py-2 text-center text-xs">
+                        <div>{{.PurchaseDate}}</div>
+                        <div class="text-gray-500">{{formatMoney .PurchasePrice}} &euro;</div>
+                    </td>
+                    <td class="px-3 py-2 text-center text-xs">
+                        <div>{{.SaleDate}}</div>
+                        <div class="text-gray-500">{{formatMoney .SalePrice}} &euro;</div>
+                    </td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .SaleProceeds}} &euro;</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .AcquisitionCost}} &euro;</td>
+                    <td class="px-3 py-2 text-right font-medium {{if .IsPlusValue}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if .IsPlusValue}}+{{end}}{{formatMoney .CapitalGain}} &euro;
+                    </td>
+                    <td class="px-3 py-2 text-center whitespace-nowrap">
+                        <button type="button"
+                                onclick="editCryptoSale({{.ID}}, '{{.Symbol}}', '{{.Name}}', '{{.Wallet}}', {{.Quantity}}, '{{.PurchaseDate}}', {{.PurchasePrice}}, {{.PurchaseFees}}, '{{.SaleDate}}', {{.SalePrice}}, {{.SaleFees}}, {{.PortfolioValueAtSale}}, {{.PortfolioAcquisitionCost}})"
+                                class="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 rounded hover:bg-indigo-50">
+                            Modifier
+                        </button>
+                        <button type="button"
+                                hx-delete="/tax/crypto/sales/{{.ID}}?year={{.TaxYear}}"
+                                hx-target="#tax-results"
+                                hx-swap="innerHTML"
+                                hx-confirm="Supprimer cette vente ?"
+                                class="text-red-600 hover:text-red-900 text-xs px-2 py-1 rounded hover:bg-red-50">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+            <tfoot>
+                <tr class="bg-indigo-50 font-bold text-sm">
+                    <td class="px-3 py-2" colspan="6">Total</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .CryptoSummary.TotalCessions}} &euro;</td>
+                    <td class="px-3 py-2 text-right"></td>
+                    <td class="px-3 py-2 text-right {{if ge .CryptoSummary.NetResult 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .CryptoSummary.NetResult 0.0}}+{{end}}{{formatMoney .CryptoSummary.NetResult}} &euro;
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {{end}}
+</div>
+
+<script>
+function editCryptoSale(id, symbol, name, wallet, qty, purchaseDate, purchasePrice, purchaseFees, saleDate, salePrice, saleFees, portfolioValue, portfolioCost) {
+    document.getElementById('crypto_sale_id').value = id;
+    document.getElementById('crypto_symbol').value = symbol;
+    document.getElementById('crypto_name').value = name;
+    document.getElementById('crypto_wallet').value = wallet;
+    document.getElementById('crypto_quantity').value = qty;
+    document.getElementById('crypto_purchase_date').value = purchaseDate;
+    document.getElementById('crypto_purchase_price').value = purchasePrice;
+    document.getElementById('crypto_purchase_fees').value = purchaseFees;
+    document.getElementById('crypto_sale_date').value = saleDate;
+    document.getElementById('crypto_sale_price').value = salePrice;
+    document.getElementById('crypto_sale_fees').value = saleFees;
+    document.getElementById('crypto_portfolio_value').value = portfolioValue;
+    document.getElementById('crypto_portfolio_cost').value = portfolioCost;
+
+    var form = document.getElementById('crypto-sale-form');
+    form.setAttribute('hx-put', '/tax/crypto/sales/' + id);
+    form.removeAttribute('hx-post');
+    htmx.process(form);
+
+    document.getElementById('crypto_submit_btn').textContent = 'Modifier';
+    document.getElementById('crypto_cancel_btn').style.display = '';
+}
+
+function cancelCryptoSaleEdit() {
+    document.getElementById('crypto_sale_id').value = '';
+    document.getElementById('crypto-sale-form').reset();
+
+    var form = document.getElementById('crypto-sale-form');
+    form.setAttribute('hx-post', '/tax/crypto/sales');
+    form.removeAttribute('hx-put');
+    htmx.process(form);
+
+    document.getElementById('crypto_submit_btn').textContent = 'Ajouter';
+    document.getElementById('crypto_cancel_btn').style.display = 'none';
+}
+
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.id === 'tax-results') {
+        cancelCryptoSaleEdit();
+    }
+});
+</script>
+{{end}}

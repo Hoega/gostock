@@ -1,0 +1,253 @@
+{{define "dashboard-table.html"}}
+<!-- Summary Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Valeur totale</div>
+        <div class="mt-1 text-2xl font-semibold text-gray-900">{{formatMoney .TotalValue}} &euro;</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Meilleur YTD</div>
+        <div class="mt-1 text-lg font-semibold text-green-600">{{.BestPerformer}}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Pire YTD</div>
+        <div class="mt-1 text-lg font-semibold text-red-600">{{.WorstPerformer}}</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Rendement moyen YTD</div>
+        <div class="mt-1 text-2xl font-semibold {{if ge .AverageReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
+            {{if ge .AverageReturn 0.0}}+{{end}}{{printf "%.2f" .AverageReturn}}%
+        </div>
+    </div>
+</div>
+
+{{if .Assets}}
+<!-- Performance Table -->
+<div class="bg-white shadow rounded-lg overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=name&desc={{if and (eq .SortBy "name") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center hover:text-gray-900">
+                            Actif
+                            {{if eq .SortBy "name"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=price&desc={{if and (eq .SortBy "price") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            Prix
+                            {{if eq .SortBy "price"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=value&desc={{if and (eq .SortBy "value") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            Valeur
+                            {{if eq .SortBy "value"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=daily&desc={{if and (eq .SortBy "daily") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            1J
+                            {{if eq .SortBy "daily"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=weekly&desc={{if and (eq .SortBy "weekly") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            1S
+                            {{if eq .SortBy "weekly"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=monthly&desc={{if and (eq .SortBy "monthly") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            1M
+                            {{if eq .SortBy "monthly"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=ytd&desc={{if and (eq .SortBy "ytd") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            YTD
+                            {{if eq .SortBy "ytd"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=year&desc={{if and (eq .SortBy "year") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            1A
+                            {{if eq .SortBy "year"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">52 sem</th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=rsi&desc={{if and (eq .SortBy "rsi") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            RSI
+                            {{if eq .SortBy "rsi"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                    <th scope="col" class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <a href="#"
+                           hx-get="/dashboard?filter={{.Filter}}&sort=volatility&desc={{if and (eq .SortBy "volatility") .SortDesc}}false{{else}}true{{end}}"
+                           hx-target="#dashboard-content"
+                           class="flex items-center justify-end hover:text-gray-900">
+                            Vol
+                            {{if eq .SortBy "volatility"}}
+                                {{if .SortDesc}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>{{else}}<svg class="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"/></svg>{{end}}
+                            {{end}}
+                        </a>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {{range .Assets}}
+                <tr class="hover:bg-gray-50">
+                    <!-- Asset name and type -->
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">{{.Name}}</div>
+                                <div class="text-xs text-gray-500">
+                                    {{.Symbol}}
+                                    <span class="ml-1 px-1.5 py-0.5 rounded text-xs {{if eq .Type "stock"}}bg-blue-100 text-blue-800{{else}}bg-orange-100 text-orange-800{{end}}">
+                                        {{if eq .Type "stock"}}Action{{else}}Crypto{{end}}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <!-- Current price -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        {{formatMoney .CurrentPrice}} &euro;
+                    </td>
+                    <!-- Total value -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                        {{formatMoney .TotalValue}} &euro;
+                    </td>
+                    <!-- Daily change -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm {{if ge .DailyChange 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .DailyChange 0.0}}+{{end}}{{printf "%.2f" .DailyChange}}%
+                    </td>
+                    <!-- Weekly change -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm {{if ge .WeeklyChange 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .WeeklyChange 0.0}}+{{end}}{{printf "%.2f" .WeeklyChange}}%
+                    </td>
+                    <!-- Monthly change -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm {{if ge .MonthlyChange 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .MonthlyChange 0.0}}+{{end}}{{printf "%.2f" .MonthlyChange}}%
+                    </td>
+                    <!-- YTD change -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium {{if ge .YTDChange 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .YTDChange 0.0}}+{{end}}{{printf "%.2f" .YTDChange}}%
+                    </td>
+                    <!-- 1-year change -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm {{if ge .YearChange 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .YearChange 0.0}}+{{end}}{{printf "%.2f" .YearChange}}%
+                    </td>
+                    <!-- 52-week range -->
+                    <td class="px-4 py-3 whitespace-nowrap">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-gray-500">{{printf "%.0f" .Low52Week}}</span>
+                            <div class="w-20 h-2 bg-gray-200 rounded-full relative">
+                                <div class="absolute h-2 bg-indigo-500 rounded-full" style="width: {{printf "%.0f" .RangePercent}}%"></div>
+                                <div class="absolute w-1 h-3 bg-gray-800 rounded -top-0.5" style="left: calc({{printf "%.0f" .RangePercent}}% - 2px)"></div>
+                            </div>
+                            <span class="text-xs text-gray-500">{{printf "%.0f" .High52Week}}</span>
+                        </div>
+                    </td>
+                    <!-- RSI -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                        <span class="text-sm px-2 py-0.5 rounded {{if lt .RSI14 30.0}}bg-green-100 text-green-800{{else if gt .RSI14 70.0}}bg-red-100 text-red-800{{else}}bg-gray-100 text-gray-800{{end}}">
+                            {{printf "%.0f" .RSI14}}
+                        </span>
+                    </td>
+                    <!-- Volatility -->
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm text-gray-600">
+                        {{printf "%.1f" .Volatility}}%
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<!-- Empty state -->
+<div class="bg-white shadow rounded-lg p-12 text-center">
+    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+    <h3 class="mt-2 text-sm font-medium text-gray-900">Aucune position</h3>
+    <p class="mt-1 text-sm text-gray-500">Ajoutez des positions dans la section Patrimoine pour voir leur performance.</p>
+    <div class="mt-6">
+        <a href="/portfolio" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+            Aller au patrimoine
+        </a>
+    </div>
+</div>
+{{end}}
+
+<!-- Legend -->
+{{if .Assets}}
+<div class="mt-4 flex flex-wrap gap-4 text-xs text-gray-500">
+    <div class="flex items-center">
+        <span class="inline-block w-3 h-3 rounded bg-green-100 mr-1"></span>
+        RSI &lt; 30 (survendu)
+    </div>
+    <div class="flex items-center">
+        <span class="inline-block w-3 h-3 rounded bg-red-100 mr-1"></span>
+        RSI &gt; 70 (surachet&eacute;)
+    </div>
+    <div class="flex items-center">
+        <span class="inline-block w-3 h-3 rounded bg-blue-100 mr-1"></span>
+        Action
+    </div>
+    <div class="flex items-center">
+        <span class="inline-block w-3 h-3 rounded bg-orange-100 mr-1"></span>
+        Crypto
+    </div>
+</div>
+{{end}}
+{{end}}

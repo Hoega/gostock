@@ -7,8 +7,9 @@
     <title>GoStock - Simulateur de Crédit Immobilier</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
         .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
@@ -22,7 +23,10 @@
                     <a href="/" class="text-xl font-bold text-indigo-600">GoStock</a>
                 </div>
                 <div class="flex space-x-4">
-                    <a href="/credit" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Simulateur Crédit</a>
+                    <a href="/credit" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Simulateur Cr&eacute;dit</a>
+                    <a href="/portfolio" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Patrimoine</a>
+                    <a href="/dashboard" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Tableau de bord</a>
+                    <a href="/tax" class="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium">Imp&ocirc;ts</a>
                 </div>
             </div>
         </div>

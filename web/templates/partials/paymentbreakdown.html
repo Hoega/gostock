@@ -1,0 +1,584 @@
+{{define "paymentbreakdown.html"}}
+{{if gt (len .Result.Amortization) 0}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">D&eacute;composition des mensualit&eacute;s</h2>
+
+    <!-- Sous-titre explicatif avec icône info -->
+    <div class="flex items-start gap-2 mb-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+        <svg class="w-5 h-5 text-emerald-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-emerald-800">R&eacute;partition Capital / Int&eacute;r&ecirc;ts / Assurance</strong> : Visualisez comment chaque mensualit&eacute; est r&eacute;partie
+            <span class="block text-emerald-700 font-medium mt-1">
+                Au d&eacute;but, les int&eacute;r&ecirc;ts dominent. &Agrave; la fin, le capital pr&eacute;domine.
+            </span>
+        </div>
+    </div>
+
+    <!-- Résumé des coûts totaux -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+            <div class="text-sm text-emerald-600 font-medium">Montant emprunt&eacute;</div>
+            <div class="text-2xl font-bold text-emerald-700" id="summaryLoanAmount">{{formatMoney .Input.LoanAmount}} &euro;</div>
+        </div>
+        <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+            <div class="text-sm text-indigo-600 font-medium">Mensualit&eacute; totale</div>
+            <div class="text-2xl font-bold text-indigo-700" id="summaryMonthlyPayment">{{formatMoney .Result.MonthlyTotal}} &euro;</div>
+        </div>
+        <div class="bg-orange-50 rounded-lg p-4 border border-orange-200">
+            <div class="text-sm text-orange-600 font-medium">Co&ucirc;t des int&eacute;r&ecirc;ts</div>
+            <div class="text-2xl font-bold text-orange-700" id="summaryTotalInterest">{{formatMoney .Result.TotalInterest}} &euro;</div>
+        </div>
+        <div class="bg-rose-50 rounded-lg p-4 border border-rose-200">
+            <div class="text-sm text-rose-600 font-medium">Co&ucirc;t de l'assurance</div>
+            <div class="text-2xl font-bold text-rose-700" id="summaryTotalInsurance">{{formatMoney .Result.TotalInsurance}} &euro;</div>
+        </div>
+        <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+            <div class="text-sm text-slate-600 font-medium">Co&ucirc;t total cr&eacute;dit</div>
+            <div class="text-2xl font-bold text-slate-700" id="summaryTotalCost">{{formatMoney .Result.TotalLoanCost}} &euro;</div>
+        </div>
+    </div>
+
+    <!-- Sliders interactifs -->
+    <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+        <h3 class="text-sm font-semibold text-indigo-800 mb-3">Ajuster les param&egrave;tres</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Montant emprunté -->
+            <div>
+                <label class="block text-xs font-medium text-indigo-700 mb-1">Montant : <span id="amountDisplay">{{printf "%.0f" .Input.LoanAmount}}</span> &euro;</label>
+                <input type="range" id="chartAmountSlider" min="10000" max="1000000" step="5000" value="{{.Input.LoanAmount}}"
+                    class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            </div>
+            <!-- Durée -->
+            <div>
+                <label class="block text-xs font-medium text-indigo-700 mb-1">Dur&eacute;e : <span id="durationDisplay">{{printf "%.0f" (div .Input.DurationMonths 12)}}</span> ans</label>
+                <input type="range" id="chartDurationSlider" min="5" max="30" step="1" value="{{printf "%.0f" (div .Input.DurationMonths 12)}}"
+                    class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            </div>
+            <!-- Taux crédit -->
+            <div>
+                <label class="block text-xs font-medium text-indigo-700 mb-1">Taux cr&eacute;dit : <span id="rateDisplay">{{printf "%.2f" .Input.InterestRate}}</span>%</label>
+                <input type="range" id="chartRateSlider" min="0" max="10" step="0.05" value="{{.Input.InterestRate}}"
+                    class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            </div>
+            <!-- Taux assurance -->
+            <div>
+                <label class="block text-xs font-medium text-indigo-700 mb-1">Taux assurance : <span id="insuranceDisplay">{{printf "%.2f" .Input.InsuranceRate}}</span>%</label>
+                <input type="range" id="chartInsuranceSlider" min="0" max="1" step="0.01" value="{{.Input.InsuranceRate}}"
+                    class="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            </div>
+        </div>
+    </div>
+
+    <!-- Explication détaillée -->
+    <details class="mb-4 bg-slate-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-lg">
+            Comment lire ce graphique ?
+        </summary>
+        <div class="p-4 pt-0 text-sm text-slate-600 space-y-3">
+            <div>
+                <p class="font-semibold text-slate-800">Objectif</p>
+                <p>Comprendre la r&eacute;partition de votre mensualit&eacute; entre le remboursement du capital, le paiement des int&eacute;r&ecirc;ts et l'assurance.</p>
+            </div>
+            <div>
+                <p class="font-semibold text-slate-800">M&eacute;canisme du cr&eacute;dit</p>
+                <p>Dans un pr&ecirc;t amortissable classique :</p>
+                <ul class="list-disc list-inside space-y-1 text-xs mt-2">
+                    <li><strong>D&eacute;but du pr&ecirc;t</strong> : Les int&eacute;r&ecirc;ts sont calcul&eacute;s sur un capital important, donc plus &eacute;lev&eacute;s</li>
+                    <li><strong>Fin du pr&ecirc;t</strong> : Le capital restant d&ucirc; diminue, donc les int&eacute;r&ecirc;ts aussi</li>
+                    <li><strong>Assurance</strong> : G&eacute;n&eacute;ralement constante sur toute la dur&eacute;e</li>
+                </ul>
+            </div>
+            <div class="bg-emerald-50 p-2 rounded text-xs border border-emerald-200">
+                <strong>Conseil :</strong> Un remboursement anticip&eacute; en d&eacute;but de pr&ecirc;t permet d'&eacute;conomiser plus d'int&eacute;r&ecirc;ts.
+            </div>
+        </div>
+    </details>
+
+    <!-- Graphique en barres empilées -->
+    <div class="chart-container" style="height: 400px;">
+        <canvas id="paymentBreakdownChart"></canvas>
+    </div>
+
+    <!-- Légende détaillée -->
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(16, 185, 129, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Capital</span>
+                <span class="text-gray-500 text-xs block">Remboursement du principal</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(249, 115, 22, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Int&eacute;r&ecirc;ts</span>
+                <span class="text-gray-500 text-xs block">Co&ucirc;t de l'emprunt</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(244, 63, 94, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Assurance</span>
+                <span class="text-gray-500 text-xs block">Couverture emprunteur</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graphique cumulé -->
+    <h3 class="text-xl font-bold text-gray-900 mt-8 mb-4">Mensualit&eacute;s cumul&eacute;es</h3>
+
+    <!-- Explication -->
+    <div class="flex items-start gap-2 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+        <svg class="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <div class="text-sm">
+            <strong class="text-blue-800">&Eacute;volution du total vers&eacute;</strong> : Visualisez le cumul des sommes vers&eacute;es au fil du temps.
+            <span class="block text-blue-700 font-medium mt-1">
+                &Agrave; la fin du pr&ecirc;t, le total correspond au co&ucirc;t total du cr&eacute;dit + capital emprunt&eacute;.
+            </span>
+        </div>
+    </div>
+
+    <!-- Graphique aires empilées -->
+    <div class="chart-container" style="height: 400px;">
+        <canvas id="cumulativePaymentChart"></canvas>
+    </div>
+
+    <!-- Légende -->
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(16, 185, 129, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Capital amorti</span>
+                <span class="text-gray-500 text-xs block">Cumul du principal rembours&eacute;</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(249, 115, 22, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Int&eacute;r&ecirc;ts</span>
+                <span class="text-gray-500 text-xs block">Cumul des int&eacute;r&ecirc;ts pay&eacute;s</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+            <div class="w-4 h-4 rounded" style="background-color: rgba(244, 63, 94, 0.7);"></div>
+            <div class="text-sm">
+                <span class="font-medium text-gray-900">Assurance</span>
+                <span class="text-gray-500 text-xs block">Cumul des primes d'assurance</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const initialAmortization = {{toJSON .Result.Amortization}};
+    const startYear = {{.Input.StartYear}};
+    const startMonth = {{.Input.StartMonth}};
+    const initialLoanAmount = {{.Input.LoanAmount}};
+
+    if (!initialAmortization || initialAmortization.length === 0) return;
+
+    // Variables pour les graphiques
+    let breakdownChart = null;
+    let cumulativeChart = null;
+    let currentAmortization = initialAmortization;
+    let currentLoanAmount = initialLoanAmount;
+
+    // Fonction pour calculer l'amortissement
+    function calculateAmortization(principal, annualRate, durationYears, insuranceRate) {
+        const months = durationYears * 12;
+        const monthlyRate = annualRate / 100 / 12;
+        const monthlyInsurance = principal * (insuranceRate / 100) / 12;
+
+        let monthlyPayment;
+        if (monthlyRate === 0) {
+            monthlyPayment = principal / months;
+        } else {
+            monthlyPayment = principal * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1);
+        }
+
+        const amortization = [];
+        let balance = principal;
+
+        for (let m = 1; m <= months; m++) {
+            const interest = balance * monthlyRate;
+            const principalPart = monthlyPayment - interest;
+            balance -= principalPart;
+            if (balance < 0) balance = 0;
+
+            amortization.push({
+                Month: m,
+                Principal: Math.round(principalPart * 100) / 100,
+                Interest: Math.round(interest * 100) / 100,
+                Insurance: Math.round(monthlyInsurance * 100) / 100,
+                RemainingBalance: Math.round(balance * 100) / 100
+            });
+        }
+
+        return amortization;
+    }
+
+    // Fonction pour générer les labels
+    function generateLabels(length) {
+        const labels = [];
+        const fullDates = [];
+        for (let m = 0; m < length; m++) {
+            const date = new Date(startYear, startMonth - 1 + m, 1);
+            const day = '01';
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            fullDates.push(day + '/' + month + '/' + year);
+            labels.push(m + 1);
+        }
+        return { labels, fullDates };
+    }
+
+    // Fonction pour formater les montants (avec séparateur de milliers)
+    function formatMoney(value) {
+        return value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // Fonction pour formater les montants pour l'affichage slider
+    function formatMoneyShort(value) {
+        return value.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+    }
+
+    // Fonction pour mettre à jour les cartes de résumé
+    function updateSummaryCards(amortization, loanAmount) {
+        const totalInterest = amortization.reduce((sum, row) => sum + row.Interest, 0);
+        const totalInsurance = amortization.reduce((sum, row) => sum + row.Insurance, 0);
+        const totalCost = totalInterest + totalInsurance;
+        const monthlyPayment = amortization[0].Principal + amortization[0].Interest + amortization[0].Insurance;
+
+        document.getElementById('summaryLoanAmount').textContent = formatMoney(loanAmount) + ' €';
+        document.getElementById('summaryMonthlyPayment').textContent = formatMoney(monthlyPayment) + ' €';
+        document.getElementById('summaryTotalInterest').textContent = formatMoney(totalInterest) + ' €';
+        document.getElementById('summaryTotalInsurance').textContent = formatMoney(totalInsurance) + ' €';
+        document.getElementById('summaryTotalCost').textContent = formatMoney(totalCost) + ' €';
+    }
+
+    // Fonction pour mettre à jour les graphiques
+    function updateCharts(amortization, loanAmount) {
+        currentAmortization = amortization;
+        currentLoanAmount = loanAmount;
+        const { labels, fullDates } = generateLabels(amortization.length);
+
+        // Données mensualités
+        const capitalData = amortization.map(row => row.Principal);
+        const interestData = amortization.map(row => row.Interest);
+        const insuranceData = amortization.map(row => row.Insurance);
+
+        // Données cumulées
+        let cumCapital = 0, cumInterest = 0, cumInsurance = 0;
+        const cumCapitalData = [], cumInterestData = [], cumInsuranceData = [];
+        amortization.forEach(row => {
+            cumCapital += row.Principal;
+            cumInterest += row.Interest;
+            cumInsurance += row.Insurance;
+            cumCapitalData.push(Math.round(cumCapital * 100) / 100);
+            cumInterestData.push(Math.round(cumInterest * 100) / 100);
+            cumInsuranceData.push(Math.round(cumInsurance * 100) / 100);
+        });
+
+        // Mise à jour graphique mensualités
+        breakdownChart.data.labels = labels;
+        breakdownChart.data.datasets[0].data = capitalData;
+        breakdownChart.data.datasets[1].data = interestData;
+        breakdownChart.data.datasets[2].data = insuranceData;
+        breakdownChart.options.plugins.tooltip.callbacks.title = function(items) {
+            const monthIndex = items[0].dataIndex;
+            return 'Mensualité #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+        };
+        breakdownChart.options.plugins.tooltip.callbacks.label = function(context) {
+            const value = context.parsed.y;
+            const monthIndex = context.dataIndex;
+            const row = currentAmortization[monthIndex];
+            const total = row.Principal + row.Interest + row.Insurance;
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' € (' + percentage + '%)';
+        };
+        breakdownChart.options.plugins.tooltip.callbacks.footer = function(items) {
+            const monthIndex = items[0].dataIndex;
+            const row = currentAmortization[monthIndex];
+            const total = row.Principal + row.Interest + row.Insurance;
+            return '─────────────────\nTotal : ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+        };
+        breakdownChart.update();
+
+        // Mise à jour graphique cumulé
+        cumulativeChart.data.labels = labels;
+        cumulativeChart.data.datasets[0].data = cumCapitalData;
+        cumulativeChart.data.datasets[1].data = cumInterestData;
+        cumulativeChart.data.datasets[2].data = cumInsuranceData;
+        cumulativeChart.options.plugins.tooltip.callbacks.title = function(items) {
+            const monthIndex = items[0].dataIndex;
+            return 'Mois #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+        };
+        cumulativeChart.options.plugins.tooltip.callbacks.label = function(context) {
+            const value = context.parsed.y;
+            const monthIndex = context.dataIndex;
+            const totalCum = cumCapitalData[monthIndex] + cumInterestData[monthIndex] + cumInsuranceData[monthIndex];
+            const percentage = totalCum > 0 ? ((value / totalCum) * 100).toFixed(1) : 0;
+            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' € (' + percentage + '%)';
+        };
+        cumulativeChart.options.plugins.tooltip.callbacks.footer = function(items) {
+            const monthIndex = items[0].dataIndex;
+            const totalCum = cumCapitalData[monthIndex] + cumInterestData[monthIndex] + cumInsuranceData[monthIndex];
+            return '─────────────────\nTotal versé : ' + totalCum.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+        };
+        cumulativeChart.update();
+
+        // Mise à jour cartes de résumé
+        updateSummaryCards(amortization, loanAmount);
+    }
+
+    // Gestionnaire de changement des sliders
+    function onSliderChange() {
+        const amount = parseFloat(document.getElementById('chartAmountSlider').value);
+        const duration = parseInt(document.getElementById('chartDurationSlider').value);
+        const rate = parseFloat(document.getElementById('chartRateSlider').value);
+        const insurance = parseFloat(document.getElementById('chartInsuranceSlider').value);
+
+        // Mise à jour des affichages
+        document.getElementById('amountDisplay').textContent = formatMoneyShort(amount);
+        document.getElementById('durationDisplay').textContent = duration;
+        document.getElementById('rateDisplay').textContent = rate.toFixed(2);
+        document.getElementById('insuranceDisplay').textContent = insurance.toFixed(2);
+
+        // Recalcul et mise à jour
+        const newAmortization = calculateAmortization(amount, rate, duration, insurance);
+        updateCharts(newAmortization, amount);
+    }
+
+    // Initialisation des labels
+    const { labels, fullDates } = generateLabels(initialAmortization.length);
+
+    // Extraire les données initiales
+    const capitalData = initialAmortization.map(row => row.Principal);
+    const interestData = initialAmortization.map(row => row.Interest);
+    const insuranceData = initialAmortization.map(row => row.Insurance);
+
+    // Création du graphique mensualités
+    const ctx = document.getElementById('paymentBreakdownChart').getContext('2d');
+    breakdownChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Capital',
+                    data: capitalData,
+                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                    borderColor: '#10b981',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Intérêts',
+                    data: interestData,
+                    backgroundColor: 'rgba(249, 115, 22, 0.7)',
+                    borderColor: '#f97316',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Assurance',
+                    data: insuranceData,
+                    backgroundColor: 'rgba(244, 63, 94, 0.7)',
+                    borderColor: '#f43f5e',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'rect'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            return 'Mensualité #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            const monthIndex = context.dataIndex;
+                            const row = currentAmortization[monthIndex];
+                            const total = row.Principal + row.Interest + row.Insurance;
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' € (' + percentage + '%)';
+                        },
+                        footer: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            const row = currentAmortization[monthIndex];
+                            const total = row.Principal + row.Interest + row.Insurance;
+                            return '─────────────────\nTotal : ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Numéro de mensualité'
+                    },
+                    ticks: {
+                        maxTicksAuto: true,
+                        autoSkip: true,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Mensualité (€)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Calcul des cumuls initiaux
+    let cumCapital = 0, cumInterest = 0, cumInsurance = 0;
+    const cumCapitalData = [], cumInterestData = [], cumInsuranceData = [];
+    initialAmortization.forEach(row => {
+        cumCapital += row.Principal;
+        cumInterest += row.Interest;
+        cumInsurance += row.Insurance;
+        cumCapitalData.push(Math.round(cumCapital * 100) / 100);
+        cumInterestData.push(Math.round(cumInterest * 100) / 100);
+        cumInsuranceData.push(Math.round(cumInsurance * 100) / 100);
+    });
+
+    // Création du graphique cumulé
+    const ctxCum = document.getElementById('cumulativePaymentChart').getContext('2d');
+    cumulativeChart = new Chart(ctxCum, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Capital amorti',
+                    data: cumCapitalData,
+                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                    borderColor: '#10b981',
+                    borderWidth: 1,
+                    fill: true,
+                    tension: 0.1
+                },
+                {
+                    label: 'Intérêts',
+                    data: cumInterestData,
+                    backgroundColor: 'rgba(249, 115, 22, 0.7)',
+                    borderColor: '#f97316',
+                    borderWidth: 1,
+                    fill: true,
+                    tension: 0.1
+                },
+                {
+                    label: 'Assurance',
+                    data: cumInsuranceData,
+                    backgroundColor: 'rgba(244, 63, 94, 0.7)',
+                    borderColor: '#f43f5e',
+                    borderWidth: 1,
+                    fill: true,
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'rect'
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        title: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            return 'Mois #' + (monthIndex + 1) + ' - ' + fullDates[monthIndex];
+                        },
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            const monthIndex = context.dataIndex;
+                            const totalCum = cumCapitalData[monthIndex] + cumInterestData[monthIndex] + cumInsuranceData[monthIndex];
+                            const percentage = totalCum > 0 ? ((value / totalCum) * 100).toFixed(1) : 0;
+                            return context.dataset.label + ' : ' + value.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' € (' + percentage + '%)';
+                        },
+                        footer: function(items) {
+                            const monthIndex = items[0].dataIndex;
+                            const totalCum = cumCapitalData[monthIndex] + cumInterestData[monthIndex] + cumInsuranceData[monthIndex];
+                            return '─────────────────\nTotal versé : ' + totalCum.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Numéro de mensualité'
+                    },
+                    ticks: {
+                        maxTicksAuto: true,
+                        autoSkip: true,
+                        maxRotation: 0
+                    }
+                },
+                y: {
+                    stacked: true,
+                    title: {
+                        display: true,
+                        text: 'Cumul versé (€)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' €';
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Attacher les événements aux sliders
+    document.getElementById('chartAmountSlider').addEventListener('input', onSliderChange);
+    document.getElementById('chartDurationSlider').addEventListener('input', onSliderChange);
+    document.getElementById('chartRateSlider').addEventListener('input', onSliderChange);
+    document.getElementById('chartInsuranceSlider').addEventListener('input', onSliderChange);
+})();
+</script>
+{{end}}
+{{end}}

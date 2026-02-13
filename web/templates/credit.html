@@ -36,7 +36,7 @@
                 <!-- Frais d'agence % -->
                 <div>
                     <label for="agency_rate" class="block text-sm font-medium text-gray-700">Frais d'agence (%)</label>
-                    <input type="number" name="agency_rate" id="agency_rate" value="{{.AgencyRate}}" step="0.1" min="0"
+                    <input type="number" name="agency_rate" id="agency_rate" value="{{.AgencyRate}}" step="0.01" min="0"
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
                 </div>
 
@@ -199,23 +199,41 @@
                 <!-- Taux par défaut -->
                 <div>
                     <label for="interest_rate" class="block text-sm font-medium text-gray-700">Taux par d&eacute;faut (%)</label>
-                    <input type="number" name="interest_rate" id="interest_rate" value="{{.InterestRate}}" step="0.01" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <div class="flex items-center gap-3 mt-1">
+                        <input type="range" id="interest_rate_slider" min="0" max="10" step="0.05" value="{{.InterestRate}}"
+                            oninput="syncSlider('interest_rate', this.value)"
+                            class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        <input type="number" name="interest_rate" id="interest_rate" value="{{.InterestRate}}" step="0.01" min="0"
+                            oninput="syncInput('interest_rate', this.value)"
+                            class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                    </div>
                     <p class="mt-1 text-xs text-gray-500">Utilis&eacute; si pas de lignes de pr&ecirc;t</p>
                 </div>
 
                 <!-- Durée par défaut -->
                 <div>
                     <label for="duration_years" class="block text-sm font-medium text-gray-700">Dur&eacute;e par d&eacute;faut (ans)</label>
-                    <input type="number" name="duration_years" id="duration_years" value="{{.DurationYears}}" step="1" min="1" max="30"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <div class="flex items-center gap-3 mt-1">
+                        <input type="range" id="duration_years_slider" min="1" max="30" step="1" value="{{.DurationYears}}"
+                            oninput="syncSlider('duration_years', this.value)"
+                            class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        <input type="number" name="duration_years" id="duration_years" value="{{.DurationYears}}" step="1" min="1" max="30"
+                            oninput="syncInput('duration_years', this.value)"
+                            class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                    </div>
                 </div>
 
                 <!-- Taux assurance par défaut -->
                 <div>
                     <label for="insurance_rate" class="block text-sm font-medium text-gray-700">Assurance par d&eacute;faut (%)</label>
-                    <input type="number" name="insurance_rate" id="insurance_rate" value="{{.InsuranceRate}}" step="0.01" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <div class="flex items-center gap-3 mt-1">
+                        <input type="range" id="insurance_rate_slider" min="0" max="1" step="0.01" value="{{.InsuranceRate}}"
+                            oninput="syncSlider('insurance_rate', this.value)"
+                            class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        <input type="number" name="insurance_rate" id="insurance_rate" value="{{.InsuranceRate}}" step="0.01" min="0"
+                            oninput="syncInput('insurance_rate', this.value)"
+                            class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                    </div>
                 </div>
             </div>
 
@@ -606,6 +624,251 @@
             </div>
         </div>
 
+        <!-- Section: Comparaison des coûts énergétiques -->
+        <div>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Comparaison des co&ucirc;ts &eacute;nerg&eacute;tiques</h2>
+            <p class="text-sm text-gray-500 mb-4">Comparez les co&ucirc;ts &eacute;nerg&eacute;tiques entre plusieurs biens. Renseignez les co&ucirc;ts annuels (factures) et/ou les consommations en kWh (DPE).</p>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Bien 1 -->
+                <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+                            <input type="text" name="energy_1_label" id="energy_1_label" value="{{.Energy1Label}}" placeholder="Bien actuel"
+                                class="text-sm font-semibold text-indigo-800 bg-transparent border-0 border-b border-indigo-300 focus:border-indigo-500 focus:ring-0 px-0 py-0 w-40">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_1_surface" id="energy_1_surface" value="{{.Energy1Surface}}" step="1" min="0" placeholder="0"
+                                    oninput="updateKwhPerM2(1)"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">m&sup2;</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_1_dpe" id="energy_1_dpe" value="{{.Energy1DPE}}" step="1" min="0" placeholder="DPE"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">kWh/m&sup2;</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <!-- Gaz -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_1_gas" class="block text-xs font-medium text-gray-600">Gaz (&euro;/an)</label>
+                                <input type="number" name="energy_1_gas" id="energy_1_gas" value="{{.Energy1Gas}}" step="1" min="0"
+                                    oninput="updateEnergyPricePerKwh('gas'); updateKwhPerM2(1)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_1_gas_kwh" class="block text-xs font-medium text-gray-600">Gaz (kWh/an)<span id="energy_1_gas_price" class="hidden text-indigo-600 ml-1"></span></label>
+                                <input type="number" name="energy_1_gas_kwh" id="energy_1_gas_kwh" value="{{.Energy1GasKWh}}" step="1" min="0"
+                                    oninput="updateEnergyPricePerKwh('gas'); updateKwhPerM2(1)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Électricité -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_1_electricity" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (&euro;/an)</label>
+                                <input type="number" name="energy_1_electricity" id="energy_1_electricity" value="{{.Energy1Electricity}}" step="1" min="0"
+                                    oninput="updateEnergyPricePerKwh('electricity'); updateKwhPerM2(1)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_1_electricity_kwh" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (kWh/an)<span id="energy_1_electricity_price" class="hidden text-indigo-600 ml-1"></span></label>
+                                <input type="number" name="energy_1_electricity_kwh" id="energy_1_electricity_kwh" value="{{.Energy1ElectricityKWh}}" step="1" min="0"
+                                    oninput="updateEnergyPricePerKwh('electricity'); updateKwhPerM2(1)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Autres coûts -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_1_other" class="block text-xs font-medium text-gray-600">Autres (&euro;/an)</label>
+                                <input type="number" name="energy_1_other" id="energy_1_other" value="{{.Energy1Other}}" step="1" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_1_other_label" class="block text-xs font-medium text-gray-600">Libell&eacute; autres</label>
+                                <input type="text" name="energy_1_other_label" id="energy_1_other_label" value="{{.Energy1OtherLabel}}" placeholder="ex: Recharge VE"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- kWh/m²/an display -->
+                    <div id="energy_1_kwh_per_m2" class="hidden text-sm font-medium text-indigo-700 mt-3 pt-2 border-t border-indigo-200 text-center"></div>
+                </div>
+
+                <!-- Bien 2 -->
+                <div class="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            <input type="text" name="energy_2_label" id="energy_2_label" value="{{.Energy2Label}}" placeholder="Nouveau bien"
+                                class="text-sm font-semibold text-emerald-800 bg-transparent border-0 border-b border-emerald-300 focus:border-emerald-500 focus:ring-0 px-0 py-0 w-40">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_2_surface" id="energy_2_surface" value="{{.Energy2Surface}}" step="1" min="0" placeholder="0"
+                                    oninput="updateKwhPerM2(2)"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">m&sup2;</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_2_dpe" id="energy_2_dpe" value="{{.Energy2DPE}}" step="1" min="0" placeholder="DPE"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">kWh/m&sup2;</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <!-- Gaz -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_2_gas" class="block text-xs font-medium text-gray-600">Gaz (&euro;/an)</label>
+                                <input type="number" name="energy_2_gas" id="energy_2_gas" value="{{.Energy2Gas}}" step="1" min="0"
+                                    oninput="autoFillKwhFromCost('gas'); updateKwhPerM2(2)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_2_gas_kwh" class="block text-xs font-medium text-gray-600">Gaz (kWh/an)</label>
+                                <input type="number" name="energy_2_gas_kwh" id="energy_2_gas_kwh" value="{{.Energy2GasKWh}}" step="1" min="0"
+                                    oninput="clearAutoFillStyle(this); updateKwhPerM2(2)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Électricité -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_2_electricity" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (&euro;/an)</label>
+                                <input type="number" name="energy_2_electricity" id="energy_2_electricity" value="{{.Energy2Electricity}}" step="1" min="0"
+                                    oninput="autoFillKwhFromCost('electricity'); updateKwhPerM2(2)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_2_electricity_kwh" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (kWh/an)</label>
+                                <input type="number" name="energy_2_electricity_kwh" id="energy_2_electricity_kwh" value="{{.Energy2ElectricityKWh}}" step="1" min="0"
+                                    oninput="clearAutoFillStyle(this); updateKwhPerM2(2)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Autres coûts -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_2_other" class="block text-xs font-medium text-gray-600">Autres (&euro;/an)</label>
+                                <input type="number" name="energy_2_other" id="energy_2_other" value="{{.Energy2Other}}" step="1" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_2_other_label" class="block text-xs font-medium text-gray-600">Libell&eacute; autres</label>
+                                <input type="text" name="energy_2_other_label" id="energy_2_other_label" value="{{.Energy2OtherLabel}}" placeholder="ex: Recharge VE"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Auto-fill kWh button -->
+                    <button type="button" onclick="autoFillAllKwh(2)"
+                        class="mt-2 w-full text-xs text-emerald-700 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-md px-2 py-1.5 transition-colors">
+                        Estimer kWh depuis &euro; (ratio Bien 1)
+                    </button>
+                    <!-- kWh/m²/an display -->
+                    <div id="energy_2_kwh_per_m2" class="hidden text-sm font-medium text-emerald-700 mt-3 pt-2 border-t border-emerald-200 text-center"></div>
+                </div>
+
+                <!-- Bien 3 -->
+                <div class="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                            <input type="text" name="energy_3_label" id="energy_3_label" value="{{.Energy3Label}}" placeholder="Bien 3"
+                                class="text-sm font-semibold text-amber-800 bg-transparent border-0 border-b border-amber-300 focus:border-amber-500 focus:ring-0 px-0 py-0 w-40">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_3_surface" id="energy_3_surface" value="{{.Energy3Surface}}" step="1" min="0" placeholder="0"
+                                    oninput="updateKwhPerM2(3)"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">m&sup2;</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <input type="number" name="energy_3_dpe" id="energy_3_dpe" value="{{.Energy3DPE}}" step="1" min="0" placeholder="DPE"
+                                    class="w-16 text-sm rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-2 py-1">
+                                <span class="text-xs text-gray-600">kWh/m&sup2;</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <!-- Gaz -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_3_gas" class="block text-xs font-medium text-gray-600">Gaz (&euro;/an)</label>
+                                <input type="number" name="energy_3_gas" id="energy_3_gas" value="{{.Energy3Gas}}" step="1" min="0"
+                                    oninput="autoFillKwhFromCost3('gas'); updateKwhPerM2(3)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_3_gas_kwh" class="block text-xs font-medium text-gray-600">Gaz (kWh/an)</label>
+                                <input type="number" name="energy_3_gas_kwh" id="energy_3_gas_kwh" value="{{.Energy3GasKWh}}" step="1" min="0"
+                                    oninput="clearAutoFillStyle(this); updateKwhPerM2(3)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Électricité -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_3_electricity" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (&euro;/an)</label>
+                                <input type="number" name="energy_3_electricity" id="energy_3_electricity" value="{{.Energy3Electricity}}" step="1" min="0"
+                                    oninput="autoFillKwhFromCost3('electricity'); updateKwhPerM2(3)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_3_electricity_kwh" class="block text-xs font-medium text-gray-600">&Eacute;lectricit&eacute; (kWh/an)</label>
+                                <input type="number" name="energy_3_electricity_kwh" id="energy_3_electricity_kwh" value="{{.Energy3ElectricityKWh}}" step="1" min="0"
+                                    oninput="clearAutoFillStyle(this); updateKwhPerM2(3)"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                        <!-- Autres coûts -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="energy_3_other" class="block text-xs font-medium text-gray-600">Autres (&euro;/an)</label>
+                                <input type="number" name="energy_3_other" id="energy_3_other" value="{{.Energy3Other}}" step="1" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="energy_3_other_label" class="block text-xs font-medium text-gray-600">Libell&eacute; autres</label>
+                                <input type="text" name="energy_3_other_label" id="energy_3_other_label" value="{{.Energy3OtherLabel}}" placeholder="ex: Recharge VE"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-amber-500 focus:ring-amber-500 border px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Auto-fill kWh button -->
+                    <button type="button" onclick="autoFillAllKwh(3)"
+                        class="mt-2 w-full text-xs text-amber-700 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-md px-2 py-1.5 transition-colors">
+                        Estimer kWh depuis &euro; (ratio Bien 1)
+                    </button>
+                    <!-- kWh/m²/an display -->
+                    <div id="energy_3_kwh_per_m2" class="hidden text-sm font-medium text-amber-700 mt-3 pt-2 border-t border-amber-200 text-center"></div>
+                </div>
+            </div>
+
+            <!-- Taux d'augmentation annuelle -->
+            <div class="mt-4">
+                <label for="energy_price_increase" class="block text-sm font-medium text-gray-700">Augmentation annuelle des prix de l'&eacute;nergie (%)</label>
+                <div class="flex items-center gap-3 mt-1">
+                    <input type="range" id="energy_price_increase_slider" min="0" max="10" step="0.5" value="{{if .EnergyPriceIncrease}}{{.EnergyPriceIncrease}}{{else}}4{{end}}"
+                        oninput="syncSlider('energy_price_increase', this.value)"
+                        class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-600 max-w-xs">
+                    <input type="number" name="energy_price_increase" id="energy_price_increase" value="{{if .EnergyPriceIncrease}}{{.EnergyPriceIncrease}}{{else}}4{{end}}" step="0.1" min="0"
+                        oninput="syncInput('energy_price_increase', this.value)"
+                        class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                </div>
+                <p class="mt-1 text-xs text-gray-500">Estimation de l'augmentation annuelle des prix de l'&eacute;nergie (gaz, &eacute;lectricit&eacute;, autres)</p>
+            </div>
+        </div>
+
         <div class="flex items-center gap-4">
             <button type="submit"
                 class="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
@@ -622,6 +885,175 @@
     </form>
 
     <script>
+    // Slider synchronization functions
+    function syncSlider(fieldId, value) {
+        document.getElementById(fieldId).value = value;
+    }
+    function syncInput(fieldId, value) {
+        const slider = document.getElementById(fieldId + '_slider');
+        if (slider) {
+            // Clamp value to slider min/max
+            const min = parseFloat(slider.min);
+            const max = parseFloat(slider.max);
+            const numValue = parseFloat(value) || 0;
+            slider.value = Math.min(Math.max(numValue, min), max);
+        }
+    }
+
+    // Energy calculations - €/kWh and kWh/m²
+    function updateEnergyPricePerKwh(type) {
+        const cost = parseFloat(document.getElementById('energy_1_' + type).value) || 0;
+        const kwh = parseFloat(document.getElementById('energy_1_' + type + '_kwh').value) || 0;
+        const priceEl = document.getElementById('energy_1_' + type + '_price');
+
+        if (cost > 0 && kwh > 0) {
+            const price = cost / kwh;
+            priceEl.textContent = '\u2192 ' + price.toFixed(3) + ' \u20ac/kWh';
+            priceEl.classList.remove('hidden');
+            // Auto-fill Bien 2 kWh if € is set
+            autoFillKwhFromCost(type);
+        } else {
+            priceEl.classList.add('hidden');
+        }
+    }
+
+    // Auto-fill kWh for Bien 2 based on €/kWh from Bien 1
+    function autoFillKwhFromCost(type) {
+        const cost1 = parseFloat(document.getElementById('energy_1_' + type).value) || 0;
+        const kwh1 = parseFloat(document.getElementById('energy_1_' + type + '_kwh').value) || 0;
+        const cost2 = parseFloat(document.getElementById('energy_2_' + type).value) || 0;
+        const kwh2Input = document.getElementById('energy_2_' + type + '_kwh');
+
+        if (cost1 > 0 && kwh1 > 0 && cost2 > 0) {
+            const pricePerKwh = cost1 / kwh1;
+            // Only auto-fill if user hasn't manually entered a value or if value is empty/0
+            if (!kwh2Input.dataset.userEdited && (!kwh2Input.value || parseFloat(kwh2Input.value) === 0)) {
+                const estimatedKwh = cost2 / pricePerKwh;
+                kwh2Input.value = Math.round(estimatedKwh);
+                kwh2Input.classList.add('bg-yellow-50');
+                updateKwhPerM2(2);
+            }
+        }
+    }
+
+    // Clear auto-fill style when user manually edits
+    function clearAutoFillStyle(input) {
+        input.classList.remove('bg-yellow-50');
+        input.dataset.userEdited = 'true';
+    }
+
+    // Auto-fill all kWh fields for a property using €/kWh ratios from Bien 1
+    function autoFillAllKwh(propertyNum) {
+        const gas1Cost = parseFloat(document.getElementById('energy_1_gas').value) || 0;
+        const gas1Kwh = parseFloat(document.getElementById('energy_1_gas_kwh').value) || 0;
+        const elec1Cost = parseFloat(document.getElementById('energy_1_electricity').value) || 0;
+        const elec1Kwh = parseFloat(document.getElementById('energy_1_electricity_kwh').value) || 0;
+
+        if ((gas1Cost <= 0 || gas1Kwh <= 0) && (elec1Cost <= 0 || elec1Kwh <= 0)) {
+            alert('Renseignez les co\u00fbts ET les kWh du Bien 1 pour calculer le ratio \u20ac/kWh.');
+            return;
+        }
+
+        let filled = false;
+        // Gas
+        const gasCost = parseFloat(document.getElementById('energy_' + propertyNum + '_gas').value) || 0;
+        const gasKwhInput = document.getElementById('energy_' + propertyNum + '_gas_kwh');
+        if (gasCost > 0 && gas1Cost > 0 && gas1Kwh > 0) {
+            const estimated = Math.round(gasCost * gas1Kwh / gas1Cost);
+            gasKwhInput.value = estimated;
+            gasKwhInput.classList.add('bg-yellow-50');
+            gasKwhInput.dataset.userEdited = '';
+            filled = true;
+        }
+
+        // Electricity
+        const elecCost = parseFloat(document.getElementById('energy_' + propertyNum + '_electricity').value) || 0;
+        const elecKwhInput = document.getElementById('energy_' + propertyNum + '_electricity_kwh');
+        if (elecCost > 0 && elec1Cost > 0 && elec1Kwh > 0) {
+            const estimated = Math.round(elecCost * elec1Kwh / elec1Cost);
+            elecKwhInput.value = estimated;
+            elecKwhInput.classList.add('bg-yellow-50');
+            elecKwhInput.dataset.userEdited = '';
+            filled = true;
+        }
+
+        if (filled) {
+            updateKwhPerM2(propertyNum);
+            htmx.trigger(document.querySelector('form'), 'submit');
+        } else {
+            alert('Renseignez des co\u00fbts \u20ac/an pour ce bien avant d\u0027estimer les kWh.');
+        }
+    }
+
+    // Calculate kWh/m²/an for a property
+    function updateKwhPerM2(propertyNum) {
+        const surface = parseFloat(document.getElementById('energy_' + propertyNum + '_surface').value) || 0;
+        const gasKwh = parseFloat(document.getElementById('energy_' + propertyNum + '_gas_kwh').value) || 0;
+        const elecKwh = parseFloat(document.getElementById('energy_' + propertyNum + '_electricity_kwh').value) || 0;
+        const gasCost = parseFloat(document.getElementById('energy_' + propertyNum + '_gas').value) || 0;
+        const elecCost = parseFloat(document.getElementById('energy_' + propertyNum + '_electricity').value) || 0;
+        const displayEl = document.getElementById('energy_' + propertyNum + '_kwh_per_m2');
+
+        if (!displayEl) return;
+
+        const hasKwhData = (gasKwh > 0 || elecKwh > 0);
+        const hasCostData = (gasCost > 0 || elecCost > 0);
+        let totalKwh = gasKwh + elecKwh;
+        let isEstimated = false;
+
+        // Calculate €/kWh from Bien 1 if available
+        const gas1Kwh = parseFloat(document.getElementById('energy_1_gas_kwh').value) || 0;
+        const elec1Kwh = parseFloat(document.getElementById('energy_1_electricity_kwh').value) || 0;
+        const gas1Cost = parseFloat(document.getElementById('energy_1_gas').value) || 0;
+        const elec1Cost = parseFloat(document.getElementById('energy_1_electricity').value) || 0;
+        const totalKwh1 = gas1Kwh + elec1Kwh;
+        const totalCost1 = gas1Cost + elec1Cost;
+        const pricePerKwh = (totalKwh1 > 0 && totalCost1 > 0) ? (totalCost1 / totalKwh1) : 0.18;
+
+        // Estimate kWh from cost if not provided
+        if (!hasKwhData && hasCostData && pricePerKwh > 0) {
+            totalKwh = (gasCost + elecCost) / pricePerKwh;
+            isEstimated = true;
+        }
+
+        if (surface > 0 && totalKwh > 0) {
+            const kwhPerM2 = Math.round(totalKwh / surface);
+            const estLabel = isEstimated ? ' (estim\u00e9)' : '';
+            displayEl.textContent = kwhPerM2 + ' kWh/m\u00b2/an' + estLabel;
+            displayEl.classList.remove('hidden');
+        } else {
+            displayEl.classList.add('hidden');
+        }
+    }
+
+    // Auto-fill kWh for Bien 3 based on €/kWh from Bien 1
+    function autoFillKwhFromCost3(type) {
+        const cost1 = parseFloat(document.getElementById('energy_1_' + type).value) || 0;
+        const kwh1 = parseFloat(document.getElementById('energy_1_' + type + '_kwh').value) || 0;
+        const cost3 = parseFloat(document.getElementById('energy_3_' + type).value) || 0;
+        const kwh3Input = document.getElementById('energy_3_' + type + '_kwh');
+
+        if (cost1 > 0 && kwh1 > 0 && cost3 > 0) {
+            const pricePerKwh = cost1 / kwh1;
+            // Only auto-fill if user hasn't manually entered a value or if value is empty/0
+            if (!kwh3Input.dataset.userEdited && (!kwh3Input.value || parseFloat(kwh3Input.value) === 0)) {
+                const estimatedKwh = cost3 / pricePerKwh;
+                kwh3Input.value = Math.round(estimatedKwh);
+                kwh3Input.classList.add('bg-yellow-50');
+                updateKwhPerM2(3);
+            }
+        }
+    }
+
+    // Initialize energy calculations on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        updateEnergyPricePerKwh('gas');
+        updateEnergyPricePerKwh('electricity');
+        updateKwhPerM2(1);
+        updateKwhPerM2(2);
+        updateKwhPerM2(3);
+    });
+
     // Work categories with their parameters
     const workCategories = {
         'structure': { label: 'Gros \u0153uvre / Structure', initialRate: 80, annualRate: 0.5 },
@@ -852,7 +1284,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-9 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-gray-500">Montant emprunt&eacute;</label>
                         <input type="number" value="${originalAmount}" step="any" min="0"
@@ -896,6 +1328,14 @@
                         <input type="number" value="${insuranceRate}" step="0.01" min="0"
                             oninput="updateLoanLineValue(${index}, 'insuranceRate', parseFloat(this.value) || 0)"
                             class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">ou Mensualit&eacute; (&euro;)</label>
+                        <input type="number" value="${line.insuranceMonthly || ''}" step="0.01" min="0"
+                            placeholder="Auto"
+                            oninput="updateLoanLineValue(${index}, 'insuranceMonthly', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1"
+                            title="Mensualit&eacute; d'assurance fixe. Si renseign&eacute;e, le taux % est ignor&eacute;">
                     </div>
                     <div>
                         <label class="block text-xs text-gray-500">IRA</label>
@@ -1051,6 +1491,7 @@
 
     // Calcul de la part équitable pour l'emprunteur 2
     // Formule: Contribution totale E2 / Total investi x 100
+    // Basé sur une vente hypothétique aujourd'hui (mois écoulés depuis le début du prêt)
     function calculateFairShareValue() {
         const originalLoan = parseFloat(document.getElementById('current_original_loan').value) || 0;
         // Calculate current balance from loan lines
@@ -1063,19 +1504,40 @@
         const renovationShare2 = parseFloat(document.getElementById('current_renovation_share_2').value) || 0;
         const contribution2 = parseFloat(document.getElementById('virtual_contribution_2').value) || 0;
 
-        // Contribution totale E2 = participation pr\u00eat + participation travaux
-        const totalContribution2 = contribution2 + renovationShare2;
+        // Calcul du nombre de mois écoulés depuis le début du prêt
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const startYear = parseInt(document.getElementById('current_loan_start_year').value) || currentYear;
+        const startMonth = parseInt(document.getElementById('current_loan_start_month').value) || 1;
+        const monthsElapsed = Math.max(0, (currentYear - startYear) * 12 + (currentMonth - startMonth));
+
+        // Calcul de la participation mensuelle E2 depuis les paliers (seulement mois écoulés)
+        let tiersTotal = 0;
+        if (virtualPaymentTiers2 && virtualPaymentTiers2.length > 0) {
+            virtualPaymentTiers2.forEach(tier => {
+                const tierStart = tier.startMonth;
+                const tierEnd = Math.min(tier.endMonth, monthsElapsed);
+                if (tierEnd >= tierStart) {
+                    const months = tierEnd - tierStart + 1;
+                    tiersTotal += months * (tier.monthlyPayment || 0);
+                }
+            });
+        }
+
+        // Contribution totale E2 = apport + travaux + paliers (mois écoulés)
+        const totalContribution2 = contribution2 + renovationShare2 + tiersTotal;
         if (totalContribution2 <= 0) return 0;
 
-        // Capital rembours\u00e9 = Montant initial - CRD
+        // Capital remboursé = Montant initial - CRD
         const principalPaid = originalLoan - currentBalance;
         if (principalPaid < 0) return 0;
 
-        // Total investi = Apport E1 + Capital rembours\u00e9 + Travaux
+        // Total investi = Apport E1 + Capital remboursé + Travaux
         const totalInvested = downPayment1 + principalPaid + renovationCost;
         if (totalInvested <= 0) return 0;
 
-        // Part \u00e9quitable = Contribution totale E2 / Total investi x 100
+        // Part équitable = Contribution totale E2 / Total investi x 100
         return (totalContribution2 / totalInvested) * 100;
     }
 
@@ -1090,11 +1552,58 @@
     }
 
     function fillFairShare() {
-        const fairShare = calculateFairShareValue();
-        if (fairShare > 0) {
-            document.getElementById('virtual_profit_share_2').value = fairShare.toFixed(2);
-            htmx.trigger(document.querySelector('form'), 'submit');
+        const originalLoan = parseFloat(document.getElementById('current_original_loan').value) || 0;
+        let currentBalance = 0;
+        loanLines.forEach(line => {
+            currentBalance += line.balance;
+        });
+        const downPayment1 = parseFloat(document.getElementById('current_down_payment_1').value) || 0;
+        const renovationCost = parseFloat(document.getElementById('current_renovation_cost').value) || 0;
+        const renovationShare2 = parseFloat(document.getElementById('current_renovation_share_2').value) || 0;
+        const contribution2 = parseFloat(document.getElementById('virtual_contribution_2').value) || 0;
+
+        // Calcul du nombre de mois écoulés depuis le début du prêt
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const startYear = parseInt(document.getElementById('current_loan_start_year').value) || currentYear;
+        const startMonth = parseInt(document.getElementById('current_loan_start_month').value) || 1;
+        const monthsElapsed = Math.max(0, (currentYear - startYear) * 12 + (currentMonth - startMonth));
+
+        // Calcul de la participation mensuelle E2 depuis les paliers (seulement mois écoulés)
+        let tiersTotal = 0;
+        if (virtualPaymentTiers2 && virtualPaymentTiers2.length > 0) {
+            virtualPaymentTiers2.forEach(tier => {
+                const tierStart = tier.startMonth;
+                const tierEnd = Math.min(tier.endMonth, monthsElapsed);
+                if (tierEnd >= tierStart) {
+                    const months = tierEnd - tierStart + 1;
+                    tiersTotal += months * (tier.monthlyPayment || 0);
+                }
+            });
         }
+
+        const totalContribution2 = contribution2 + renovationShare2 + tiersTotal;
+        if (totalContribution2 <= 0) {
+            alert('Veuillez renseigner l\'apport virtuel E2, la part des travaux E2, ou des paliers de participation');
+            return;
+        }
+
+        const principalPaid = originalLoan - currentBalance;
+        if (principalPaid < 0) {
+            alert('Erreur : le CRD total est supérieur au montant initial du prêt');
+            return;
+        }
+
+        const totalInvested = downPayment1 + principalPaid + renovationCost;
+        if (totalInvested <= 0) {
+            alert('Veuillez renseigner l\'apport E1, le montant du prêt ou les travaux');
+            return;
+        }
+
+        const fairShare = (totalContribution2 / totalInvested) * 100;
+        document.getElementById('virtual_profit_share_2').value = fairShare.toFixed(2);
+        htmx.trigger(document.querySelector('form'), 'submit');
     }
 
     // Virtual payment tiers for E2

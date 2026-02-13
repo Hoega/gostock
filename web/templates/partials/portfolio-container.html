@@ -1,0 +1,395 @@
+{{define "portfolio-container.html"}}
+<!-- Tab navigation -->
+<div class="border-b border-gray-200 mb-6">
+    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+        <button hx-get="/portfolio?tab=stocks" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "stocks"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Actions
+        </button>
+        <button hx-get="/portfolio?tab=crypto" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "crypto"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Crypto
+        </button>
+    </nav>
+</div>
+    {{if eq .ActiveTab "crypto"}}
+    <!-- Crypto form -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Ajouter une position crypto</h2>
+        <form id="crypto-form"
+              hx-post="/portfolio/crypto/positions"
+              hx-target="#crypto-results"
+              hx-swap="innerHTML"
+              class="space-y-4">
+            <input type="hidden" name="crypto_position_id" id="crypto_position_id" value="">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Symbole -->
+                <div class="relative">
+                    <label for="crypto_symbol" class="block text-sm font-medium text-gray-700">Symbole</label>
+                    <div class="relative">
+                        <input type="text" name="symbol" id="crypto_symbol" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                            placeholder="Ex: BTC, ETH">
+                        <span id="crypto-spinner" class="absolute right-2 top-1/2 -translate-y-1/2 hidden">
+                            <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <p id="crypto-error" class="mt-1 text-sm text-red-600 hidden"></p>
+                </div>
+
+                <!-- Hidden fields for CoinGecko data -->
+                <input type="hidden" name="coingecko_id" id="crypto_coingecko_id" value="">
+                <input type="hidden" name="name" id="crypto_name" value="">
+
+                <!-- Wallet -->
+                <div>
+                    <label for="crypto_wallet" class="block text-sm font-medium text-gray-700">Wallet</label>
+                    <select name="wallet" id="crypto_wallet"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="binance">Binance</option>
+                        <option value="coinbase">Coinbase</option>
+                        <option value="cryptocom">Crypto.com</option>
+                        <option value="swissborg">SwissBorg</option>
+                    </select>
+                </div>
+
+                <!-- Quantite -->
+                <div>
+                    <label for="crypto_quantity" class="block text-sm font-medium text-gray-700">Quantit&eacute;</label>
+                    <input type="number" name="quantity" id="crypto_quantity" step="0.00000001" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- PRU -->
+                <div>
+                    <label for="crypto_purchase_price" class="block text-sm font-medium text-gray-700">PRU (&euro;)</label>
+                    <input type="number" name="purchase_price" id="crypto_purchase_price" step="0.01" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                        placeholder="Optionnel">
+                </div>
+
+                <!-- Cours actuel -->
+                <div>
+                    <label for="crypto_current_price" class="block text-sm font-medium text-gray-700">Cours actuel (&euro;)</label>
+                    <input type="number" name="current_price" id="crypto_current_price" step="0.01" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Frais d'achat -->
+                <div>
+                    <label for="crypto_purchase_fees" class="block text-sm font-medium text-gray-700">Frais d'achat (&euro;)</label>
+                    <input type="number" name="purchase_fees" id="crypto_purchase_fees" step="0.01" min="0" value="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" id="crypto_submit_btn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Ajouter
+                </button>
+                <button type="button" id="crypto_cancel_btn" onclick="cancelCryptoEdit()" style="display:none"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Annuler
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Crypto results area -->
+    <div id="crypto-results">
+        {{template "crypto-table.html" .CryptoSummary}}
+        {{template "crypto-charts.html" .CryptoSummary}}
+    </div>
+
+    <script>
+    function editCryptoPosition(id, symbol, coingeckoId, name, wallet, qty, pru, current, fees) {
+        document.getElementById('crypto_position_id').value = id;
+        document.getElementById('crypto_symbol').value = symbol;
+        document.getElementById('crypto_coingecko_id').value = coingeckoId;
+        document.getElementById('crypto_name').value = name;
+        document.getElementById('crypto_wallet').value = wallet;
+        document.getElementById('crypto_quantity').value = qty;
+        document.getElementById('crypto_purchase_price').value = pru;
+        document.getElementById('crypto_current_price').value = current;
+        document.getElementById('crypto_purchase_fees').value = fees;
+
+        var form = document.getElementById('crypto-form');
+        form.setAttribute('hx-put', '/portfolio/crypto/positions/' + id);
+        form.removeAttribute('hx-post');
+        htmx.process(form);
+
+        document.getElementById('crypto_submit_btn').textContent = 'Modifier';
+        document.getElementById('crypto_cancel_btn').style.display = '';
+    }
+
+    function cancelCryptoEdit() {
+        document.getElementById('crypto_position_id').value = '';
+        document.getElementById('crypto-form').reset();
+
+        var form = document.getElementById('crypto-form');
+        form.setAttribute('hx-post', '/portfolio/crypto/positions');
+        form.removeAttribute('hx-put');
+        htmx.process(form);
+
+        document.getElementById('crypto_submit_btn').textContent = 'Ajouter';
+        document.getElementById('crypto_cancel_btn').style.display = 'none';
+    }
+
+    // Reset form after successful submission
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'crypto-results') {
+            cancelCryptoEdit();
+        }
+    });
+
+    // Auto-complete fields from CoinGecko when symbol is entered
+    document.getElementById('crypto_symbol').addEventListener('blur', function() {
+        var symbol = this.value.trim().toUpperCase();
+        var spinner = document.getElementById('crypto-spinner');
+        var errorEl = document.getElementById('crypto-error');
+        errorEl.classList.add('hidden');
+
+        if (symbol.length < 2) return;
+
+        spinner.classList.remove('hidden');
+
+        fetch('/portfolio/crypto/quote?symbol=' + encodeURIComponent(symbol))
+            .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+            .then(function(result) {
+                spinner.classList.add('hidden');
+                if (!result.ok) {
+                    errorEl.textContent = result.data.error || 'Erreur lors de la recherche';
+                    errorEl.classList.remove('hidden');
+                    setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+                    return;
+                }
+                var d = result.data;
+                if (d.id) document.getElementById('crypto_coingecko_id').value = d.id;
+                if (d.name) document.getElementById('crypto_name').value = d.name;
+                if (d.symbol) document.getElementById('crypto_symbol').value = d.symbol;
+                if (d.price) document.getElementById('crypto_current_price').value = d.price.toFixed(2);
+            })
+            .catch(function() {
+                spinner.classList.add('hidden');
+                errorEl.textContent = 'Erreur reseau';
+                errorEl.classList.remove('hidden');
+                setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+            });
+    });
+    </script>
+    {{else}}
+    <!-- Stock form -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Ajouter une position</h2>
+        <form id="position-form"
+              hx-post="/portfolio/positions"
+              hx-target="#portfolio-results"
+              hx-swap="innerHTML"
+              class="space-y-4">
+            <input type="hidden" name="position_id" id="position_id" value="">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Nom -->
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">Nom</label>
+                    <input type="text" name="name" id="pos_name" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                        placeholder="Ex: LVMH">
+                </div>
+
+                <!-- ISIN -->
+                <div class="relative">
+                    <label for="isin" class="block text-sm font-medium text-gray-700">ISIN</label>
+                    <div class="relative">
+                        <input type="text" name="isin" id="pos_isin"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                            placeholder="Ex: FR0000121014">
+                        <span id="isin-spinner" class="absolute right-2 top-1/2 -translate-y-1/2 hidden">
+                            <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <p id="isin-error" class="mt-1 text-sm text-red-600 hidden"></p>
+                </div>
+
+                <!-- Courtier -->
+                <div>
+                    <label for="broker" class="block text-sm font-medium text-gray-700">Courtier</label>
+                    <select name="broker" id="pos_broker"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="boursobank">Boursobank</option>
+                        <option value="degiro">Degiro</option>
+                    </select>
+                </div>
+
+                <!-- Quantite -->
+                <div>
+                    <label for="quantity" class="block text-sm font-medium text-gray-700">Quantit&eacute;</label>
+                    <input type="number" name="quantity" id="pos_quantity" step="0.0001" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Devise -->
+                <div>
+                    <label for="currency" class="block text-sm font-medium text-gray-700">Devise</label>
+                    <select name="currency" id="pos_currency"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="EUR" selected>EUR (&euro;)</option>
+                        <option value="USD">USD ($)</option>
+                    </select>
+                </div>
+
+                <!-- PRU -->
+                <div>
+                    <label for="purchase_price" class="block text-sm font-medium text-gray-700">PRU (<span id="label_pru_currency">&euro;</span>)</label>
+                    <input type="number" name="purchase_price" id="pos_purchase_price" step="0.01" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Cours actuel -->
+                <div>
+                    <label for="current_price" class="block text-sm font-medium text-gray-700">Cours actuel (<span id="label_current_currency">&euro;</span>)</label>
+                    <input type="number" name="current_price" id="pos_current_price" step="0.01" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Frais d'achat -->
+                <div>
+                    <label for="purchase_fees" class="block text-sm font-medium text-gray-700">Frais d'achat (<span id="label_fees_currency">&euro;</span>)</label>
+                    <input type="number" name="purchase_fees" id="pos_purchase_fees" step="0.01" min="0" value="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Secteur -->
+                <div>
+                    <label for="sector" class="block text-sm font-medium text-gray-700">Secteur</label>
+                    <input type="text" name="sector" id="pos_sector"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                        placeholder="Ex: Luxe">
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" id="pos_submit_btn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Ajouter
+                </button>
+                <button type="button" id="pos_cancel_btn" onclick="cancelEdit()" style="display:none"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Annuler
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Results area (table + charts), filled by HTMX -->
+    <div id="portfolio-results">
+        {{template "portfolio-table.html" .StockSummary}}
+        {{template "portfolio-charts.html" .StockSummary}}
+    </div>
+
+    <script>
+    var currencySymbols = {'EUR': '\u20ac', 'USD': '$'};
+
+    function updateCurrencyLabels() {
+        var sel = document.getElementById('pos_currency');
+        var sym = currencySymbols[sel.value] || sel.value;
+        document.getElementById('label_pru_currency').textContent = sym;
+        document.getElementById('label_current_currency').textContent = sym;
+        document.getElementById('label_fees_currency').textContent = sym;
+    }
+
+    document.getElementById('pos_currency').addEventListener('change', updateCurrencyLabels);
+
+    function editPosition(id, name, isin, broker, qty, pru, current, fees, currency, sector) {
+        document.getElementById('position_id').value = id;
+        document.getElementById('pos_name').value = name;
+        document.getElementById('pos_isin').value = isin;
+        document.getElementById('pos_broker').value = broker;
+        document.getElementById('pos_quantity').value = qty;
+        document.getElementById('pos_purchase_price').value = pru;
+        document.getElementById('pos_current_price').value = current;
+        document.getElementById('pos_purchase_fees').value = fees;
+        document.getElementById('pos_currency').value = currency;
+        updateCurrencyLabels();
+        document.getElementById('pos_sector').value = sector;
+
+        var form = document.getElementById('position-form');
+        form.setAttribute('hx-put', '/portfolio/positions/' + id);
+        form.removeAttribute('hx-post');
+        htmx.process(form);
+
+        document.getElementById('pos_submit_btn').textContent = 'Modifier';
+        document.getElementById('pos_cancel_btn').style.display = '';
+    }
+
+    function cancelEdit() {
+        document.getElementById('position_id').value = '';
+        document.getElementById('position-form').reset();
+
+        var form = document.getElementById('position-form');
+        form.setAttribute('hx-post', '/portfolio/positions');
+        form.removeAttribute('hx-put');
+        htmx.process(form);
+
+        document.getElementById('pos_submit_btn').textContent = 'Ajouter';
+        document.getElementById('pos_cancel_btn').style.display = 'none';
+        updateCurrencyLabels();
+    }
+
+    // Reset form after successful submission
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'portfolio-results') {
+            cancelEdit();
+        }
+    });
+
+    // Auto-complete fields from Yahoo Finance when ISIN is entered
+    document.getElementById('pos_isin').addEventListener('blur', function() {
+        var isin = this.value.trim().toUpperCase();
+        var spinner = document.getElementById('isin-spinner');
+        var errorEl = document.getElementById('isin-error');
+        errorEl.classList.add('hidden');
+
+        if (isin.length !== 12) return;
+
+        spinner.classList.remove('hidden');
+
+        fetch('/portfolio/quote?isin=' + encodeURIComponent(isin))
+            .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+            .then(function(result) {
+                spinner.classList.add('hidden');
+                if (!result.ok) {
+                    errorEl.textContent = result.data.error || 'Erreur lors de la recherche';
+                    errorEl.classList.remove('hidden');
+                    setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+                    return;
+                }
+                var d = result.data;
+                if (d.price) document.getElementById('pos_current_price').value = d.price;
+                if (d.sector) document.getElementById('pos_sector').value = d.sector;
+                if (d.name && !document.getElementById('pos_name').value) {
+                    document.getElementById('pos_name').value = d.name;
+                }
+                if (d.currency) {
+                    document.getElementById('pos_currency').value = d.currency;
+                    updateCurrencyLabels();
+                }
+            })
+            .catch(function() {
+                spinner.classList.add('hidden');
+                errorEl.textContent = 'Erreur reseau';
+                errorEl.classList.remove('hidden');
+                setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+            });
+    });
+    </script>
+    {{end}}
+{{end}}

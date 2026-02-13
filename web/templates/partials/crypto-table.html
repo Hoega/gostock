@@ -1,0 +1,137 @@
+{{define "crypto-table.html"}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-900">Positions Crypto</h2>
+    </div>
+
+    {{if eq (len .Positions) 0}}
+    <p class="text-gray-500 text-sm">Aucune position crypto. Ajoutez votre premi&egrave;re ligne ci-dessus.</p>
+    {{else}}
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {{range .Wallets}}
+        <div class="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">{{.DisplayName}}</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .TotalValue}} &euro;</p>
+            <p class="text-sm {{if ge .GainLoss 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                {{if ge .GainLoss 0.0}}+{{end}}{{formatMoney .GainLoss}} &euro; ({{if ge .GainPct 0.0}}+{{end}}{{printf "%.1f" .GainPct}}%)
+            </p>
+            <p class="text-xs text-gray-500">{{.Count}} position{{if gt .Count 1}}s{{end}}</p>
+        </div>
+        {{end}}
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Total</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .TotalValue}} &euro;</p>
+            <p class="text-sm {{if ge .TotalGainLoss 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                {{if ge .TotalGainLoss 0.0}}+{{end}}{{formatMoney .TotalGainLoss}} &euro; ({{if ge .TotalGainPct 0.0}}+{{end}}{{printf "%.1f" .TotalGainPct}}%)
+            </p>
+            <p class="text-xs text-gray-500">{{len .Positions}} position{{if gt (len .Positions) 1}}s{{end}}</p>
+        </div>
+    </div>
+
+    <!-- Positions table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Symbole</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Nom</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Wallet</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Qt&eacute;</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">PRU</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Cours</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Valeur</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">+/- Value</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">%</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Frais</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {{range .Positions}}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-medium text-gray-900">
+                        <button type="button" onclick="showCryptoHistory('{{.CoingeckoID}}', '{{.Name}}')" class="text-purple-600 hover:text-purple-900 hover:underline cursor-pointer">{{.Symbol}}</button>
+                    </td>
+                    <td class="px-3 py-2 text-gray-600">{{.Name}}</td>
+                    <td class="px-3 py-2">
+                        {{if eq .Wallet "binance"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">Binance</span>
+                        {{else if eq .Wallet "coinbase"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Coinbase</span>
+                        {{else if eq .Wallet "cryptocom"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">Crypto.com</span>
+                        {{else if eq .Wallet "swissborg"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">SwissBorg</span>
+                        {{else}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{.Wallet}}</span>
+                        {{end}}
+                    </td>
+                    <td class="px-3 py-2 text-right font-mono text-xs">{{printf "%.8f" .Quantity}}</td>
+                    <td class="px-3 py-2 text-right">{{if .HasPRU}}{{formatMoney .PurchasePrice}} &euro;{{else}}&mdash;{{end}}</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .CurrentPrice}} &euro;</td>
+                    <td class="px-3 py-2 text-right font-medium">{{formatMoney .TotalValue}} &euro;</td>
+                    {{if .HasPRU}}
+                    <td class="px-3 py-2 text-right {{if ge .GainLoss 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .GainLoss 0.0}}+{{end}}{{formatMoney .GainLoss}} &euro;
+                    </td>
+                    <td class="px-3 py-2 text-right {{if ge .GainLossPct 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .GainLossPct 0.0}}+{{end}}{{printf "%.1f" .GainLossPct}}%
+                    </td>
+                    {{else}}
+                    <td class="px-3 py-2 text-right text-gray-400">&mdash;</td>
+                    <td class="px-3 py-2 text-right text-gray-400">&mdash;</td>
+                    {{end}}
+                    <td class="px-3 py-2 text-right text-gray-500">{{formatMoney .PurchaseFees}} &euro;</td>
+                    <td class="px-3 py-2 text-center">
+                        <div class="flex justify-center gap-1">
+                            <button type="button"
+                                onclick="editCryptoPosition({{.ID}}, '{{.Symbol}}', '{{.CoingeckoID}}', '{{.Name}}', '{{.Wallet}}', {{.Quantity}}, {{.PurchasePrice}}, {{.CurrentPrice}}, {{.PurchaseFees}})"
+                                class="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 rounded hover:bg-indigo-50">
+                                Modifier
+                            </button>
+                            <button type="button"
+                                hx-delete="/portfolio/crypto/positions/{{.ID}}"
+                                hx-target="#crypto-results"
+                                hx-swap="innerHTML"
+                                hx-confirm="Supprimer {{.Symbol}} ?"
+                                class="text-red-600 hover:text-red-900 text-xs px-2 py-1 rounded hover:bg-red-50">
+                                Supprimer
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+            <tfoot>
+                {{range .Wallets}}
+                <tr class="bg-gray-50 font-medium text-sm">
+                    <td class="px-3 py-2" colspan="6">Sous-total {{.DisplayName}}</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .TotalValue}}</td>
+                    <td class="px-3 py-2 text-right {{if ge .GainLoss 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .GainLoss 0.0}}+{{end}}{{formatMoney .GainLoss}}
+                    </td>
+                    <td class="px-3 py-2 text-right {{if ge .GainPct 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .GainPct 0.0}}+{{end}}{{printf "%.1f" .GainPct}}%
+                    </td>
+                    <td colspan="2"></td>
+                </tr>
+                {{end}}
+                <tr class="bg-indigo-50 font-bold text-sm">
+                    <td class="px-3 py-2" colspan="6">Total g&eacute;n&eacute;ral</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .TotalValue}}</td>
+                    <td class="px-3 py-2 text-right {{if ge .TotalGainLoss 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .TotalGainLoss 0.0}}+{{end}}{{formatMoney .TotalGainLoss}}
+                    </td>
+                    <td class="px-3 py-2 text-right {{if ge .TotalGainPct 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .TotalGainPct 0.0}}+{{end}}{{printf "%.1f" .TotalGainPct}}%
+                    </td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {{end}}
+</div>
+{{end}}

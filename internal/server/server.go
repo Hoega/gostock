@@ -16,7 +16,7 @@ import (
 )
 
 func New(port int, store persistence.Store) *http.Server {
-	tmpl := template.Must(template.New("").Funcs(template.FuncMap{
+	funcMap := template.FuncMap{
 		"formatMoney": func(v float64) string {
 			// French-style money formatting with space as thousand separator
 			s := fmt.Sprintf("%.2f", v)
@@ -65,10 +65,35 @@ func New(port int, store persistence.Store) *http.Server {
 			}
 			return af / bf
 		},
-	}).ParseGlob("web/templates/*.html"))
-	template.Must(tmpl.ParseGlob("web/templates/partials/*.html"))
+		"percentInRange": func(current, low, high float64) float64 {
+			if high == low {
+				return 50
+			}
+			pct := (current - low) / (high - low) * 100
+			if pct < 0 {
+				return 0
+			}
+			if pct > 100 {
+				return 100
+			}
+			return pct
+		},
+	}
 
-	creditHandler := handler.NewCreditHandler(tmpl, store)
+	// Parse base templates (layout + partials) then clone per page
+	// to avoid "content" template name collisions between pages
+	baseTmpl := template.Must(template.New("").Funcs(funcMap).ParseGlob("web/templates/partials/*.html"))
+	template.Must(baseTmpl.ParseFiles("web/templates/layout.html"))
+
+	creditTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/credit.html"))
+	portfolioTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/portfolio.html"))
+	dashboardTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/dashboard.html"))
+	taxTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/tax.html"))
+
+	creditHandler := handler.NewCreditHandler(creditTmpl, store)
+	portfolioHandler := handler.NewPortfolioHandler(portfolioTmpl, store)
+	dashboardHandler := handler.NewDashboardHandler(dashboardTmpl, store)
+	taxHandler := handler.NewTaxHandler(taxTmpl, store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -82,6 +107,40 @@ func New(port int, store persistence.Store) *http.Server {
 	// Credit simulator routes
 	r.Get("/credit", creditHandler.ShowForm)
 	r.Post("/credit/calculate", creditHandler.Calculate)
+
+	// Dashboard route
+	r.Get("/dashboard", dashboardHandler.ShowDashboard)
+
+	// Portfolio routes - Stocks
+	r.Get("/portfolio", portfolioHandler.ShowPortfolio)
+	r.Get("/portfolio/quote", portfolioHandler.LookupQuote)
+	r.Get("/portfolio/history", portfolioHandler.StockHistory)
+	r.Get("/portfolio/history/total", portfolioHandler.TotalHistory)
+	r.Post("/portfolio/positions", portfolioHandler.AddPosition)
+	r.Put("/portfolio/positions/{id}", portfolioHandler.UpdatePosition)
+	r.Delete("/portfolio/positions/{id}", portfolioHandler.DeletePosition)
+
+	// Portfolio routes - Crypto
+	r.Get("/portfolio/crypto/quote", portfolioHandler.LookupCryptoQuote)
+	r.Get("/portfolio/crypto/history", portfolioHandler.CryptoHistory)
+	r.Post("/portfolio/crypto/positions", portfolioHandler.AddCryptoPosition)
+	r.Put("/portfolio/crypto/positions/{id}", portfolioHandler.UpdateCryptoPosition)
+	r.Delete("/portfolio/crypto/positions/{id}", portfolioHandler.DeleteCryptoPosition)
+
+	// Tax routes
+	r.Get("/tax", taxHandler.ShowTax)
+	r.Post("/tax/stocks/sales", taxHandler.AddStockSale)
+	r.Put("/tax/stocks/sales/{id}", taxHandler.UpdateStockSale)
+	r.Delete("/tax/stocks/sales/{id}", taxHandler.DeleteStockSale)
+	r.Post("/tax/crypto/sales", taxHandler.AddCryptoSale)
+	r.Put("/tax/crypto/sales/{id}", taxHandler.UpdateCryptoSale)
+	r.Delete("/tax/crypto/sales/{id}", taxHandler.DeleteCryptoSale)
+	// Stock purchases for PRU calculation
+	r.Get("/tax/purchases/pru", taxHandler.GetPRUForISIN)
+	r.Post("/tax/purchases", taxHandler.AddStockPurchase)
+	r.Put("/tax/purchases/{id}", taxHandler.UpdateStockPurchase)
+	r.Delete("/tax/purchases/{id}", taxHandler.DeleteStockPurchase)
+	r.Post("/tax/purchases/{id}/reset", taxHandler.ResetStockPurchase)
 
 	// Static files
 	fileServer := http.FileServer(http.Dir("web/static"))

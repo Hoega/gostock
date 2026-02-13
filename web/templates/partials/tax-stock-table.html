@@ -1,0 +1,506 @@
+{{define "tax-stock-table.html"}}
+<!-- Section dépliable achats -->
+<details class="mb-6 bg-white shadow rounded-lg" id="purchases-section">
+    <summary class="px-4 py-3 cursor-pointer font-medium text-gray-900 hover:bg-gray-50 flex justify-between items-center">
+        <span>
+            Mes achats (PRU automatique)
+            {{if gt (len .StockSummary.Purchases) 0}}
+            <span class="text-sm text-gray-500 ml-2">{{len .StockSummary.Purchases}} lots</span>
+            {{end}}
+        </span>
+        <svg class="w-5 h-5 text-gray-500 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+    </summary>
+    <div class="p-4 border-t">
+        <!-- Formulaire ajout achat -->
+        <form id="purchase-form"
+              hx-post="/tax/purchases"
+              hx-target="#tax-results"
+              hx-swap="innerHTML"
+              class="mb-4 p-4 bg-indigo-50 rounded-lg">
+            <input type="hidden" name="purchase_id" id="purchase_id" value="">
+            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Nom</label>
+                    <input type="text" name="name" id="purchase_name" required
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                           placeholder="Apple Inc.">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">ISIN</label>
+                    <input type="text" name="isin" id="purchase_isin" required
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-mono"
+                           placeholder="US0378331005">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Courtier</label>
+                    <select name="broker" id="purchase_broker"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        <option value="degiro">Degiro</option>
+                        <option value="boursobank">Boursobank</option>
+                        <option value="autre">Autre</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Quantit&eacute;</label>
+                    <input type="number" name="quantity" id="purchase_quantity" step="0.0001" required
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                           placeholder="10">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Prix unitaire</label>
+                    <input type="number" name="unit_price" id="purchase_unit_price" step="0.01" required
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                           placeholder="150.00">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Frais</label>
+                    <input type="number" name="fees" id="purchase_fees" step="0.01" value="0"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Date achat</label>
+                    <input type="date" name="purchase_date" id="purchase_date" required
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                </div>
+                <div class="flex items-end gap-2">
+                    <button type="submit" id="purchase_submit_btn"
+                            class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">
+                        Ajouter
+                    </button>
+                    <button type="button" id="purchase_cancel_btn" onclick="cancelPurchaseEdit()" style="display:none"
+                            class="bg-gray-300 text-gray-700 px-2 py-2 rounded-md text-sm font-medium hover:bg-gray-400">
+                        &times;
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        {{if eq (len .StockSummary.Purchases) 0}}
+        <p class="text-gray-500 text-sm">Aucun achat enregistr&eacute;. Ajoutez vos achats pour calculer automatiquement le PRU.</p>
+        {{else}}
+        <!-- Tableau des achats -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500">Nom</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500">ISIN</th>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500">Courtier</th>
+                        <th class="px-3 py-2 text-center font-medium text-gray-500">Date</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Qt&eacute;</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Restant</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Prix unit.</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Frais</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Total</th>
+                        <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {{range .StockSummary.Purchases}}
+                    <tr class="hover:bg-gray-50 {{if eq .RemainingQuantity 0.0}}opacity-50{{end}}">
+                        <td class="px-3 py-2 font-medium text-gray-900">{{.Name}}</td>
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{.ISIN}}</td>
+                        <td class="px-3 py-2">
+                            {{if eq .Broker "boursobank"}}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">Boursobank</span>
+                            {{else if eq .Broker "degiro"}}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Degiro</span>
+                            {{else}}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{.Broker}}</span>
+                            {{end}}
+                        </td>
+                        <td class="px-3 py-2 text-center text-xs">{{.PurchaseDate}}</td>
+                        <td class="px-3 py-2 text-right">{{printf "%.4f" .Quantity}}</td>
+                        <td class="px-3 py-2 text-right {{if eq .RemainingQuantity 0.0}}text-red-500{{else}}text-green-600{{end}}">
+                            {{printf "%.4f" .RemainingQuantity}}
+                        </td>
+                        <td class="px-3 py-2 text-right">{{formatMoney .UnitPrice}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-gray-500">{{formatMoney .Fees}} &euro;</td>
+                        <td class="px-3 py-2 text-right font-medium">{{formatMoney .TotalCost}} &euro;</td>
+                        <td class="px-3 py-2 text-center whitespace-nowrap">
+                            {{if lt .RemainingQuantity .Quantity}}
+                            <button type="button"
+                                    hx-post="/tax/purchases/{{.ID}}/reset"
+                                    hx-target="#tax-results"
+                                    hx-swap="innerHTML"
+                                    title="Restaurer la quantité à {{printf "%.4f" .Quantity}}"
+                                    class="text-green-600 hover:text-green-900 text-xs px-2 py-1 rounded hover:bg-green-50">
+                                Réactiver
+                            </button>
+                            {{end}}
+                            <button type="button"
+                                    onclick="editPurchase({{.ID}}, '{{.Name}}', '{{.ISIN}}', '{{.Broker}}', {{.Quantity}}, {{.UnitPrice}}, {{.Fees}}, '{{.PurchaseDate}}', {{.RemainingQuantity}})"
+                                    class="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 rounded hover:bg-indigo-50">
+                                Modifier
+                            </button>
+                            <button type="button"
+                                    hx-delete="/tax/purchases/{{.ID}}"
+                                    hx-target="#tax-results"
+                                    hx-swap="innerHTML"
+                                    hx-confirm="Supprimer cet achat ?"
+                                    class="text-red-600 hover:text-red-900 text-xs px-2 py-1 rounded hover:bg-red-50">
+                                Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{end}}
+    </div>
+</details>
+
+<div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Ventes d'actions</h2>
+
+    <!-- Add/Edit sale form -->
+    <form id="stock-sale-form"
+          hx-post="/tax/stocks/sales"
+          hx-target="#tax-results"
+          hx-swap="innerHTML"
+          class="mb-6 p-4 bg-gray-50 rounded-lg">
+        <input type="hidden" name="stock_sale_id" id="stock_sale_id" value="">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Nom</label>
+                <input type="text" name="name" id="stock_name" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="Apple Inc.">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">ISIN</label>
+                <div class="flex gap-1">
+                    <input type="text" name="isin" id="stock_isin"
+                           class="min-w-0 flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm font-mono"
+                           placeholder="US0378331005">
+                    <button type="button" id="pru_fetch_btn" title="Charger le PRU"
+                            class="shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 text-xs font-medium">
+                        PRU
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Courtier</label>
+                <select name="broker" id="stock_broker"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    <option value="degiro">Degiro</option>
+                    <option value="boursobank">Boursobank</option>
+                    <option value="autre">Autre</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Quantit&eacute;</label>
+                <input type="number" name="quantity" id="stock_quantity" step="0.0001" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="10">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Date achat</label>
+                <input type="date" name="purchase_date" id="stock_purchase_date" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">PRU unitaire</label>
+                <input type="number" name="purchase_price" id="stock_purchase_price" step="0.01" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="150.00">
+                <span id="pru-indicator" class="text-xs text-green-600 mt-1" style="display:none"></span>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Frais achat</label>
+                <input type="number" name="purchase_fees" id="stock_purchase_fees" step="0.01" value="0"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Date vente</label>
+                <input type="date" name="sale_date" id="stock_sale_date" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Prix vente unit.</label>
+                <input type="number" name="sale_price" id="stock_sale_price" step="0.01" required
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"
+                       placeholder="180.00">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Frais vente</label>
+                <input type="number" name="sale_fees" id="stock_sale_fees" step="0.01" value="0"
+                       class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Devise</label>
+                <select name="currency" id="stock_currency"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                </select>
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" id="stock_submit_btn"
+                        class="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700">
+                    Ajouter
+                </button>
+                <button type="button" id="stock_cancel_btn" onclick="cancelStockSaleEdit()" style="display:none"
+                        class="bg-gray-300 text-gray-700 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-400">
+                    Annuler
+                </button>
+            </div>
+        </div>
+    </form>
+
+    {{if eq (len .StockSummary.Sales) 0}}
+    <p class="text-gray-500 text-sm">Aucune vente enregistr&eacute;e pour cette ann&eacute;e.</p>
+    {{else}}
+    <!-- Sales table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Nom</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">ISIN</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Courtier</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Qt&eacute;</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Achat</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Vente</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Co&ucirc;t acq.</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Produit</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">+/- Value</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {{range .StockSummary.Sales}}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-medium text-gray-900">{{.Name}}</td>
+                    <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{.ISIN}}</td>
+                    <td class="px-3 py-2">
+                        {{if eq .Broker "boursobank"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">Boursobank</span>
+                        {{else if eq .Broker "degiro"}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">Degiro</span>
+                        {{else}}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{.Broker}}</span>
+                        {{end}}
+                    </td>
+                    <td class="px-3 py-2 text-right">{{printf "%.4f" .Quantity}}</td>
+                    <td class="px-3 py-2 text-center text-xs">
+                        <div>{{.PurchaseDate}}</div>
+                        <div class="text-gray-500">{{formatMoney .PurchasePrice}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</div>
+                    </td>
+                    <td class="px-3 py-2 text-center text-xs">
+                        <div>{{.SaleDate}}</div>
+                        <div class="text-gray-500">{{formatMoney .SalePrice}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</div>
+                    </td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .AcquisitionCost}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</td>
+                    <td class="px-3 py-2 text-right">{{formatMoney .SaleProceeds}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</td>
+                    <td class="px-3 py-2 text-right font-medium {{if .IsPlusValue}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if .IsPlusValue}}+{{end}}{{formatMoney .CapitalGain}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}
+                    </td>
+                    <td class="px-3 py-2 text-center whitespace-nowrap">
+                        <button type="button"
+                                onclick="editStockSale({{.ID}}, '{{.Name}}', '{{.ISIN}}', '{{.Broker}}', {{.Quantity}}, '{{.PurchaseDate}}', {{.PurchasePrice}}, {{.PurchaseFees}}, '{{.SaleDate}}', {{.SalePrice}}, {{.SaleFees}}, '{{.Currency}}')"
+                                class="text-indigo-600 hover:text-indigo-900 text-xs px-2 py-1 rounded hover:bg-indigo-50">
+                            Modifier
+                        </button>
+                        <button type="button"
+                                hx-delete="/tax/stocks/sales/{{.ID}}?year={{.TaxYear}}"
+                                hx-target="#tax-results"
+                                hx-swap="innerHTML"
+                                hx-confirm="Supprimer cette vente ?"
+                                class="text-red-600 hover:text-red-900 text-xs px-2 py-1 rounded hover:bg-red-50">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+            <tfoot>
+                <tr class="bg-indigo-50 font-bold text-sm">
+                    <td class="px-3 py-2" colspan="6">Total</td>
+                    <td class="px-3 py-2 text-right"></td>
+                    <td class="px-3 py-2 text-right"></td>
+                    <td class="px-3 py-2 text-right {{if ge .StockSummary.NetResult 0.0}}text-green-600{{else}}text-red-600{{end}}">
+                        {{if ge .StockSummary.NetResult 0.0}}+{{end}}{{formatMoney .StockSummary.NetResult}} &euro;
+                    </td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {{end}}
+</div>
+
+<script>
+// Purchase form functions
+function editPurchase(id, name, isin, broker, qty, unitPrice, fees, purchaseDate, remainingQty) {
+    document.getElementById('purchase_id').value = id;
+    document.getElementById('purchase_name').value = name;
+    document.getElementById('purchase_isin').value = isin;
+    document.getElementById('purchase_broker').value = broker;
+    document.getElementById('purchase_quantity').value = qty;
+    document.getElementById('purchase_unit_price').value = unitPrice;
+    document.getElementById('purchase_fees').value = fees;
+    document.getElementById('purchase_date').value = purchaseDate;
+
+    var form = document.getElementById('purchase-form');
+    form.setAttribute('hx-put', '/tax/purchases/' + id);
+    form.removeAttribute('hx-post');
+    // Add hidden field for remaining_quantity
+    var hiddenRemaining = document.createElement('input');
+    hiddenRemaining.type = 'hidden';
+    hiddenRemaining.name = 'remaining_quantity';
+    hiddenRemaining.id = 'purchase_remaining_quantity';
+    hiddenRemaining.value = remainingQty;
+    form.appendChild(hiddenRemaining);
+    htmx.process(form);
+
+    document.getElementById('purchase_submit_btn').textContent = 'Modifier';
+    document.getElementById('purchase_cancel_btn').style.display = '';
+
+    // Open the purchases section
+    document.getElementById('purchases-section').open = true;
+}
+
+function cancelPurchaseEdit() {
+    document.getElementById('purchase_id').value = '';
+    document.getElementById('purchase-form').reset();
+
+    var form = document.getElementById('purchase-form');
+    form.setAttribute('hx-post', '/tax/purchases');
+    form.removeAttribute('hx-put');
+    // Remove hidden remaining_quantity field if exists
+    var hiddenRemaining = document.getElementById('purchase_remaining_quantity');
+    if (hiddenRemaining) hiddenRemaining.remove();
+    htmx.process(form);
+
+    document.getElementById('purchase_submit_btn').textContent = 'Ajouter';
+    document.getElementById('purchase_cancel_btn').style.display = 'none';
+}
+
+// Stock sale form functions
+function editStockSale(id, name, isin, broker, qty, purchaseDate, purchasePrice, purchaseFees, saleDate, salePrice, saleFees, currency) {
+    document.getElementById('stock_sale_id').value = id;
+    document.getElementById('stock_name').value = name;
+    document.getElementById('stock_isin').value = isin;
+    document.getElementById('stock_broker').value = broker;
+    document.getElementById('stock_quantity').value = qty;
+    document.getElementById('stock_purchase_date').value = purchaseDate;
+    document.getElementById('stock_purchase_price').value = purchasePrice;
+    document.getElementById('stock_purchase_fees').value = purchaseFees;
+    document.getElementById('stock_sale_date').value = saleDate;
+    document.getElementById('stock_sale_price').value = salePrice;
+    document.getElementById('stock_sale_fees').value = saleFees;
+    document.getElementById('stock_currency').value = currency;
+
+    var form = document.getElementById('stock-sale-form');
+    form.setAttribute('hx-put', '/tax/stocks/sales/' + id);
+    form.removeAttribute('hx-post');
+    htmx.process(form);
+
+    document.getElementById('stock_submit_btn').textContent = 'Modifier';
+    document.getElementById('stock_cancel_btn').style.display = '';
+
+    // Hide PRU indicator when editing
+    var pruIndicator = document.getElementById('pru-indicator');
+    if (pruIndicator) pruIndicator.style.display = 'none';
+}
+
+function cancelStockSaleEdit() {
+    document.getElementById('stock_sale_id').value = '';
+    document.getElementById('stock-sale-form').reset();
+
+    var form = document.getElementById('stock-sale-form');
+    form.setAttribute('hx-post', '/tax/stocks/sales');
+    form.removeAttribute('hx-put');
+    htmx.process(form);
+
+    document.getElementById('stock_submit_btn').textContent = 'Ajouter';
+    document.getElementById('stock_cancel_btn').style.display = 'none';
+
+    // Hide PRU indicator
+    var pruIndicator = document.getElementById('pru-indicator');
+    if (pruIndicator) pruIndicator.style.display = 'none';
+}
+
+// Fetch PRU for the given ISIN
+// skipEditCheck: if true, fetch PRU even when editing (for manual button click)
+function fetchPRU(skipEditCheck) {
+    var isinField = document.getElementById('stock_isin');
+    if (!isinField) return;
+
+    var isin = isinField.value.trim().toUpperCase();
+    isinField.value = isin; // Normalize
+
+    if (isin.length < 12) {
+        alert('ISIN invalide (12 caractères requis)');
+        return;
+    }
+
+    // Don't overwrite if editing an existing sale (unless explicitly requested)
+    if (!skipEditCheck && document.getElementById('stock_sale_id').value) {
+        return;
+    }
+
+    fetch('/tax/purchases/pru?isin=' + encodeURIComponent(isin))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var pruIndicator = document.getElementById('pru-indicator');
+            if (data.pru > 0) {
+                document.getElementById('stock_purchase_price').value = data.pru.toFixed(2);
+                if (pruIndicator) {
+                    pruIndicator.textContent = 'PRU calculé (' + data.quantity.toFixed(4) + ' dispo)';
+                    pruIndicator.className = 'text-xs text-green-600 mt-1';
+                    pruIndicator.style.display = '';
+                }
+            } else {
+                if (pruIndicator) {
+                    pruIndicator.textContent = 'Aucun achat trouvé pour cet ISIN';
+                    pruIndicator.className = 'text-xs text-amber-600 mt-1';
+                    pruIndicator.style.display = '';
+                }
+            }
+        })
+        .catch(function(err) {
+            console.error('Failed to fetch PRU:', err);
+        });
+}
+
+// Use event delegation for PRU button (works after HTMX swaps)
+if (!window._pruDelegationBound) {
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('#pru_fetch_btn');
+        if (btn) {
+            fetchPRU(true); // Skip edit check for manual button click
+        }
+    });
+    window._pruDelegationBound = true;
+}
+
+// Bind blur event on ISIN field
+function bindPRUBlur() {
+    var isinField = document.getElementById('stock_isin');
+    if (isinField && !isinField.dataset.pruBound) {
+        isinField.addEventListener('blur', fetchPRU);
+        isinField.dataset.pruBound = 'true';
+    }
+}
+
+// Bind on initial load
+bindPRUBlur();
+
+// Re-bind after HTMX swaps (use delegation to avoid duplicates)
+if (!window._htmxSwapBound) {
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'tax-results' || event.detail.target.id === 'tax-container') {
+            if (typeof cancelStockSaleEdit === 'function') cancelStockSaleEdit();
+            if (typeof cancelPurchaseEdit === 'function') cancelPurchaseEdit();
+            bindPRUBlur();
+        }
+    });
+    window._htmxSwapBound = true;
+}
+</script>
+{{end}}

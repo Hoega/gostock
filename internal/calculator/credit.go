@@ -870,6 +870,86 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 		propertySale.Proceeds1 = round2(proceeds1)
 		propertySale.Proceeds2 = round2(proceeds2)
+
+		// Stocker le détail des contributions pour l'affichage
+		apportE2Monthly := calculateE2AccumulatedContribution(0, input.VirtualMonthlyPayment2, input.VirtualPaymentTiers2, monthsElapsed)
+		apportE2Initial := input.VirtualContribution2
+
+		// Calculer les versements de prêt E1 (mensualités cumulées) par ligne
+		var apportE1Loans float64
+		loanSchedule := calculateCurrentLoanSchedule(input.CurrentLoanLines)
+
+		// Structure pour accumuler le détail par ligne de prêt
+		type loanAccum struct {
+			total     float64
+			principal float64
+			interest  float64
+			insurance float64
+		}
+		loanPaymentsByLine := make(map[string]*loanAccum)
+		for _, line := range input.CurrentLoanLines {
+			if line.Label != "" {
+				loanPaymentsByLine[line.Label] = &loanAccum{}
+			}
+		}
+
+		// Accumuler les versements mois par mois
+		for m := 1; m <= monthsElapsed && m <= len(loanSchedule); m++ {
+			apportE1Loans += loanSchedule[m-1].TotalAmount
+			// Détail par ligne
+			for _, payment := range loanSchedule[m-1].Payments {
+				if payment.Label != "" {
+					if accum, ok := loanPaymentsByLine[payment.Label]; ok {
+						accum.total += payment.Total
+						accum.principal += payment.Principal
+						accum.interest += payment.Interest
+						accum.insurance += payment.Insurance
+					}
+				}
+			}
+		}
+
+		// Construire le slice de détail dans l'ordre des lignes d'entrée
+		var apportE1LoansDetail []model.LoanPaymentDetail
+		for _, line := range input.CurrentLoanLines {
+			if line.Label != "" {
+				if accum, ok := loanPaymentsByLine[line.Label]; ok && accum.total > 0 {
+					apportE1LoansDetail = append(apportE1LoansDetail, model.LoanPaymentDetail{
+						Label:     line.Label,
+						Amount:    round2(accum.total),
+						Principal: round2(accum.principal),
+						Interest:  round2(accum.interest),
+						Insurance: round2(accum.insurance),
+					})
+				}
+			}
+		}
+
+		// E1 total versements = apport initial + versements prêt - remboursements E2
+		apportE1TotalVersements := input.CurrentDownPayment1 + apportE1Loans - apportE2Monthly
+
+		// Calculer les pourcentages de contribution (basés sur les apports effectifs, pas les versements)
+		// Apport E1 = down payment (les versements de prêt ne sont pas des "apports" au sens de l'investissement)
+		// Apport E2 = contribution initiale + mensualités cumulées
+		var pctE1, pctE2 float64
+		if totalApports > 0 {
+			pctE1 = apportE1 / totalApports * 100
+			pctE2 = apportE2 / totalApports * 100
+		}
+
+		propertySale.ApportE1Initial = round2(input.CurrentDownPayment1)
+		propertySale.ApportE1Loans = round2(apportE1Loans)
+		propertySale.ApportE1LoansDetail = apportE1LoansDetail
+		propertySale.ApportE1Total = round2(apportE1TotalVersements)
+		propertySale.ApportE2Initial = round2(apportE2Initial)
+		propertySale.ApportE2Monthly = round2(apportE2Monthly)
+		propertySale.ApportE2Total = round2(apportE2)
+		propertySale.TotalApports = round2(totalApports)
+		propertySale.ContributionPctE1 = round2(pctE1)
+		propertySale.ContributionPctE2 = round2(pctE2)
+		propertySale.MonthsElapsed = monthsElapsed
+		propertySale.Profit = round2(profit)
+		propertySale.ProfitShareE2 = round2(profitShareE2)
 	}
 
 	// Calculate current property projection if applicable
@@ -1024,6 +1104,9 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		monthlySchedule = calculateTierBasedSchedule(input.NewLoanLines, input.DurationMonths)
 	}
 
+	// Calculate energy comparison
+	energyComparisonData := CalculateEnergyComparison(input, durationYears)
+
 	return model.CreditResult{
 		MonthlyPayment:   round2(monthlyPayment),
 		MonthlyInsurance: round2(monthlyInsurance),
@@ -1060,8 +1143,9 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		LoanLineResults:         loanLineResults,
 		EquivalentRent:          round2(equivalentRent),
 		MonthlySchedule:         monthlySchedule,
-		CurrentLoanSchedule:     currentLoanSchedule,
-		CurrentBorrowerPayments: currentBorrowerPayments,
+		CurrentLoanSchedule:      currentLoanSchedule,
+		CurrentBorrowerPayments:  currentBorrowerPayments,
+		EnergyComparisonData:     energyComparisonData,
 	}
 }
 
@@ -1394,12 +1478,15 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 
 	// currentLoanState tracks display info for a single existing loan
 	type currentLoanState struct {
-		label          string
-		totalMonths    int
-		deferralMonths int
-		balance        float64
-		deferralRate   float64 // Taux mensuel pour intérêts intercalaires
-		tiers          []model.PaymentTier
+		label            string
+		totalMonths      int
+		deferralMonths   int
+		originalAmount   float64
+		balance          float64
+		monthlyRate      float64 // Taux mensuel normal
+		deferralRate     float64 // Taux mensuel pour intérêts intercalaires
+		monthlyInsurance float64 // Assurance mensuelle
+		tiers            []model.PaymentTier
 	}
 
 	// Create a state for EVERY line to keep alignment with input array
@@ -1437,13 +1524,24 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 			deferralRate = line.Rate
 		}
 
+		// Assurance mensuelle : utiliser InsuranceMonthly si défini, sinon calculer à partir du taux
+		var monthlyInsurance float64
+		if line.InsuranceMonthly > 0 {
+			monthlyInsurance = line.InsuranceMonthly
+		} else {
+			monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
+		}
+
 		states[i] = &currentLoanState{
-			label:          line.Label,
-			totalMonths:    totalMonths,
-			deferralMonths: line.DeferralMonths,
-			balance:        line.OriginalAmount,
-			deferralRate:   deferralRate / 100 / 12,
-			tiers:          line.Tiers,
+			label:            line.Label,
+			totalMonths:      totalMonths,
+			deferralMonths:   line.DeferralMonths,
+			originalAmount:   line.OriginalAmount,
+			balance:          line.OriginalAmount,
+			monthlyRate:      line.Rate / 100 / 12,
+			deferralRate:     deferralRate / 100 / 12,
+			monthlyInsurance: monthlyInsurance,
+			tiers:            line.Tiers,
 		}
 	}
 
@@ -1460,26 +1558,54 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 		for i, s := range states {
 			payments[i] = model.LoanMonthPayment{Label: s.label}
 
-			if month > s.totalMonths {
+			if month > s.totalMonths || s.balance <= 0 {
 				continue
 			}
 
-			var tierPayment float64
+			var tierPayment, interest, principal, insurance float64
 
 			// Pendant le différé : intérêts intercalaires seulement
-			if month <= s.deferralMonths && s.balance > 0 {
-				tierPayment = s.balance * s.deferralRate
+			if month <= s.deferralMonths {
+				interest = s.balance * s.deferralRate
+				tierPayment = interest
+				principal = 0
+				insurance = s.monthlyInsurance
 			} else {
 				// Get payment from tier - offset by deferral months
 				amortizationMonth := month - s.deferralMonths
 				tierPayment = getPaymentForMonth(s.tiers, amortizationMonth)
+
+				// Calculer intérêts et capital
+				interest = s.balance * s.monthlyRate
+				insurance = s.monthlyInsurance
+
+				// Le paiement tier inclut capital + intérêts (pas l'assurance)
+				// Donc: principal = tierPayment - interest
+				principal = tierPayment - interest
+				if principal < 0 {
+					principal = 0
+				}
+				if principal > s.balance {
+					principal = s.balance
+				}
+
+				// Mettre à jour le solde
+				s.balance -= principal
+				if s.balance < 0.01 {
+					s.balance = 0
+				}
 			}
 
+			total := tierPayment + insurance
+
 			payments[i] = model.LoanMonthPayment{
-				Label: s.label,
-				Total: round2(tierPayment),
+				Label:     s.label,
+				Principal: round2(principal),
+				Interest:  round2(interest),
+				Insurance: round2(insurance),
+				Total:     round2(total),
 			}
-			monthTotal += tierPayment
+			monthTotal += total
 		}
 
 		schedule = append(schedule, model.MonthlySchedule{
@@ -1573,4 +1699,121 @@ func CalculateAidEligibility(input model.CreditInput) model.AidEligibility {
 	}
 
 	return result
+}
+
+// estimateKWh estimates annual kWh consumption from cost when kWh is not provided.
+// Uses default French energy prices: gas ~0.08 €/kWh, electricity ~0.2267 €/kWh.
+// If property 1 has both cost and kWh data for that energy type, uses that ratio instead.
+func estimateKWh(kWh, cost, refKWh, refCost, defaultPrice float64) float64 {
+	if kWh > 0 {
+		return kWh
+	}
+	if cost <= 0 {
+		return 0
+	}
+	// Use property 1's €/kWh if available
+	if refKWh > 0 && refCost > 0 {
+		return round2(cost * refKWh / refCost)
+	}
+	return round2(cost / defaultPrice)
+}
+
+// CalculateEnergyComparison computes the cumulative energy costs for up to three properties over time.
+// It takes into account annual price increases for both gas and electricity.
+// Costs are expected as annual values (€/year).
+func CalculateEnergyComparison(input model.CreditInput, durationYears int) []model.EnergyComparisonYear {
+	// Skip if no energy data provided
+	hasEnergyCosts := input.Energy1Gas != 0 || input.Energy1Electricity != 0 || input.Energy1Other != 0 ||
+		input.Energy2Gas != 0 || input.Energy2Electricity != 0 || input.Energy2Other != 0 ||
+		input.Energy3Gas != 0 || input.Energy3Electricity != 0 || input.Energy3Other != 0
+	if !hasEnergyCosts {
+		return nil
+	}
+
+	priceIncrease := input.EnergyPriceIncrease / 100
+
+	// Default French energy prices (€/kWh)
+	const defaultGasPrice = 0.08
+	const defaultElecPrice = 0.2267
+
+	// Estimate kWh from costs when not explicitly provided
+	gasKWh1 := estimateKWh(input.Energy1GasKWh, input.Energy1Gas, 0, 0, defaultGasPrice)
+	elecKWh1 := estimateKWh(input.Energy1ElectricityKWh, input.Energy1Electricity, 0, 0, defaultElecPrice)
+	gasKWh2 := estimateKWh(input.Energy2GasKWh, input.Energy2Gas, input.Energy1GasKWh, input.Energy1Gas, defaultGasPrice)
+	elecKWh2 := estimateKWh(input.Energy2ElectricityKWh, input.Energy2Electricity, input.Energy1ElectricityKWh, input.Energy1Electricity, defaultElecPrice)
+	gasKWh3 := estimateKWh(input.Energy3GasKWh, input.Energy3Gas, input.Energy1GasKWh, input.Energy1Gas, defaultGasPrice)
+	elecKWh3 := estimateKWh(input.Energy3ElectricityKWh, input.Energy3Electricity, input.Energy1ElectricityKWh, input.Energy1Electricity, defaultElecPrice)
+
+	data := make([]model.EnergyComparisonYear, 0, durationYears)
+
+	var cumulGas1, cumulElec1, cumulOther1 float64
+	var cumulGas2, cumulElec2, cumulOther2 float64
+	var cumulGas3, cumulElec3, cumulOther3 float64
+	var cumulGasKWh1, cumulElecKWh1, cumulGasKWh2, cumulElecKWh2 float64
+	var cumulGasKWh3, cumulElecKWh3 float64
+
+	for year := 1; year <= durationYears; year++ {
+		// Price multiplier for this year (increases each year)
+		priceMultiplier := math.Pow(1+priceIncrease, float64(year-1))
+
+		// Annual costs for this year with price increase applied
+		annualGas1 := input.Energy1Gas * priceMultiplier
+		annualElec1 := input.Energy1Electricity * priceMultiplier
+		annualOther1 := input.Energy1Other * priceMultiplier
+		annualGas2 := input.Energy2Gas * priceMultiplier
+		annualElec2 := input.Energy2Electricity * priceMultiplier
+		annualOther2 := input.Energy2Other * priceMultiplier
+		annualGas3 := input.Energy3Gas * priceMultiplier
+		annualElec3 := input.Energy3Electricity * priceMultiplier
+		annualOther3 := input.Energy3Other * priceMultiplier
+
+		// Add annual costs
+		cumulGas1 += annualGas1
+		cumulElec1 += annualElec1
+		cumulOther1 += annualOther1
+		cumulGas2 += annualGas2
+		cumulElec2 += annualElec2
+		cumulOther2 += annualOther2
+		cumulGas3 += annualGas3
+		cumulElec3 += annualElec3
+		cumulOther3 += annualOther3
+
+		// kWh tracking (no price increase, just consumption)
+		cumulGasKWh1 += gasKWh1
+		cumulElecKWh1 += elecKWh1
+		cumulGasKWh2 += gasKWh2
+		cumulElecKWh2 += elecKWh2
+		cumulGasKWh3 += gasKWh3
+		cumulElecKWh3 += elecKWh3
+
+		cumulTotal1 := cumulGas1 + cumulElec1 + cumulOther1
+		cumulTotal2 := cumulGas2 + cumulElec2 + cumulOther2
+		cumulTotal3 := cumulGas3 + cumulElec3 + cumulOther3
+		cumulSavings := cumulTotal1 - cumulTotal2 // Positive = property 2 is cheaper
+
+		data = append(data, model.EnergyComparisonYear{
+			Year:          year,
+			CumulGas1:     round2(cumulGas1),
+			CumulElec1:    round2(cumulElec1),
+			CumulOther1:   round2(cumulOther1),
+			CumulTotal1:   round2(cumulTotal1),
+			CumulGas2:     round2(cumulGas2),
+			CumulElec2:    round2(cumulElec2),
+			CumulOther2:   round2(cumulOther2),
+			CumulTotal2:   round2(cumulTotal2),
+			CumulGas3:     round2(cumulGas3),
+			CumulElec3:    round2(cumulElec3),
+			CumulOther3:   round2(cumulOther3),
+			CumulTotal3:   round2(cumulTotal3),
+			CumulSavings:  round2(cumulSavings),
+			CumulGasKWh1:  round2(cumulGasKWh1),
+			CumulElecKWh1: round2(cumulElecKWh1),
+			CumulGasKWh2:  round2(cumulGasKWh2),
+			CumulElecKWh2: round2(cumulElecKWh2),
+			CumulGasKWh3:  round2(cumulGasKWh3),
+			CumulElecKWh3: round2(cumulElecKWh3),
+		})
+	}
+
+	return data
 }

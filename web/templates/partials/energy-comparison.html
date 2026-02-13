@@ -1,0 +1,1465 @@
+{{define "energy-comparison.html"}}
+{{if .Result.EnergyComparisonData}}
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Comparaison des co&ucirc;ts &eacute;nerg&eacute;tiques</h2>
+
+    <!-- Summary cards -->
+    {{$lastYear := index .Result.EnergyComparisonData (subInt (len .Result.EnergyComparisonData) 1)}}
+    {{$firstYear := index .Result.EnergyComparisonData 0}}
+    {{$label1 := "Bien 1"}}{{if .Input.Energy1Label}}{{$label1 = .Input.Energy1Label}}{{end}}
+    {{$label2 := "Bien 2"}}{{if .Input.Energy2Label}}{{$label2 = .Input.Energy2Label}}{{end}}
+    {{$label3 := "Bien 3"}}{{if .Input.Energy3Label}}{{$label3 = .Input.Energy3Label}}{{end}}
+    {{$hasEnergy3 := or (gt $lastYear.CumulTotal3 0.0) (gt .Input.Energy3Gas 0.0) (gt .Input.Energy3Electricity 0.0) (gt .Input.Energy3Other 0.0)}}
+
+    <div class="grid grid-cols-1 md:grid-cols-{{if $hasEnergy3}}4{{else}}3{{end}} gap-4 mb-6">
+        <!-- Bien 1 Total -->
+        <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+                <span class="text-sm font-medium text-indigo-700">{{$label1}}</span>
+            </div>
+            <div class="text-2xl font-bold text-indigo-900">{{formatMoney $lastYear.CumulTotal1}}</div>
+            <div class="text-xs text-indigo-600 mt-1">Total sur {{$lastYear.Year}} ans</div>
+            {{if or $lastYear.CumulGasKWh1 $lastYear.CumulElecKWh1}}
+            <div class="text-xs text-indigo-500 mt-1">
+                {{if $lastYear.CumulGasKWh1}}{{formatMoney $lastYear.CumulGasKWh1}} kWh gaz{{end}}
+                {{if and $lastYear.CumulGasKWh1 $lastYear.CumulElecKWh1}} + {{end}}
+                {{if $lastYear.CumulElecKWh1}}{{formatMoney $lastYear.CumulElecKWh1}} kWh &eacute;lec{{end}}
+            </div>
+            {{end}}
+        </div>
+
+        <!-- Bien 2 Total -->
+        <div class="bg-emerald-50 rounded-lg p-4 border border-emerald-200">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <span class="text-sm font-medium text-emerald-700">{{$label2}}</span>
+            </div>
+            <div class="text-2xl font-bold text-emerald-900">{{formatMoney $lastYear.CumulTotal2}}</div>
+            <div class="text-xs text-emerald-600 mt-1">Total sur {{$lastYear.Year}} ans</div>
+            {{if or $lastYear.CumulGasKWh2 $lastYear.CumulElecKWh2}}
+            <div class="text-xs text-emerald-500 mt-1">
+                {{if $lastYear.CumulGasKWh2}}{{formatMoney $lastYear.CumulGasKWh2}} kWh gaz{{end}}
+                {{if and $lastYear.CumulGasKWh2 $lastYear.CumulElecKWh2}} + {{end}}
+                {{if $lastYear.CumulElecKWh2}}{{formatMoney $lastYear.CumulElecKWh2}} kWh &eacute;lec{{end}}
+            </div>
+            {{end}}
+        </div>
+
+        <!-- Bien 3 Total -->
+        {{if $hasEnergy3}}
+        <div class="bg-amber-50 rounded-lg p-4 border border-amber-200">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                <span class="text-sm font-medium text-amber-700">{{$label3}}</span>
+            </div>
+            <div class="text-2xl font-bold text-amber-900">{{formatMoney $lastYear.CumulTotal3}}</div>
+            <div class="text-xs text-amber-600 mt-1">Total sur {{$lastYear.Year}} ans</div>
+            {{if or $lastYear.CumulGasKWh3 $lastYear.CumulElecKWh3}}
+            <div class="text-xs text-amber-500 mt-1">
+                {{if $lastYear.CumulGasKWh3}}{{formatMoney $lastYear.CumulGasKWh3}} kWh gaz{{end}}
+                {{if and $lastYear.CumulGasKWh3 $lastYear.CumulElecKWh3}} + {{end}}
+                {{if $lastYear.CumulElecKWh3}}{{formatMoney $lastYear.CumulElecKWh3}} kWh &eacute;lec{{end}}
+            </div>
+            {{end}}
+        </div>
+        {{end}}
+
+        <!-- Savings -->
+        <div class="{{if gt $lastYear.CumulSavings 0.0}}bg-green-50 border-green-200{{else if lt $lastYear.CumulSavings 0.0}}bg-red-50 border-red-200{{else}}bg-gray-50 border-gray-200{{end}} rounded-lg p-4 border">
+            <div class="flex items-center gap-2 mb-1">
+                {{if gt $lastYear.CumulSavings 0.0}}
+                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span class="text-sm font-medium text-green-700">&Eacute;conomie {{$label1}} &rarr; {{$label2}}</span>
+                {{else if lt $lastYear.CumulSavings 0.0}}
+                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                <span class="text-sm font-medium text-red-700">Surco&ucirc;t {{$label1}} &rarr; {{$label2}}</span>
+                {{else}}
+                <span class="text-sm font-medium text-gray-700">&Eacute;galit&eacute;</span>
+                {{end}}
+            </div>
+            <div class="text-2xl font-bold {{if gt $lastYear.CumulSavings 0.0}}text-green-900{{else if lt $lastYear.CumulSavings 0.0}}text-red-900{{else}}text-gray-900{{end}}">
+                {{if gt $lastYear.CumulSavings 0.0}}+{{end}}{{formatMoney $lastYear.CumulSavings}}
+            </div>
+            <div class="text-xs {{if gt $lastYear.CumulSavings 0.0}}text-green-600{{else if lt $lastYear.CumulSavings 0.0}}text-red-600{{else}}text-gray-600{{end}} mt-1">
+                Diff&eacute;rence sur {{$lastYear.Year}} ans
+            </div>
+        </div>
+    </div>
+
+    <!-- Annual costs summary -->
+    <div class="grid grid-cols-{{if $hasEnergy3}}3{{else}}2{{end}} gap-4 mb-6">
+        <div class="bg-gray-50 rounded-lg p-3 border">
+            <div class="text-xs text-gray-500 mb-1">Co&ucirc;t annuel moyen {{$label1}}</div>
+            <div class="text-lg font-semibold text-indigo-700">{{formatMoney (div $lastYear.CumulTotal1 $lastYear.Year)}}/an</div>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3 border">
+            <div class="text-xs text-gray-500 mb-1">Co&ucirc;t annuel moyen {{$label2}}</div>
+            <div class="text-lg font-semibold text-emerald-700">{{formatMoney (div $lastYear.CumulTotal2 $lastYear.Year)}}/an</div>
+        </div>
+        {{if $hasEnergy3}}
+        <div class="bg-gray-50 rounded-lg p-3 border">
+            <div class="text-xs text-gray-500 mb-1">Co&ucirc;t annuel moyen {{$label3}}</div>
+            <div class="text-lg font-semibold text-amber-700">{{formatMoney (div $lastYear.CumulTotal3 $lastYear.Year)}}/an</div>
+        </div>
+        {{end}}
+    </div>
+
+    <!-- Coût total projet + énergie -->
+    <div class="mt-6 mb-6">
+        <h3 class="text-md font-semibold text-gray-700 border-b border-gray-100 pb-2 mb-4">Co&ucirc;t total projet incluant &eacute;nergie</h3>
+
+        <!-- Bien 1 - référence (énergie seule) -->
+        <div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200 mb-4">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="w-3 h-3 rounded-full bg-indigo-500"></span>
+                <span class="text-sm font-semibold text-indigo-700">{{$label1}} &mdash; R&eacute;f&eacute;rence (&eacute;nergie seule)</span>
+            </div>
+            <div class="text-lg font-bold text-indigo-900" id="projEnergy1">{{formatMoney $lastYear.CumulTotal1}} &euro;</div>
+            <div class="text-xs text-indigo-600">Co&ucirc;t &eacute;nergie cumul&eacute; sur {{$lastYear.Year}} ans</div>
+        </div>
+
+        <!-- Bien 2 - sliders + résumé -->
+        <div class="bg-emerald-50 rounded-lg p-4 border border-emerald-200 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                <span class="text-sm font-semibold text-emerald-700">{{$label2}} &mdash; Projet complet</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
+                <div>
+                    <label class="block text-xs font-medium text-emerald-700 mb-1">Prix d'acquisition : <span id="projPrice2Value" class="font-bold">--</span></label>
+                    <input type="range" id="projPrice2" min="0" max="1000000" step="1000" value="{{.Input.PropertyPrice}}"
+                        class="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-emerald-700 mb-1">Apport : <span id="projApport2Value" class="font-bold">--</span></label>
+                    <input type="range" id="projApport2" min="0" max="1000000" step="1000" value="{{sub .Input.PropertyPrice .Input.LoanAmount}}"
+                        class="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-emerald-700 mb-1">Taux d'int&eacute;r&ecirc;t : <span id="projRate2Value" class="font-bold">--</span></label>
+                    <input type="range" id="projRate2" min="0" max="10" step="0.05" value="{{.Input.InterestRate}}"
+                        class="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-emerald-700 mb-1">Taxe fonci&egrave;re/an : <span id="projTax2Value" class="font-bold">--</span></label>
+                    <input type="range" id="projTax2" min="0" max="5000" step="50" value="1000"
+                        class="w-full h-2 bg-emerald-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                </div>
+            </div>
+            <div id="projSummary2" class="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Apport</div>
+                    <div class="font-bold text-emerald-800" id="projApportDisp2">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Cr&eacute;dit (int&eacute;r&ecirc;ts+ass.+frais)</div>
+                    <div class="font-bold text-emerald-800" id="projCredit2">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Taxe fonci&egrave;re cumul&eacute;e</div>
+                    <div class="font-bold text-emerald-800" id="projTaxCumul2">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">&Eacute;nergie cumul&eacute;e</div>
+                    <div class="font-bold text-emerald-800" id="projEnergyVal2">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Mensualit&eacute; cr&eacute;dit</div>
+                    <div class="font-bold text-emerald-800" id="projMonthly2">--</div>
+                </div>
+                <div class="bg-white rounded p-2 border-2 border-emerald-300">
+                    <div class="text-xs text-gray-500 font-semibold">Co&ucirc;t total projet</div>
+                    <div class="font-bold text-emerald-900 text-lg" id="projTotal2">--</div>
+                </div>
+            </div>
+        </div>
+
+        {{if $hasEnergy3}}
+        <!-- Bien 3 - sliders + résumé -->
+        <div class="bg-amber-50 rounded-lg p-4 border border-amber-200 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+                <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                <span class="text-sm font-semibold text-amber-700">{{$label3}} &mdash; Projet complet</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
+                <div>
+                    <label class="block text-xs font-medium text-amber-700 mb-1">Prix d'acquisition : <span id="projPrice3Value" class="font-bold">--</span></label>
+                    <input type="range" id="projPrice3" min="0" max="1000000" step="1000" value="{{.Input.PropertyPrice}}"
+                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-amber-700 mb-1">Apport : <span id="projApport3Value" class="font-bold">--</span></label>
+                    <input type="range" id="projApport3" min="0" max="1000000" step="1000" value="{{sub .Input.PropertyPrice .Input.LoanAmount}}"
+                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-amber-700 mb-1">Taux d'int&eacute;r&ecirc;t : <span id="projRate3Value" class="font-bold">--</span></label>
+                    <input type="range" id="projRate3" min="0" max="10" step="0.05" value="{{.Input.InterestRate}}"
+                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-amber-700 mb-1">Taxe fonci&egrave;re/an : <span id="projTax3Value" class="font-bold">--</span></label>
+                    <input type="range" id="projTax3" min="0" max="5000" step="50" value="1000"
+                        class="w-full h-2 bg-amber-200 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                </div>
+            </div>
+            <div id="projSummary3" class="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Apport</div>
+                    <div class="font-bold text-amber-800" id="projApportDisp3">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Cr&eacute;dit (int&eacute;r&ecirc;ts+ass.+frais)</div>
+                    <div class="font-bold text-amber-800" id="projCredit3">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Taxe fonci&egrave;re cumul&eacute;e</div>
+                    <div class="font-bold text-amber-800" id="projTaxCumul3">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">&Eacute;nergie cumul&eacute;e</div>
+                    <div class="font-bold text-amber-800" id="projEnergyVal3">--</div>
+                </div>
+                <div class="bg-white rounded p-2">
+                    <div class="text-xs text-gray-500">Mensualit&eacute; cr&eacute;dit</div>
+                    <div class="font-bold text-amber-800" id="projMonthly3">--</div>
+                </div>
+                <div class="bg-white rounded p-2 border-2 border-amber-300">
+                    <div class="text-xs text-gray-500 font-semibold">Co&ucirc;t total projet</div>
+                    <div class="font-bold text-amber-900 text-lg" id="projTotal3">--</div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Bar chart comparatif -->
+        <div class="mt-4">
+            <h3 class="text-sm font-medium text-gray-600 mb-2">Comparaison co&ucirc;t total projet</h3>
+            <div class="h-72">
+                <canvas id="totalProjectChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Evolution chart -->
+        <div class="mt-4">
+            <h3 class="text-sm font-medium text-gray-600 mb-2">&Eacute;volution du co&ucirc;t total projet dans le temps</h3>
+            <div class="h-80">
+                <canvas id="projectEvolutionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        // Fixed parameters from Go template
+        const defaultDownPayment = {{.Input.PropertyPrice}} - {{.Input.LoanAmount}};
+        const durationMonths = {{.Input.DurationMonths}};
+        const insuranceRate = {{.Input.InsuranceRate}};
+        const notaryRate = {{.Input.NotaryRate}};
+        const bankFees = {{.Input.BankFees}};
+        const guaranteeFees = {{.Input.GuaranteeFees}};
+        const brokerFees = {{.Input.BrokerFees}};
+        const agencyFixed = {{.Input.AgencyFixed}};
+        const agencyRate = {{.Input.AgencyRate}};
+        const propertyPrice = {{.Input.PropertyPrice}};
+
+        // Energy cumulated (server-computed)
+        const energyCumul1 = {{$lastYear.CumulTotal1}};
+        const energyCumul2 = {{$lastYear.CumulTotal2}};
+        const energyCumul3 = {{$lastYear.CumulTotal3}};
+        const hasEnergy3 = {{if $hasEnergy3}}true{{else}}false{{end}};
+
+        // Energy data per year (from server)
+        const energyDataPerYear = {{toJSON .Result.EnergyComparisonData}};
+
+        // Labels
+        const label1 = {{if .Input.Energy1Label}}"{{.Input.Energy1Label}}"{{else}}"Bien 1"{{end}};
+        const label2 = {{if .Input.Energy2Label}}"{{.Input.Energy2Label}}"{{else}}"Bien 2"{{end}};
+        const label3 = {{if .Input.Energy3Label}}"{{.Input.Energy3Label}}"{{else}}"Bien 3"{{end}};
+
+        // Set slider ranges based on property price
+        const minPrice = Math.max(0, Math.floor(propertyPrice * 0.5 / 1000) * 1000);
+        const maxPrice = Math.ceil(propertyPrice * 1.5 / 1000) * 1000;
+        ['projPrice2', 'projPrice3'].forEach(function(id) {
+            const el = document.getElementById(id);
+            if (el) { el.min = minPrice; el.max = maxPrice; }
+        });
+        // Apport max = prix du slider correspondant (mis à jour dynamiquement)
+        function updateApportMax() {
+            [['projApport2', 'projPrice2'], ['projApport3', 'projPrice3']].forEach(function(pair) {
+                var apEl = document.getElementById(pair[0]);
+                var prEl = document.getElementById(pair[1]);
+                if (apEl && prEl) {
+                    apEl.max = parseFloat(prEl.value);
+                    if (parseFloat(apEl.value) > parseFloat(apEl.max)) {
+                        apEl.value = apEl.max;
+                    }
+                }
+            });
+        }
+        updateApportMax();
+
+        function fmt(v) {
+            return Math.round(v).toLocaleString('fr-FR') + ' \u20ac';
+        }
+
+        function calculateProjectCost(price, rate, apport) {
+            const agencyFeeCalc = agencyFixed > 0 ? agencyFixed : (price * agencyRate / 100);
+            const loan = Math.max(0, price - apport);
+            const mr = rate / 100 / 12;
+            let mp, totalInterest;
+            if (mr > 0 && loan > 0) {
+                mp = loan * mr / (1 - Math.pow(1 + mr, -durationMonths));
+                totalInterest = mp * durationMonths - loan;
+            } else if (loan > 0) {
+                mp = loan / durationMonths;
+                totalInterest = 0;
+            } else {
+                mp = 0;
+                totalInterest = 0;
+            }
+            const totalInsurance = loan * insuranceRate / 100 / 12 * durationMonths;
+            const notary = price * notaryRate / 100;
+            const totalCredit = totalInterest + totalInsurance + notary + agencyFeeCalc + bankFees + guaranteeFees + brokerFees;
+            return {
+                price: price,
+                notary: notary,
+                agencyFee: agencyFeeCalc,
+                interest: totalInterest,
+                insurance: totalInsurance,
+                fees: notary + agencyFeeCalc + bankFees + guaranteeFees + brokerFees,
+                totalCredit: totalCredit,
+                loan: loan,
+                monthly: mp + (loan * insuranceRate / 100 / 12)
+            };
+        }
+
+        var projectChart = null;
+        var evolutionChart = null;
+
+        // Calculate cumulative credit costs at each year (interest + insurance accumulated)
+        function calculateCumulativeCreditCosts(price, rate, apport, years) {
+            const agencyFeeCalc = agencyFixed > 0 ? agencyFixed : (price * agencyRate / 100);
+            const loan = Math.max(0, price - apport);
+            const mr = rate / 100 / 12;
+            const notary = price * notaryRate / 100;
+            const fixedFees = notary + agencyFeeCalc + bankFees + guaranteeFees + brokerFees;
+
+            // Calculate monthly payment
+            let mp, monthlyInsurance;
+            if (mr > 0 && loan > 0) {
+                mp = loan * mr / (1 - Math.pow(1 + mr, -durationMonths));
+            } else if (loan > 0) {
+                mp = loan / durationMonths;
+            } else {
+                mp = 0;
+            }
+            monthlyInsurance = loan * insuranceRate / 100 / 12;
+
+            // Build cumulative costs year by year
+            const result = [];
+            let cumulativeInterest = 0;
+            let cumulativeInsurance = 0;
+            let remainingBalance = loan;
+
+            for (let year = 1; year <= years; year++) {
+                // Calculate interest and insurance for this year (12 months)
+                for (let month = 0; month < 12; month++) {
+                    const monthIndex = (year - 1) * 12 + month;
+                    if (monthIndex >= durationMonths) break;
+
+                    const interestPayment = remainingBalance * mr;
+                    const principalPayment = mp - interestPayment;
+                    cumulativeInterest += interestPayment;
+                    cumulativeInsurance += monthlyInsurance;
+                    remainingBalance = Math.max(0, remainingBalance - principalPayment);
+                }
+
+                // Total project cost at this year = acquisition + fixed fees + cumulative credit costs + energy
+                result.push({
+                    year: year,
+                    acquisition: price,
+                    fixedFees: fixedFees,
+                    cumulativeInterest: cumulativeInterest,
+                    cumulativeInsurance: cumulativeInsurance,
+                    cumulativeCredit: cumulativeInterest + cumulativeInsurance + fixedFees
+                });
+            }
+
+            return result;
+        }
+
+        function updateAll() {
+            updateApportMax();
+            const durationYears = Math.ceil(durationMonths / 12);
+
+            // Bien 2
+            var price2 = parseFloat(document.getElementById('projPrice2').value);
+            var apport2 = parseFloat(document.getElementById('projApport2').value);
+            var rate2 = parseFloat(document.getElementById('projRate2').value);
+            var tax2 = parseFloat(document.getElementById('projTax2').value);
+            var taxCumul2 = tax2 * durationYears;
+            var c2 = calculateProjectCost(price2, rate2, apport2);
+            document.getElementById('projPrice2Value').textContent = fmt(price2);
+            document.getElementById('projApport2Value').textContent = fmt(apport2);
+            document.getElementById('projRate2Value').textContent = rate2.toFixed(2) + '%';
+            document.getElementById('projTax2Value').textContent = fmt(tax2);
+            document.getElementById('projApportDisp2').textContent = fmt(apport2);
+            document.getElementById('projCredit2').textContent = fmt(c2.totalCredit);
+            document.getElementById('projTaxCumul2').textContent = fmt(taxCumul2);
+            document.getElementById('projEnergyVal2').textContent = fmt(energyCumul2);
+            document.getElementById('projMonthly2').textContent = fmt(c2.monthly) + '/mois';
+            document.getElementById('projTotal2').textContent = fmt(price2 + c2.totalCredit + taxCumul2 + energyCumul2);
+
+            // Bien 3
+            var c3 = null;
+            var price3 = 0, rate3 = 0, apport3 = 0, tax3 = 0, taxCumul3 = 0;
+            if (hasEnergy3 && document.getElementById('projPrice3')) {
+                price3 = parseFloat(document.getElementById('projPrice3').value);
+                apport3 = parseFloat(document.getElementById('projApport3').value);
+                rate3 = parseFloat(document.getElementById('projRate3').value);
+                tax3 = parseFloat(document.getElementById('projTax3').value);
+                taxCumul3 = tax3 * durationYears;
+                c3 = calculateProjectCost(price3, rate3, apport3);
+                document.getElementById('projPrice3Value').textContent = fmt(price3);
+                document.getElementById('projApport3Value').textContent = fmt(apport3);
+                document.getElementById('projRate3Value').textContent = rate3.toFixed(2) + '%';
+                document.getElementById('projTax3Value').textContent = fmt(tax3);
+                document.getElementById('projApportDisp3').textContent = fmt(apport3);
+                document.getElementById('projCredit3').textContent = fmt(c3.totalCredit);
+                document.getElementById('projTaxCumul3').textContent = fmt(taxCumul3);
+                document.getElementById('projEnergyVal3').textContent = fmt(energyCumul3);
+                document.getElementById('projMonthly3').textContent = fmt(c3.monthly) + '/mois';
+                document.getElementById('projTotal3').textContent = fmt(price3 + c3.totalCredit + taxCumul3 + energyCumul3);
+            }
+
+            // Update charts
+            updateChart(c2, price2, taxCumul2, c3, price3, taxCumul3);
+            updateEvolutionChart(price2, rate2, apport2, tax2, price3, rate3, apport3, tax3);
+        }
+
+        function updateEvolutionChart(price2, rate2, apport2, tax2, price3, rate3, apport3, tax3) {
+            const ctx = document.getElementById('projectEvolutionChart');
+            if (!ctx || !energyDataPerYear || energyDataPerYear.length === 0) return;
+
+            const years = energyDataPerYear.length;
+
+            // Calculate cumulative credit costs for Bien 2 and Bien 3
+            const creditData2 = calculateCumulativeCreditCosts(price2, rate2, apport2, years);
+            const creditData3 = hasEnergy3 ? calculateCumulativeCreditCosts(price3, rate3, apport3, years) : null;
+
+            // Build datasets
+            const labels = energyDataPerYear.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+
+            // Bien 1: energy only (reference)
+            const data1 = energyDataPerYear.map(d => d.CumulTotal1);
+
+            // Bien 2: acquisition + credit + tax + energy
+            const data2 = creditData2.map((c, i) => {
+                const energyAtYear = energyDataPerYear[i] ? energyDataPerYear[i].CumulTotal2 : 0;
+                const taxAtYear = tax2 * (i + 1);
+                return c.acquisition + c.cumulativeCredit + taxAtYear + energyAtYear;
+            });
+
+            // Bien 3: acquisition + credit + tax + energy
+            const data3 = creditData3 ? creditData3.map((c, i) => {
+                const energyAtYear = energyDataPerYear[i] ? energyDataPerYear[i].CumulTotal3 : 0;
+                const taxAtYear = tax3 * (i + 1);
+                return c.acquisition + c.cumulativeCredit + taxAtYear + energyAtYear;
+            }) : null;
+
+            const datasets = [
+                {
+                    label: label1 + ' (\u00e9nergie seule)',
+                    data: data1,
+                    borderColor: 'rgb(99, 102, 241)',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    borderDash: [5, 5],
+                    fill: false,
+                    tension: 0.3,
+                },
+                {
+                    label: label2 + ' (projet complet)',
+                    data: data2,
+                    borderColor: 'rgb(16, 185, 129)',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 2,
+                }
+            ];
+
+            if (hasEnergy3 && data3) {
+                datasets.push({
+                    label: label3 + ' (projet complet)',
+                    data: data3,
+                    borderColor: 'rgb(245, 158, 11)',
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    fill: false,
+                    tension: 0.3,
+                    borderWidth: 2,
+                });
+            }
+
+            if (evolutionChart) {
+                evolutionChart.data.labels = labels;
+                evolutionChart.data.datasets = datasets;
+                evolutionChart.update();
+                return;
+            }
+
+            evolutionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + Math.round(context.parsed.y).toLocaleString('fr-FR') + ' \u20ac';
+                                },
+                                afterBody: function(context) {
+                                    const idx = context[0].dataIndex;
+                                    const lines = [];
+                                    // Show breakdown for Bien 2
+                                    if (creditData2[idx]) {
+                                        const c = creditData2[idx];
+                                        const energy = energyDataPerYear[idx] ? energyDataPerYear[idx].CumulTotal2 : 0;
+                                        const taxAtYear = tax2 * (idx + 1);
+                                        lines.push('');
+                                        lines.push('D\u00e9tail ' + label2 + ':');
+                                        lines.push('  Acquisition: ' + Math.round(c.acquisition).toLocaleString('fr-FR') + ' \u20ac');
+                                        lines.push('  Frais fixes: ' + Math.round(c.fixedFees).toLocaleString('fr-FR') + ' \u20ac');
+                                        lines.push('  Int\u00e9r\u00eats cumul\u00e9s: ' + Math.round(c.cumulativeInterest).toLocaleString('fr-FR') + ' \u20ac');
+                                        lines.push('  Assurance cumul\u00e9e: ' + Math.round(c.cumulativeInsurance).toLocaleString('fr-FR') + ' \u20ac');
+                                        lines.push('  Taxe fonci\u00e8re cumul\u00e9e: ' + Math.round(taxAtYear).toLocaleString('fr-FR') + ' \u20ac');
+                                        lines.push('  \u00c9nergie cumul\u00e9e: ' + Math.round(energy).toLocaleString('fr-FR') + ' \u20ac');
+                                    }
+                                    return lines;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value / 1000).toLocaleString('fr-FR') + ' k\u20ac';
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Co\u00fbt total cumul\u00e9 (\u20ac)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(c2, price2, taxCumul2, c3, price3, taxCumul3) {
+            var ctx = document.getElementById('totalProjectChart');
+            if (!ctx) return;
+
+            var labels = [label2];
+            var acqData = [price2];
+            var feesData = [c2.fees];
+            var interestData = [c2.interest + c2.insurance];
+            var taxData = [taxCumul2];
+            var energyData = [energyCumul2];
+
+            if (c3) {
+                labels.push(label3);
+                acqData.push(price3);
+                feesData.push(c3.fees);
+                interestData.push(c3.interest + c3.insurance);
+                taxData.push(taxCumul3);
+                energyData.push(energyCumul3);
+            }
+
+            if (projectChart) {
+                projectChart.data.labels = labels;
+                projectChart.data.datasets[0].data = acqData;
+                projectChart.data.datasets[1].data = feesData;
+                projectChart.data.datasets[2].data = interestData;
+                projectChart.data.datasets[3].data = taxData;
+                projectChart.data.datasets[4].data = energyData;
+                projectChart.update();
+                return;
+            }
+
+            projectChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Acquisition (prix)',
+                            data: acqData,
+                            backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                        },
+                        {
+                            label: 'Frais (notaire, agence, dossier, garantie, courtage)',
+                            data: feesData,
+                            backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                        },
+                        {
+                            label: 'Int\u00e9r\u00eats + assurance',
+                            data: interestData,
+                            backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        },
+                        {
+                            label: 'Taxe fonci\u00e8re cumul\u00e9e',
+                            data: taxData,
+                            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                        },
+                        {
+                            label: '\u00c9nergie cumul\u00e9e',
+                            data: energyData,
+                            backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                        }
+                    ]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + Math.round(context.parsed.x).toLocaleString('fr-FR') + ' \u20ac';
+                                },
+                                afterBody: function(context) {
+                                    var idx = context[0].dataIndex;
+                                    var total = acqData[idx] + feesData[idx] + interestData[idx] + taxData[idx] + energyData[idx];
+                                    return ['', 'Total: ' + Math.round(total).toLocaleString('fr-FR') + ' \u20ac'];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return (value / 1000).toLocaleString('fr-FR') + ' k\u20ac';
+                                }
+                            }
+                        },
+                        y: { stacked: true }
+                    }
+                }
+            });
+        }
+
+        // Event listeners
+        ['projPrice2', 'projApport2', 'projRate2', 'projTax2', 'projPrice3', 'projApport3', 'projRate3', 'projTax3'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateAll);
+        });
+
+        // Initial render
+        updateAll();
+    })();
+    </script>
+
+    <!-- kWh/m² and DPE comparison -->
+    {{if or (gt .Input.Energy1Surface 0.0) (gt .Input.Energy2Surface 0.0) (gt .Input.Energy3Surface 0.0)}}
+    <div class="grid grid-cols-{{if and (gt .Input.Energy3Surface 0.0) $hasEnergy3}}3{{else if or (gt .Input.Energy1Surface 0.0) (gt .Input.Energy2Surface 0.0)}}2{{else}}1{{end}} gap-4 mb-6" id="kwh-per-m2-section">
+        {{if gt .Input.Energy1Surface 0.0}}
+        <div class="bg-indigo-50 rounded-lg p-3 border border-indigo-200">
+            <div class="text-xs text-indigo-600 mb-1">{{$label1}} - Consommation</div>
+            <div class="text-lg font-semibold text-indigo-700" id="kwh-m2-1">
+                {{if or (gt $firstYear.CumulGasKWh1 0.0) (gt $firstYear.CumulElecKWh1 0.0)}}
+                -- kWh/m&sup2;/an
+                {{else if gt .Input.Energy1DPE 0.0}}
+                DPE: {{formatMoney .Input.Energy1DPE}} kWh/m&sup2;/an
+                {{else}}
+                --
+                {{end}}
+            </div>
+            <div class="text-xs text-indigo-500">Surface: {{formatMoney .Input.Energy1Surface}} m&sup2;</div>
+            {{if gt .Input.Energy1DPE 0.0}}
+            <div class="text-xs font-medium mt-1" id="kwh-m2-1-diff"></div>
+            <div class="text-xs text-indigo-600 mt-1" id="kwh-m2-1-dpe-cost"></div>
+            {{end}}
+        </div>
+        {{end}}
+        {{if gt .Input.Energy2Surface 0.0}}
+        <div class="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
+            <div class="text-xs text-emerald-600 mb-1">{{$label2}} - Consommation</div>
+            <div class="text-lg font-semibold text-emerald-700" id="kwh-m2-2">
+                {{if or (gt $firstYear.CumulGasKWh2 0.0) (gt $firstYear.CumulElecKWh2 0.0)}}
+                -- kWh/m&sup2;/an
+                {{else if gt .Input.Energy2DPE 0.0}}
+                DPE: {{formatMoney .Input.Energy2DPE}} kWh/m&sup2;/an
+                {{else}}
+                --
+                {{end}}
+            </div>
+            <div class="text-xs text-emerald-500">Surface: {{formatMoney .Input.Energy2Surface}} m&sup2;</div>
+            {{if gt .Input.Energy2DPE 0.0}}
+            <div class="text-xs font-medium mt-1" id="kwh-m2-2-diff"></div>
+            <div class="text-xs text-emerald-600 mt-1" id="kwh-m2-2-dpe-cost"></div>
+            {{end}}
+        </div>
+        {{end}}
+        {{if and (gt .Input.Energy3Surface 0.0) $hasEnergy3}}
+        <div class="bg-amber-50 rounded-lg p-3 border border-amber-200">
+            <div class="text-xs text-amber-600 mb-1">{{$label3}} - Consommation</div>
+            <div class="text-lg font-semibold text-amber-700" id="kwh-m2-3">
+                {{if or (gt $firstYear.CumulGasKWh3 0.0) (gt $firstYear.CumulElecKWh3 0.0)}}
+                -- kWh/m&sup2;/an
+                {{else if gt .Input.Energy3DPE 0.0}}
+                DPE: {{formatMoney .Input.Energy3DPE}} kWh/m&sup2;/an
+                {{else}}
+                --
+                {{end}}
+            </div>
+            <div class="text-xs text-amber-500">Surface: {{formatMoney .Input.Energy3Surface}} m&sup2;</div>
+            {{if gt .Input.Energy3DPE 0.0}}
+            <div class="text-xs font-medium mt-1" id="kwh-m2-3-diff"></div>
+            <div class="text-xs text-amber-600 mt-1" id="kwh-m2-3-dpe-cost"></div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+
+    <!-- kWh/m² calculation JS -->
+    <script>
+    (function() {
+        const s1 = {{.Input.Energy1Surface}};
+        const s2 = {{.Input.Energy2Surface}};
+        const s3 = {{.Input.Energy3Surface}};
+        const dpe1 = {{.Input.Energy1DPE}};
+        const dpe2 = {{.Input.Energy2DPE}};
+        const dpe3 = {{.Input.Energy3DPE}};
+        // Use estimated kWh from server (first year of result data) - includes estimation from costs
+        const gas1 = {{$firstYear.CumulGasKWh1}};
+        const elec1 = {{$firstYear.CumulElecKWh1}};
+        const gas2 = {{$firstYear.CumulGasKWh2}};
+        const elec2 = {{$firstYear.CumulElecKWh2}};
+        const gas3 = {{$firstYear.CumulGasKWh3}};
+        const elec3 = {{$firstYear.CumulElecKWh3}};
+        const costGas1 = {{.Input.Energy1Gas}};
+        const costElec1 = {{.Input.Energy1Electricity}};
+        const costGas2 = {{.Input.Energy2Gas}};
+        const costElec2 = {{.Input.Energy2Electricity}};
+        const costGas3 = {{.Input.Energy3Gas}};
+        const costElec3 = {{.Input.Energy3Electricity}};
+        const cost1 = costGas1 + costElec1;
+        const cost2 = costGas2 + costElec2;
+        const cost3 = costGas3 + costElec3;
+
+        // Calculate €/kWh from property 1 data (if available)
+        const totalKwh1 = gas1 + elec1;
+        const pricePerKwh = (totalKwh1 > 0 && cost1 > 0) ? (cost1 / totalKwh1) : 0.18; // Default 0.18 €/kWh
+
+        function updateDisplay(num, surface, gasKwh, elecKwh, dpe, cost, costGas, costElec) {
+            const el = document.getElementById('kwh-m2-' + num);
+            const diffEl = document.getElementById('kwh-m2-' + num + '-diff');
+            const dpeCostEl = document.getElementById('kwh-m2-' + num + '-dpe-cost');
+
+            if (!el) return;
+
+            const hasKwhData = (gasKwh > 0 || elecKwh > 0);
+            const hasCostData = (costGas > 0 || costElec > 0);
+            let totalKwh = gasKwh + elecKwh;
+            let isEstimated = false;
+
+            // Estimate kWh from cost if not provided
+            if (!hasKwhData && hasCostData && pricePerKwh > 0) {
+                totalKwh = cost / pricePerKwh;
+                isEstimated = true;
+            }
+
+            const realKwhM2 = (totalKwh > 0 && surface > 0) ? Math.round(totalKwh / surface) : 0;
+
+            // Update main display
+            if (realKwhM2 > 0) {
+                const estLabel = isEstimated ? ' (estim\u00e9)' : '';
+                el.innerHTML = '<span class="text-sm">R\u00e9el:</span> ' + realKwhM2 + ' kWh/m\u00b2/an' + estLabel;
+                if (dpe > 0) {
+                    el.innerHTML += '<br><span class="text-sm opacity-70">DPE: ' + dpe + ' kWh/m\u00b2/an</span>';
+                }
+            } else if (dpe > 0) {
+                el.textContent = 'DPE: ' + dpe + ' kWh/m\u00b2/an';
+            }
+
+            // Update diff (real vs DPE)
+            if (diffEl && dpe > 0 && realKwhM2 > 0) {
+                const diff = realKwhM2 - dpe;
+                const pct = Math.round((realKwhM2 / dpe - 1) * 100);
+                const sign = diff >= 0 ? '+' : '';
+                if (diff > 0) {
+                    diffEl.textContent = '\u00c9cart r\u00e9el/DPE: ' + sign + diff + ' (' + sign + pct + '%)';
+                    diffEl.className = 'text-xs font-medium mt-1 text-red-600';
+                } else if (diff < 0) {
+                    diffEl.textContent = '\u00c9cart r\u00e9el/DPE: ' + diff + ' (' + pct + '%)';
+                    diffEl.className = 'text-xs font-medium mt-1 text-green-600';
+                } else {
+                    diffEl.textContent = 'Identique au DPE';
+                    diffEl.className = 'text-xs font-medium mt-1 text-gray-600';
+                }
+            }
+
+            // Update DPE cost projection
+            if (dpeCostEl && dpe > 0 && surface > 0) {
+                const dpeTotalKwh = dpe * surface;
+                const dpeCost = Math.round(dpeTotalKwh * pricePerKwh);
+                dpeCostEl.innerHTML = 'Co\u00fbt DPE: ~' + dpeCost.toLocaleString('fr-FR') + ' \u20ac/an';
+                if (cost > 0) {
+                    const costDiff = cost - dpeCost;
+                    const costSign = costDiff >= 0 ? '+' : '';
+                    dpeCostEl.innerHTML += ' <span class="' + (costDiff > 0 ? 'text-red-600' : 'text-green-600') + '">(' + costSign + costDiff.toLocaleString('fr-FR') + ' \u20ac r\u00e9el)</span>';
+                }
+            }
+        }
+
+        updateDisplay(1, s1, gas1, elec1, dpe1, cost1, costGas1, costElec1);
+        updateDisplay(2, s2, gas2, elec2, dpe2, cost2, costGas2, costElec2);
+        updateDisplay(3, s3, gas3, elec3, dpe3, cost3, costGas3, costElec3);
+    })();
+    </script>
+    {{end}}
+
+    <!-- DPE vs Real Consumption Comparison Charts -->
+    {{$hasDPE := or (gt .Input.Energy1DPE 0.0) (gt .Input.Energy2DPE 0.0) (gt .Input.Energy3DPE 0.0)}}
+    {{$hasRealKwh := or (and (gt .Input.Energy1Surface 0.0) (or (gt $firstYear.CumulGasKWh1 0.0) (gt $firstYear.CumulElecKWh1 0.0))) (and (gt .Input.Energy2Surface 0.0) (or (gt $firstYear.CumulGasKWh2 0.0) (gt $firstYear.CumulElecKWh2 0.0))) (and (gt .Input.Energy3Surface 0.0) (or (gt $firstYear.CumulGasKWh3 0.0) (gt $firstYear.CumulElecKWh3 0.0)))}}
+    {{if $hasDPE}}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <!-- kWh/m² comparison chart -->
+        <div>
+            <h3 class="text-sm font-medium text-gray-600 mb-2">DPE vs Consommation r&eacute;elle (kWh/m&sup2;/an)</h3>
+            <div class="h-64">
+                <canvas id="dpeComparisonChart"></canvas>
+            </div>
+        </div>
+        <!-- Cost projection chart -->
+        <div>
+            <h3 class="text-sm font-medium text-gray-600 mb-2">Co&ucirc;t projet&eacute; DPE vs R&eacute;el (&euro;/an)</h3>
+            <div class="h-64">
+                <canvas id="dpeCostChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <p class="text-xs text-gray-500 mb-6">Le DPE est une estimation th&eacute;orique. La consommation r&eacute;elle peut varier selon l'usage. Le co&ucirc;t DPE est calcul&eacute; avec un prix moyen de l'&eacute;nergie.</p>
+
+    <script>
+    (function() {
+        const label1 = {{if .Input.Energy1Label}}"{{.Input.Energy1Label}}"{{else}}"Bien 1"{{end}};
+        const label2 = {{if .Input.Energy2Label}}"{{.Input.Energy2Label}}"{{else}}"Bien 2"{{end}};
+        const label3 = {{if .Input.Energy3Label}}"{{.Input.Energy3Label}}"{{else}}"Bien 3"{{end}};
+
+        const s1 = {{.Input.Energy1Surface}};
+        const s2 = {{.Input.Energy2Surface}};
+        const s3 = {{.Input.Energy3Surface}};
+        const dpe1 = {{.Input.Energy1DPE}};
+        const dpe2 = {{.Input.Energy2DPE}};
+        const dpe3 = {{.Input.Energy3DPE}};
+        // Use estimated kWh from server (includes estimation from costs)
+        const gas1 = {{$firstYear.CumulGasKWh1}};
+        const elec1 = {{$firstYear.CumulElecKWh1}};
+        const gas2 = {{$firstYear.CumulGasKWh2}};
+        const elec2 = {{$firstYear.CumulElecKWh2}};
+        const gas3 = {{$firstYear.CumulGasKWh3}};
+        const elec3 = {{$firstYear.CumulElecKWh3}};
+        const rawGas1 = {{.Input.Energy1GasKWh}};
+        const rawElec1 = {{.Input.Energy1ElectricityKWh}};
+        const rawGas2 = {{.Input.Energy2GasKWh}};
+        const rawElec2 = {{.Input.Energy2ElectricityKWh}};
+        const rawGas3 = {{.Input.Energy3GasKWh}};
+        const rawElec3 = {{.Input.Energy3ElectricityKWh}};
+        const cost1 = {{.Input.Energy1Gas}} + {{.Input.Energy1Electricity}} + {{.Input.Energy1Other}};
+        const cost2 = {{.Input.Energy2Gas}} + {{.Input.Energy2Electricity}} + {{.Input.Energy2Other}};
+        const cost3 = {{.Input.Energy3Gas}} + {{.Input.Energy3Electricity}} + {{.Input.Energy3Other}};
+
+        // Calculate €/kWh from property 1 data (if available), else use default
+        const totalKwh1 = gas1 + elec1;
+        const pricePerKwh = (totalKwh1 > 0 && cost1 > 0) ? (cost1 / totalKwh1) : 0.18;
+
+        const effectiveKwh1 = gas1 + elec1;
+        const effectiveKwh2 = gas2 + elec2;
+        const effectiveKwh3 = gas3 + elec3;
+
+        // Calculate real kWh/m² - use effective kWh (provided or estimated)
+        const real1 = (s1 > 0 && effectiveKwh1 > 0) ? Math.round(effectiveKwh1 / s1) : 0;
+        const real2 = (s2 > 0 && effectiveKwh2 > 0) ? Math.round(effectiveKwh2 / s2) : 0;
+        const real3 = (s3 > 0 && effectiveKwh3 > 0) ? Math.round(effectiveKwh3 / s3) : 0;
+
+        // Track if values are estimated (raw input had no kWh but server estimated from costs)
+        const isEstimated1 = (rawGas1 + rawElec1 === 0) && effectiveKwh1 > 0;
+        const isEstimated2 = (rawGas2 + rawElec2 === 0) && effectiveKwh2 > 0;
+        const isEstimated3 = (rawGas3 + rawElec3 === 0) && effectiveKwh3 > 0;
+
+        // Calculate DPE projected costs
+        const dpeCost1 = (dpe1 > 0 && s1 > 0) ? Math.round(dpe1 * s1 * pricePerKwh) : 0;
+        const dpeCost2 = (dpe2 > 0 && s2 > 0) ? Math.round(dpe2 * s2 * pricePerKwh) : 0;
+        const dpeCost3 = (dpe3 > 0 && s3 > 0) ? Math.round(dpe3 * s3 * pricePerKwh) : 0;
+
+        // Build arrays for properties with data
+        const labels = [];
+        const dpeData = [];
+        const realData = [];
+        const dpeCostData = [];
+        const realCostData = [];
+        const bgColorsDPE = [];
+        const bgColorsReal = [];
+
+        const isEstimatedArr = [];
+
+        if (dpe1 > 0 || real1 > 0) {
+            labels.push(label1);
+            dpeData.push(dpe1);
+            realData.push(real1 || null);
+            dpeCostData.push(dpeCost1);
+            realCostData.push(cost1 || null);
+            bgColorsDPE.push('rgba(99, 102, 241, 0.5)');
+            bgColorsReal.push(isEstimated1 ? 'rgba(99, 102, 241, 0.7)' : 'rgba(99, 102, 241, 1)');
+            isEstimatedArr.push(isEstimated1);
+        }
+        if (dpe2 > 0 || real2 > 0) {
+            labels.push(label2);
+            dpeData.push(dpe2);
+            realData.push(real2 || null);
+            dpeCostData.push(dpeCost2);
+            realCostData.push(cost2 || null);
+            bgColorsDPE.push('rgba(16, 185, 129, 0.5)');
+            bgColorsReal.push(isEstimated2 ? 'rgba(16, 185, 129, 0.7)' : 'rgba(16, 185, 129, 1)');
+            isEstimatedArr.push(isEstimated2);
+        }
+        if (dpe3 > 0 || real3 > 0) {
+            labels.push(label3);
+            dpeData.push(dpe3);
+            realData.push(real3 || null);
+            dpeCostData.push(dpeCost3);
+            realCostData.push(cost3 || null);
+            bgColorsDPE.push('rgba(245, 158, 11, 0.5)');
+            bgColorsReal.push(isEstimated3 ? 'rgba(245, 158, 11, 0.7)' : 'rgba(245, 158, 11, 1)');
+            isEstimatedArr.push(isEstimated3);
+        }
+
+        if (labels.length === 0) return;
+
+        // Chart 1: kWh/m² comparison
+        const ctx1 = document.getElementById('dpeComparisonChart');
+        if (ctx1) {
+            new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'DPE (th\u00e9orique)',
+                            data: dpeData,
+                            backgroundColor: bgColorsDPE,
+                            borderColor: bgColorsReal,
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                        },
+                        {
+                            label: 'Consommation r\u00e9elle',
+                            data: realData,
+                            backgroundColor: bgColorsReal,
+                            borderColor: bgColorsReal,
+                            borderWidth: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.parsed.y === null) return context.dataset.label + ': Non renseign\u00e9';
+                                    const idx = context.dataIndex;
+                                    const estimated = context.datasetIndex === 1 && isEstimatedArr[idx] ? ' (estim\u00e9)' : '';
+                                    return context.dataset.label + ': ' + context.parsed.y + ' kWh/m\u00b2/an' + estimated;
+                                },
+                                afterBody: function(context) {
+                                    const idx = context[0].dataIndex;
+                                    const dpe = dpeData[idx];
+                                    const real = realData[idx];
+                                    const lines = [];
+                                    if (dpe > 0 && real > 0) {
+                                        const diff = real - dpe;
+                                        const pct = ((real / dpe - 1) * 100).toFixed(0);
+                                        const sign = diff >= 0 ? '+' : '';
+                                        lines.push('', '\u00c9cart: ' + sign + diff + ' kWh/m\u00b2 (' + sign + pct + '%)');
+                                    }
+                                    if (isEstimatedArr[idx]) {
+                                        lines.push('(kWh estim\u00e9 depuis \u20ac/' + pricePerKwh.toFixed(3) + ' kWh)');
+                                    }
+                                    return lines;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'kWh/m\u00b2/an' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Chart 2: Cost comparison
+        const ctx2 = document.getElementById('dpeCostChart');
+        if (ctx2) {
+            new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Co\u00fbt DPE projet\u00e9',
+                            data: dpeCostData,
+                            backgroundColor: bgColorsDPE,
+                            borderColor: bgColorsReal,
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                        },
+                        {
+                            label: 'Co\u00fbt r\u00e9el',
+                            data: realCostData,
+                            backgroundColor: bgColorsReal,
+                            borderColor: bgColorsReal,
+                            borderWidth: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.parsed.y === null) return context.dataset.label + ': Non renseign\u00e9';
+                                    return context.dataset.label + ': ' + context.parsed.y.toLocaleString('fr-FR') + ' \u20ac/an';
+                                },
+                                afterBody: function(context) {
+                                    const idx = context[0].dataIndex;
+                                    const dpeCost = dpeCostData[idx];
+                                    const realCost = realCostData[idx];
+                                    if (dpeCost > 0 && realCost > 0) {
+                                        const diff = realCost - dpeCost;
+                                        const pct = ((realCost / dpeCost - 1) * 100).toFixed(0);
+                                        const sign = diff >= 0 ? '+' : '';
+                                        return ['', '\u00c9cart: ' + sign + diff.toLocaleString('fr-FR') + ' \u20ac (' + sign + pct + '%)'];
+                                    }
+                                    return [];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: '\u20ac/an' },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('fr-FR') + ' \u20ac';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    })();
+    </script>
+    {{end}}
+
+    <!-- Chart: Cumulative costs -->
+    <div class="mb-4">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">Co&ucirc;ts cumul&eacute;s</h3>
+        <div class="h-72">
+            <canvas id="energyComparisonChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Chart: Evolution over time -->
+    <div class="mb-6">
+        <h3 class="text-sm font-medium text-gray-600 mb-2">&Eacute;volution des &eacute;conomies cumul&eacute;es</h3>
+        <div class="h-64">
+            <canvas id="energySavingsChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Details table (collapsible) -->
+    <details class="bg-gray-50 rounded-lg">
+        <summary class="cursor-pointer p-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg">
+            D&eacute;tail par ann&eacute;e
+        </summary>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Ann&eacute;e</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-indigo-600 uppercase">{{$label1}} Gaz</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-indigo-400 uppercase">{{$label1}} &Eacute;lec</th>
+                        {{if $lastYear.CumulOther1}}<th class="px-3 py-2 text-right text-xs font-medium text-indigo-300 uppercase">{{$label1}} Autres</th>{{end}}
+                        <th class="px-3 py-2 text-right text-xs font-medium text-indigo-800 uppercase">{{$label1}} Total</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-emerald-600 uppercase">{{$label2}} Gaz</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-emerald-400 uppercase">{{$label2}} &Eacute;lec</th>
+                        {{if $lastYear.CumulOther2}}<th class="px-3 py-2 text-right text-xs font-medium text-emerald-300 uppercase">{{$label2}} Autres</th>{{end}}
+                        <th class="px-3 py-2 text-right text-xs font-medium text-emerald-800 uppercase">{{$label2}} Total</th>
+                        {{if $hasEnergy3}}
+                        <th class="px-3 py-2 text-right text-xs font-medium text-amber-600 uppercase">{{$label3}} Gaz</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-amber-400 uppercase">{{$label3}} &Eacute;lec</th>
+                        {{if $lastYear.CumulOther3}}<th class="px-3 py-2 text-right text-xs font-medium text-amber-300 uppercase">{{$label3}} Autres</th>{{end}}
+                        <th class="px-3 py-2 text-right text-xs font-medium text-amber-800 uppercase">{{$label3}} Total</th>
+                        {{end}}
+                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">&Eacute;co. 1&rarr;2</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {{range .Result.EnergyComparisonData}}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 text-sm text-gray-900">{{.Year}} an{{if gt .Year 1}}s{{end}}</td>
+                        <td class="px-3 py-2 text-sm text-right text-indigo-600">{{formatMoney .CumulGas1}}</td>
+                        <td class="px-3 py-2 text-sm text-right text-indigo-400">{{formatMoney .CumulElec1}}</td>
+                        {{if $lastYear.CumulOther1}}<td class="px-3 py-2 text-sm text-right text-indigo-300">{{formatMoney .CumulOther1}}</td>{{end}}
+                        <td class="px-3 py-2 text-sm text-right font-medium text-indigo-800">{{formatMoney .CumulTotal1}}</td>
+                        <td class="px-3 py-2 text-sm text-right text-emerald-600">{{formatMoney .CumulGas2}}</td>
+                        <td class="px-3 py-2 text-sm text-right text-emerald-400">{{formatMoney .CumulElec2}}</td>
+                        {{if $lastYear.CumulOther2}}<td class="px-3 py-2 text-sm text-right text-emerald-300">{{formatMoney .CumulOther2}}</td>{{end}}
+                        <td class="px-3 py-2 text-sm text-right font-medium text-emerald-800">{{formatMoney .CumulTotal2}}</td>
+                        {{if $hasEnergy3}}
+                        <td class="px-3 py-2 text-sm text-right text-amber-600">{{formatMoney .CumulGas3}}</td>
+                        <td class="px-3 py-2 text-sm text-right text-amber-400">{{formatMoney .CumulElec3}}</td>
+                        {{if $lastYear.CumulOther3}}<td class="px-3 py-2 text-sm text-right text-amber-300">{{formatMoney .CumulOther3}}</td>{{end}}
+                        <td class="px-3 py-2 text-sm text-right font-medium text-amber-800">{{formatMoney .CumulTotal3}}</td>
+                        {{end}}
+                        <td class="px-3 py-2 text-sm text-right font-medium {{if gt .CumulSavings 0.0}}text-green-600{{else if lt .CumulSavings 0.0}}text-red-600{{else}}text-gray-600{{end}}">
+                            {{if gt .CumulSavings 0.0}}+{{end}}{{formatMoney .CumulSavings}}
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </details>
+</div>
+
+<script>
+(function() {
+    const ctx = document.getElementById('energyComparisonChart');
+    if (!ctx) return;
+
+    const data = {{toJSON .Result.EnergyComparisonData}};
+    if (!data || data.length === 0) return;
+
+    const labels = data.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+    const label1 = {{if .Input.Energy1Label}}"{{.Input.Energy1Label}}"{{else}}"Bien 1"{{end}};
+    const label2 = {{if .Input.Energy2Label}}"{{.Input.Energy2Label}}"{{else}}"Bien 2"{{end}};
+    const label3 = {{if .Input.Energy3Label}}"{{.Input.Energy3Label}}"{{else}}"Bien 3"{{end}};
+
+    const hasOther1 = data.some(d => d.CumulOther1 > 0);
+    const hasOther2 = data.some(d => d.CumulOther2 > 0);
+    const hasOther3 = data.some(d => d.CumulOther3 > 0);
+    const hasEnergy3 = data.some(d => d.CumulTotal3 > 0);
+
+    const datasets = [
+        {
+            label: label1 + ' - Gaz',
+            data: data.map(d => d.CumulGas1),
+            backgroundColor: 'rgba(99, 102, 241, 0.9)',
+            stack: 'stack1',
+        },
+        {
+            label: label1 + ' - Electricite',
+            data: data.map(d => d.CumulElec1),
+            backgroundColor: 'rgba(165, 180, 252, 0.9)',
+            stack: 'stack1',
+        }
+    ];
+
+    if (hasOther1) {
+        datasets.push({
+            label: label1 + ' - Autres',
+            data: data.map(d => d.CumulOther1),
+            backgroundColor: 'rgba(199, 210, 254, 0.9)',
+            stack: 'stack1',
+        });
+    }
+
+    datasets.push(
+        {
+            label: label2 + ' - Gaz',
+            data: data.map(d => d.CumulGas2),
+            backgroundColor: 'rgba(16, 185, 129, 0.9)',
+            stack: 'stack2',
+        },
+        {
+            label: label2 + ' - Electricite',
+            data: data.map(d => d.CumulElec2),
+            backgroundColor: 'rgba(110, 231, 183, 0.9)',
+            stack: 'stack2',
+        }
+    );
+
+    if (hasOther2) {
+        datasets.push({
+            label: label2 + ' - Autres',
+            data: data.map(d => d.CumulOther2),
+            backgroundColor: 'rgba(167, 243, 208, 0.9)',
+            stack: 'stack2',
+        });
+    }
+
+    // Add Bien 3 datasets if data exists
+    if (hasEnergy3) {
+        datasets.push(
+            {
+                label: label3 + ' - Gaz',
+                data: data.map(d => d.CumulGas3),
+                backgroundColor: 'rgba(245, 158, 11, 0.9)',
+                stack: 'stack3',
+            },
+            {
+                label: label3 + ' - Electricite',
+                data: data.map(d => d.CumulElec3),
+                backgroundColor: 'rgba(252, 211, 77, 0.9)',
+                stack: 'stack3',
+            }
+        );
+
+        if (hasOther3) {
+            datasets.push({
+                label: label3 + ' - Autres',
+                data: data.map(d => d.CumulOther3),
+                backgroundColor: 'rgba(254, 243, 199, 0.9)',
+                stack: 'stack3',
+            });
+        }
+    }
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(context) {
+                            const idx = context[0].dataIndex;
+                            const d = data[idx];
+                            const savings = d.CumulSavings;
+                            const sign = savings >= 0 ? '+' : '';
+                            const lines = [
+                                '',
+                                'Total ' + label1 + ': ' + d.CumulTotal1.toLocaleString('fr-FR') + ' \u20AC',
+                                'Total ' + label2 + ': ' + d.CumulTotal2.toLocaleString('fr-FR') + ' \u20AC'
+                            ];
+                            if (hasEnergy3) {
+                                lines.push('Total ' + label3 + ': ' + d.CumulTotal3.toLocaleString('fr-FR') + ' \u20AC');
+                            }
+                            lines.push((savings >= 0 ? 'Eco. 1\u21922: ' : 'Surcout 1\u21922: ') + sign + savings.toLocaleString('fr-FR') + ' \u20AC');
+                            // Add kWh info if available
+                            if (d.CumulGasKWh1 || d.CumulElecKWh1 || d.CumulGasKWh2 || d.CumulElecKWh2 || d.CumulGasKWh3 || d.CumulElecKWh3) {
+                                lines.push('');
+                                if (d.CumulGasKWh1 || d.CumulElecKWh1) {
+                                    lines.push(label1 + ': ' + (d.CumulGasKWh1 + d.CumulElecKWh1).toLocaleString('fr-FR') + ' kWh');
+                                }
+                                if (d.CumulGasKWh2 || d.CumulElecKWh2) {
+                                    lines.push(label2 + ': ' + (d.CumulGasKWh2 + d.CumulElecKWh2).toLocaleString('fr-FR') + ' kWh');
+                                }
+                                if (hasEnergy3 && (d.CumulGasKWh3 || d.CumulElecKWh3)) {
+                                    lines.push(label3 + ': ' + (d.CumulGasKWh3 + d.CumulElecKWh3).toLocaleString('fr-FR') + ' kWh');
+                                }
+                            }
+                            return lines;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    stacked: true,
+                    grid: {
+                        display: false
+                    }
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' \u20AC';
+                        }
+                    }
+                }
+            }
+        }
+    });
+})();
+
+// Savings evolution line chart
+(function() {
+    const ctx = document.getElementById('energySavingsChart');
+    if (!ctx) return;
+
+    const data = {{toJSON .Result.EnergyComparisonData}};
+    if (!data || data.length === 0) return;
+
+    const labels = data.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+    const label1 = {{if .Input.Energy1Label}}"{{.Input.Energy1Label}}"{{else}}"Bien 1"{{end}};
+    const label2 = {{if .Input.Energy2Label}}"{{.Input.Energy2Label}}"{{else}}"Bien 2"{{end}};
+    const label3 = {{if .Input.Energy3Label}}"{{.Input.Energy3Label}}"{{else}}"Bien 3"{{end}};
+    const hasEnergy3 = data.some(d => d.CumulTotal3 > 0);
+
+    const datasets = [
+        {
+            label: label1,
+            data: data.map(d => d.CumulTotal1),
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: false,
+            tension: 0.3,
+        },
+        {
+            label: label2,
+            data: data.map(d => d.CumulTotal2),
+            borderColor: 'rgb(16, 185, 129)',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            fill: false,
+            tension: 0.3,
+        }
+    ];
+
+    if (hasEnergy3) {
+        datasets.push({
+            label: label3,
+            data: data.map(d => d.CumulTotal3),
+            borderColor: 'rgb(245, 158, 11)',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            fill: false,
+            tension: 0.3,
+        });
+    }
+
+    // Find the savings dataset index (for tooltip formatting)
+    const savingsDatasetIndex = datasets.length;
+
+    datasets.push({
+        label: 'Éco. 1→2',
+        data: data.map(d => d.CumulSavings),
+        borderColor: data[data.length-1].CumulSavings >= 0 ? 'rgb(34, 197, 94)' : 'rgb(239, 68, 68)',
+        backgroundColor: 'transparent',
+        borderDash: [5, 5],
+        tension: 0.3,
+        yAxisID: 'y1',
+    });
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                const sign = context.datasetIndex === savingsDatasetIndex && context.parsed.y > 0 ? '+' : '';
+                                label += sign + context.parsed.y.toLocaleString('fr-FR') + ' \u20AC';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Coûts cumulés (\u20AC)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString('fr-FR') + ' \u20AC';
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'Économie 1→2 (\u20AC)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            const sign = value > 0 ? '+' : '';
+                            return sign + value.toLocaleString('fr-FR') + ' \u20AC';
+                        }
+                    },
+                    grid: {
+                        drawOnChartArea: false,
+                    },
+                }
+            }
+        }
+    });
+})();
+</script>
+{{end}}
+{{end}}

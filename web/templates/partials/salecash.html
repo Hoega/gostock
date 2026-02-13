@@ -88,20 +88,9 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
         </svg>
         <div class="text-sm">
-            <strong class="text-blue-800">R&eacute;partition entre emprunteurs</strong> :
-            Ce graphique montre combien chaque emprunteur r&eacute;cup&egrave;re (cash brut) si le bien est vendu apr&egrave;s X ann&eacute;es, au prorata de sa quote-part de propri&eacute;t&eacute;.
+            <strong class="text-blue-800">Contribution totale de chaque emprunteur</strong> :
+            Ce graphique montre l'&eacute;volution de la quote-part de chaque emprunteur en cumulant 3 composantes : apport initial, produit de vente du bien actuel, et remboursements mensuels.
         </div>
-    </div>
-
-    <!-- Sélecteur de scénario -->
-    <div class="mb-4 flex items-center gap-4">
-        <label class="text-sm font-medium text-gray-700">Sc&eacute;nario de valorisation :</label>
-        <select id="saleCashE1E2Scenario" onchange="updateSaleCashE1E2Chart()"
-                class="rounded-md border-gray-300 shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-            <option value="1" selected>0% / an (stable)</option>
-            <option value="0">-1% / an (baisse)</option>
-            <option value="2">+1% / an (hausse)</option>
-        </select>
     </div>
 
     <div style="position: relative; height: 400px;">
@@ -273,53 +262,105 @@
         options: netChartOptions
     });
 
-    // Graphique répartition E1/E2
+    // Graphique répartition E1/E2 - Contribution totale
     const e1e2Canvas = document.getElementById('saleCashE1E2Chart');
     if (e1e2Canvas) {
-        const qp1 = {{.Result.Ownership.QuotePart1}};
-        const qp2 = {{.Result.Ownership.QuotePart2}};
-        let e1e2Chart = null;
+        const schedule = {{toJSON .Result.MonthlySchedule}};
+        const amortization = {{toJSON .Result.Amortization}};
+        const mp1 = {{.Result.Ownership.MonthlyPayment1}};
+        const mp2 = {{.Result.Ownership.MonthlyPayment2}};
+        const totalMP = mp1 + mp2;
+        const ratio1 = totalMP > 0 ? mp1 / totalMP : 0.5;
+        const ratio2 = 1 - ratio1;
+        const e1e2StartYear = {{.Input.StartYear}};
+        const e1e2StartMonth = {{.Input.StartMonth}};
 
-        window.updateSaleCashE1E2Chart = function() {
-            const idx = parseInt(document.getElementById('saleCashE1E2Scenario').value);
+        const apport1 = {{.Input.DownPayment1}};
+        const apport2 = {{.Input.DownPayment2}};
+        const saleProceeds1 = {{.Result.Ownership.SaleProceeds1}};
+        const saleProceeds2 = {{.Result.Ownership.SaleProceeds2}};
+        const initial1 = apport1 + saleProceeds1;
+        const initial2 = apport2 + saleProceeds2;
 
-            const datasets = [
-                {
-                    label: 'Emprunteur 1',
-                    data: saleCashData.map(d => d.GrossCash[idx] * qp1 / 100),
-                    backgroundColor: 'rgba(99, 102, 241, 0.7)',
-                    borderColor: 'rgb(99, 102, 241)',
-                    borderWidth: 1,
-                    fill: true
-                },
-                {
-                    label: 'Emprunteur 2',
-                    data: saleCashData.map(d => d.GrossCash[idx] * qp2 / 100),
-                    backgroundColor: 'rgba(16, 185, 129, 0.7)',
-                    borderColor: 'rgb(16, 185, 129)',
-                    borderWidth: 1,
-                    fill: '-1'
-                }
-            ];
+        // Build monthly totals from MonthlySchedule (multi-loan) or Amortization (single loan)
+        const monthlyTotals = [];
+        if (schedule && schedule.length > 0) {
+            schedule.forEach(s => monthlyTotals.push(s.TotalAmount));
+        } else if (amortization && amortization.length > 0) {
+            amortization.forEach(r => monthlyTotals.push(r.Payment + r.Insurance));
+        }
 
-            if (e1e2Chart) e1e2Chart.destroy();
+        if (monthlyTotals.length > 0) {
+            // Compute total contribution per borrower: initial (apport + vente) + cumul remboursements
+            const totalContrib1 = [];
+            const totalContrib2 = [];
+            let sumRemb1 = 0, sumRemb2 = 0;
+            for (let m = 0; m < monthlyTotals.length; m++) {
+                sumRemb1 += Math.round(monthlyTotals[m] * ratio1 * 100) / 100;
+                sumRemb2 += Math.round(monthlyTotals[m] * ratio2 * 100) / 100;
+                totalContrib1.push(Math.round((initial1 + sumRemb1) * 100) / 100);
+                totalContrib2.push(Math.round((initial2 + sumRemb2) * 100) / 100);
+            }
+
+            const e1e2Labels = [];
+            const e1e2FullDates = [];
+            for (let m = 0; m < monthlyTotals.length; m++) {
+                const date = new Date(e1e2StartYear, e1e2StartMonth - 1 + m, 1);
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                e1e2Labels.push(m + 1);
+                e1e2FullDates.push('01/' + month + '/' + year);
+            }
 
             const ctx = e1e2Canvas.getContext('2d');
-            e1e2Chart = new Chart(ctx, {
-                type: 'line',
-                data: { labels: labels, datasets: datasets },
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: e1e2Labels,
+                    datasets: [
+                        {
+                            label: 'Emprunteur 1',
+                            data: totalContrib1,
+                            backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                            borderColor: 'rgb(99, 102, 241)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Emprunteur 2',
+                            data: totalContrib2,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgb(16, 185, 129)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
                     plugins: {
+                        legend: { display: false },
                         tooltip: {
-                            mode: 'index',
                             callbacks: {
-                                label: ctx => ctx.dataset.label + ' : ' +
-                                    ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac',
-                                footer: items => {
-                                    const total = items.reduce((s, i) => s + i.parsed.y, 0);
-                                    return 'Total : ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+                                title: function(items) {
+                                    const idx = items[0].dataIndex;
+                                    return 'Mois #' + (idx + 1) + ' \u2014 ' + e1e2FullDates[idx];
+                                },
+                                label: function(context) {
+                                    const val = context.parsed.y;
+                                    return context.dataset.label + ' : ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
+                                },
+                                footer: function(items) {
+                                    const idx = items[0].dataIndex;
+                                    const t1 = totalContrib1[idx];
+                                    const t2 = totalContrib2[idx];
+                                    const grandTotal = t1 + t2;
+                                    const pct1 = grandTotal > 0 ? (t1 / grandTotal * 100).toFixed(1) : '0.0';
+                                    const pct2 = grandTotal > 0 ? (t2 / grandTotal * 100).toFixed(1) : '0.0';
+                                    return 'Quote-part E1 : ' + pct1 + '% / E2 : ' + pct2 + '%';
                                 }
                             }
                         }
@@ -329,25 +370,27 @@
                             stacked: true,
                             title: {
                                 display: true,
-                                text: 'Dur\u00e9e de d\u00e9tention'
+                                text: 'Num\u00e9ro de mensualit\u00e9'
+                            },
+                            ticks: {
+                                autoSkip: true,
+                                maxRotation: 0
                             }
                         },
                         y: {
                             stacked: true,
                             title: {
                                 display: true,
-                                text: 'Cash r\u00e9cup\u00e9r\u00e9 (\u20ac)'
+                                text: 'Contribution cumul\u00e9e (\u20ac)'
                             },
                             ticks: {
-                                callback: v => v.toLocaleString('fr-FR') + ' \u20ac'
+                                callback: function(v) { return v.toLocaleString('fr-FR') + ' \u20ac'; }
                             }
                         }
                     }
                 }
             });
-        };
-
-        updateSaleCashE1E2Chart();
+        }
     }
 })();
 </script>
