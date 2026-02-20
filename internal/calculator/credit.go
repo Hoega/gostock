@@ -489,7 +489,10 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	}
 
 	// Resale profitability projection (scénarios de valorisation annuelle)
-	resaleRates := []float64{-0.01, 0, 0.01}
+	resaleRates := input.ResaleRates
+	if len(resaleRates) == 0 {
+		resaleRates = []float64{-0.01, 0, 0.01} // Valeurs par défaut
+	}
 	durationYears := n / 12
 	downPayment := input.PropertyPrice - input.LoanAmount
 
@@ -597,8 +600,10 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			// Les travaux valorisent le bien selon leur catégorie et évoluent dans le temps
 			baseValue := input.PropertyPrice + workValueThisYear
 			propertyValue := baseValue * math.Pow(1+rate, float64(year))
-			// Cash brut = Valeur bien - Capital restant dû
-			grossCash[i] = round2(propertyValue - capitalRemaining)
+			// Frais de vente à la revente (agence, diagnostics, etc.)
+			sellCosts := propertyValue * (input.ResaleSellCosts / 100)
+			// Cash brut = Valeur bien - Frais de vente - Capital restant dû
+			grossCash[i] = round2(propertyValue - sellCosts - capitalRemaining)
 			// Cash net = Cash brut - Coûts irrécupérables
 			netCash[i] = round2(grossCash[i] - irrecoverableCost)
 		}
@@ -1068,6 +1073,9 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	annualCondoFees := input.CondoFees * 12
 	// Note: annualMaintenanceCost already computed above
 
+	// Rent increase rate for rent savings calculation (same as rent vs buy comparison)
+	rentIncRate := input.RentIncreaseRate / 100
+
 	for year := 1; year <= durationYears; year++ {
 		irrs := make([]float64, len(resaleRates))
 		for i := range resaleRates {
@@ -1075,14 +1083,16 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			cashFlows := make([]float64, year+1)
 			cashFlows[0] = -initialInvestment
 
-			// Annual costs for years 1 to year-1
+			// Annual costs for years 1 to year-1, offset by rent savings (with inflation)
 			for t := 1; t < year; t++ {
-				cashFlows[t] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost)
+				rentSavings := input.MonthlyRent * 12 * math.Pow(1+rentIncRate, float64(t-1))
+				cashFlows[t] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost) + rentSavings
 			}
 
-			// Final year: annual cost + sale proceeds (gross cash from saleCashData)
+			// Final year: annual cost + rent savings + sale proceeds (gross cash from saleCashData)
 			saleProceeds := saleCashData[year-1].GrossCash[i]
-			cashFlows[year] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost) + saleProceeds
+			rentSavingsFinal := input.MonthlyRent * 12 * math.Pow(1+rentIncRate, float64(year-1))
+			cashFlows[year] = -(annualLoanPayment + annualPropertyTax + annualCondoFees + annualMaintenanceCost) + rentSavingsFinal + saleProceeds
 
 			irr := calculateIRR(cashFlows)
 			if math.IsNaN(irr) {

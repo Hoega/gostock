@@ -144,11 +144,11 @@
                     </td>
                     <td class="px-3 py-2 text-right font-mono">{{printf "%.8f" .Quantity}}</td>
                     <td class="px-3 py-2 text-center text-xs">
-                        <div>{{.PurchaseDate}}</div>
+                        <div>{{formatDate .PurchaseDate}}</div>
                         <div class="text-gray-500">{{formatMoney .PurchasePrice}} &euro;</div>
                     </td>
                     <td class="px-3 py-2 text-center text-xs">
-                        <div>{{.SaleDate}}</div>
+                        <div>{{formatDate .SaleDate}}</div>
                         <div class="text-gray-500">{{formatMoney .SalePrice}} &euro;</div>
                     </td>
                     <td class="px-3 py-2 text-right">{{formatMoney .SaleProceeds}} &euro;</td>

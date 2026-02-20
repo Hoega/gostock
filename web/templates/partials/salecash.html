@@ -1,4 +1,60 @@
 {{define "salecash.html"}}
+<!-- Paramètres de projection revente -->
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <h2 class="text-2xl font-bold text-gray-900 mb-4">Param&egrave;tres de projection revente</h2>
+    <p class="text-sm text-gray-500 mb-4">Personnalisez les sc&eacute;narios de revalorisation immobili&egrave;re. Les graphiques se mettent &agrave; jour automatiquement.</p>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Presets par zone -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Presets par zone</label>
+            <div class="flex flex-wrap gap-2">
+                <button type="button" onclick="setResalePreset('default')"
+                    class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md border border-gray-300 transition-colors">
+                    Par d&eacute;faut (-1%, 0%, +1%)
+                </button>
+                <button type="button" onclick="setResalePreset('paris')"
+                    class="px-3 py-1.5 text-sm bg-emerald-50 hover:bg-emerald-100 rounded-md border border-emerald-300 transition-colors">
+                    Paris (+1%, +2%, +3%)
+                </button>
+                <button type="button" onclick="setResalePreset('metro')"
+                    class="px-3 py-1.5 text-sm bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-300 transition-colors">
+                    M&eacute;tropoles (0%, +1%, +2%)
+                </button>
+                <button type="button" onclick="setResalePreset('rural')"
+                    class="px-3 py-1.5 text-sm bg-orange-50 hover:bg-orange-100 rounded-md border border-orange-300 transition-colors">
+                    Rural (-2%, -1%, 0%)
+                </button>
+                <button type="button" onclick="setResalePreset('pessimist')"
+                    class="px-3 py-1.5 text-sm bg-red-50 hover:bg-red-100 rounded-md border border-red-300 transition-colors">
+                    Pessimiste (-3%, -2%, -1%)
+                </button>
+            </div>
+        </div>
+
+        <!-- Frais de vente -->
+        <div class="max-w-xs">
+            <label for="resale_sell_costs_input" class="block text-sm font-medium text-gray-700">Frais de vente &agrave; la revente (%)</label>
+            <input type="number" id="resale_sell_costs_input" value="0" step="0.5" min="0" max="15"
+                onchange="updateSellCosts(this.value)"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+            <p class="mt-1 text-xs text-gray-500">Frais d'agence, diagnostics, etc. (g&eacute;n&eacute;ralement 3-5%)</p>
+        </div>
+    </div>
+
+    <!-- Scénarios personnalisés -->
+    <div class="mt-4">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Sc&eacute;narios de revalorisation annuelle</label>
+        <div id="resale-rates-container" class="flex flex-wrap gap-2 items-center">
+            <!-- Inputs dynamiques gérés par JS -->
+        </div>
+        <button type="button" onclick="addResaleRate()"
+            class="mt-2 px-3 py-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 rounded-md border border-indigo-300 transition-colors">
+            + Ajouter un sc&eacute;nario
+        </button>
+    </div>
+</div>
+
 <div class="bg-white shadow rounded-lg p-6 mt-6">
     <h2 class="text-2xl font-bold text-gray-900 mb-4">Cash brut &agrave; la revente</h2>
 
@@ -15,7 +71,7 @@
             <div>
                 <p class="font-semibold text-slate-800">Formule de calcul</p>
                 <div class="bg-white p-2 rounded border font-mono text-xs">
-                    Cash brut = Prix de vente du bien - Capital restant d&ucirc; &agrave; la banque
+                    Cash brut = Prix de vente - Frais de vente - Capital restant d&ucirc;
                 </div>
                 <p class="mt-1 text-xs">Le prix de vente d&eacute;pend du sc&eacute;nario de valorisation choisi (+X%/an appliqu&eacute; au prix initial + travaux valoris&eacute;s).</p>
             </div>
@@ -113,160 +169,250 @@
 
 <script>
 (function() {
-    const saleCashData = {{toJSON .Result.SaleCashData}};
-    const resaleRates = {{toJSON .Result.ResaleRates}};
-    const downPayment = {{.Input.PropertyPrice}} - {{.Input.LoanAmount}};
+    // Données de base du serveur
+    const originalSaleCashData = {{toJSON .Result.SaleCashData}};
+    const amortization = {{toJSON .Result.Amortization}};
+    const propertyPrice = {{.Input.PropertyPrice}};
+    const downPayment = propertyPrice - {{.Input.LoanAmount}};
 
-    const labels = saleCashData.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
+    // État local modifiable
+    let currentRates = {{toJSON .Result.ResaleRates}};
+    let sellCostsPercent = 0;
 
-    const colors = [
-        'rgb(249, 115, 22)',  // -1% orange
-        'rgb(107, 114, 128)', //  0% gris
-        'rgb(34, 197, 94)'    // +1% vert
-    ];
+    // Références aux graphiques
+    let grossChart = null;
+    let netChart = null;
 
-    const baseChartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: {
-            mode: 'index',
-            intersect: false
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        let val = context.parsed.y;
-                        let formatted = val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
-                        return context.dataset.label + ' : ' + formatted + ' \u20ac';
+    // Palette de couleurs dynamique
+    function getScenarioColors(rates) {
+        const palette = [
+            'rgb(239, 68, 68)',   // rouge vif
+            'rgb(249, 115, 22)',  // orange
+            'rgb(234, 179, 8)',   // jaune
+            'rgb(107, 114, 128)', // gris
+            'rgb(34, 197, 94)',   // vert clair
+            'rgb(16, 185, 129)'   // vert foncé
+        ];
+
+        if (rates.length === 1) {
+            return ['rgb(59, 130, 246)']; // bleu pour un seul scénario
+        }
+
+        return rates.map((_, i) => {
+            const index = Math.round(i * (palette.length - 1) / (rates.length - 1));
+            return palette[index];
+        });
+    }
+
+    // Calcul des données avec les paramètres personnalisés
+    function calculateSaleCashData(rates, sellCosts) {
+        const data = [];
+        const durationYears = Math.floor(amortization.length / 12);
+
+        for (let year = 1; year <= durationYears; year++) {
+            const monthIndex = year * 12 - 1;
+            const capitalRemaining = amortization[monthIndex].RemainingBalance;
+            const irrecoverableCost = originalSaleCashData[year - 1].IrrecoverableCost;
+
+            const grossCash = [];
+            const netCash = [];
+
+            for (const rate of rates) {
+                const propertyValue = propertyPrice * Math.pow(1 + rate, year);
+                const sellCostAmount = propertyValue * (sellCosts / 100);
+                const gross = Math.round((propertyValue - sellCostAmount - capitalRemaining) * 100) / 100;
+                grossCash.push(gross);
+                netCash.push(Math.round((gross - irrecoverableCost) * 100) / 100);
+            }
+
+            data.push({ Year: year, GrossCash: grossCash, NetCash: netCash, IrrecoverableCost: irrecoverableCost });
+        }
+
+        return data;
+    }
+
+    // Options de base pour les graphiques
+    function getBaseChartOptions() {
+        return {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const val = context.parsed.y;
+                            return context.dataset.label + ' : ' + val.toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' \u20ac';
+                        }
                     }
-                }
-            },
-            annotation: {
-                annotations: {
-                    zeroLine: {
-                        type: 'line',
-                        yMin: 0,
-                        yMax: 0,
-                        borderColor: 'rgba(0, 0, 0, 0.3)',
-                        borderWidth: 2,
-                        borderDash: [6, 6],
-                        label: {
-                            display: true,
-                            content: 'Seuil de rentabilit\u00e9',
-                            position: 'start'
+                },
+                annotation: {
+                    annotations: {
+                        zeroLine: {
+                            type: 'line', yMin: 0, yMax: 0,
+                            borderColor: 'rgba(0, 0, 0, 0.3)', borderWidth: 2, borderDash: [6, 6]
                         }
                     }
                 }
-            }
-        },
-        scales: {
-            x: {
-                title: {
-                    display: true,
-                    text: 'Dur\u00e9e de d\u00e9tention'
-                }
             },
-            y: {
-                title: {
-                    display: true,
-                    text: 'Cash r\u00e9cup\u00e9r\u00e9 (\u20ac)'
-                },
-                ticks: {
-                    callback: function(value) {
-                        return value.toLocaleString('fr-FR') + ' \u20ac';
-                    }
+            scales: {
+                x: { title: { display: true, text: 'Dur\u00e9e de d\u00e9tention' } },
+                y: {
+                    title: { display: true, text: 'Cash r\u00e9cup\u00e9r\u00e9 (\u20ac)' },
+                    ticks: { callback: function(v) { return v.toLocaleString('fr-FR') + ' \u20ac'; } }
                 }
             }
-        }
-    };
-
-    // Graphique Cash Brut
-    const grossDatasets = resaleRates.map((rate, i) => {
-        const pct = (rate * 100).toFixed(0);
-        const sign = rate >= 0 ? '+' : '';
-        return {
-            label: sign + pct + '% / an',
-            data: saleCashData.map(d => d.GrossCash[i]),
-            borderColor: colors[i],
-            backgroundColor: colors[i],
-            tension: 0.3,
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false
         };
-    });
+    }
 
-    const ctxGross = document.getElementById('grossCashChart').getContext('2d');
-    new Chart(ctxGross, {
-        type: 'line',
-        data: { labels: labels, datasets: grossDatasets },
-        options: baseChartOptions
-    });
+    // Créer les datasets pour un graphique
+    function createDatasets(data, rates, colors, dataKey) {
+        return rates.map((rate, i) => {
+            const pct = (rate * 100).toFixed(0);
+            const sign = rate >= 0 ? '+' : '';
+            return {
+                label: sign + pct + '% / an',
+                data: data.map(d => d[dataKey][i]),
+                borderColor: colors[i],
+                backgroundColor: colors[i],
+                tension: 0.3,
+                pointRadius: 2,
+                borderWidth: 2,
+                fill: false
+            };
+        });
+    }
 
-    // Graphique Cash Net (avec ligne apport)
-    const netDatasets = resaleRates.map((rate, i) => {
-        const pct = (rate * 100).toFixed(0);
-        const sign = rate >= 0 ? '+' : '';
-        return {
-            label: sign + pct + '% / an',
-            data: saleCashData.map(d => d.NetCash[i]),
-            borderColor: colors[i],
-            backgroundColor: colors[i],
-            tension: 0.3,
-            pointRadius: 2,
-            borderWidth: 2,
-            fill: false
-        };
-    });
+    // Mise à jour des graphiques
+    function updateCharts() {
+        const data = calculateSaleCashData(currentRates, sellCostsPercent);
+        const colors = getScenarioColors(currentRates);
+        const labels = data.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
 
-    const netChartOptions = JSON.parse(JSON.stringify(baseChartOptions));
-
-    // Zone de danger (rouge) : Cash Net < 0
-    netChartOptions.plugins.annotation.annotations.dangerZone = {
-        type: 'box',
-        yMax: 0,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderWidth: 0
-    };
-
-    // Zone de profit (verte) : Cash Net > Apport
-    netChartOptions.plugins.annotation.annotations.profitZone = {
-        type: 'box',
-        yMin: downPayment,
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        borderWidth: 0
-    };
-
-    netChartOptions.plugins.annotation.annotations.downPaymentLine = {
-        type: 'line',
-        yMin: downPayment,
-        yMax: downPayment,
-        borderColor: 'rgb(139, 92, 246)',
-        borderWidth: 2,
-        borderDash: [10, 5],
-        label: {
-            display: true,
-            content: 'Apport : ' + downPayment.toLocaleString('fr-FR') + ' \u20ac',
-            position: 'end',
-            backgroundColor: 'rgb(139, 92, 246)',
-            color: 'white',
-            font: { weight: 'bold' }
+        // Graphique Cash Brut
+        if (grossChart) {
+            grossChart.data.labels = labels;
+            grossChart.data.datasets = createDatasets(data, currentRates, colors, 'GrossCash');
+            grossChart.update();
+        } else {
+            const ctx = document.getElementById('grossCashChart').getContext('2d');
+            grossChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels, datasets: createDatasets(data, currentRates, colors, 'GrossCash') },
+                options: getBaseChartOptions()
+            });
         }
+
+        // Graphique Cash Net
+        const netOptions = getBaseChartOptions();
+        netOptions.plugins.annotation.annotations.dangerZone = {
+            type: 'box', yMax: 0, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 0
+        };
+        netOptions.plugins.annotation.annotations.profitZone = {
+            type: 'box', yMin: downPayment, backgroundColor: 'rgba(34, 197, 94, 0.1)', borderWidth: 0
+        };
+        netOptions.plugins.annotation.annotations.downPaymentLine = {
+            type: 'line', yMin: downPayment, yMax: downPayment,
+            borderColor: 'rgb(139, 92, 246)', borderWidth: 2, borderDash: [10, 5],
+            label: {
+                display: true, content: 'Apport : ' + downPayment.toLocaleString('fr-FR') + ' \u20ac',
+                position: 'end', backgroundColor: 'rgb(139, 92, 246)', color: 'white', font: { weight: 'bold' }
+            }
+        };
+
+        if (netChart) {
+            netChart.data.labels = labels;
+            netChart.data.datasets = createDatasets(data, currentRates, colors, 'NetCash');
+            netChart.options = netOptions;
+            netChart.update();
+        } else {
+            const ctx = document.getElementById('netCashChart').getContext('2d');
+            netChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels, datasets: createDatasets(data, currentRates, colors, 'NetCash') },
+                options: netOptions
+            });
+        }
+    }
+
+    // Gestion des scénarios
+    window.renderResaleRates = function() {
+        const container = document.getElementById('resale-rates-container');
+        container.innerHTML = '';
+
+        currentRates.forEach((rate, index) => {
+            const div = document.createElement('div');
+            div.className = 'flex items-center gap-1';
+            div.innerHTML = `
+                <input type="number" step="0.5" min="-10" max="10"
+                    value="${(rate * 100).toFixed(1)}"
+                    onchange="updateResaleRate(${index}, this.value)"
+                    class="w-20 text-sm rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1.5">
+                <span class="text-sm text-gray-500">%</span>
+                ${currentRates.length > 1 ? `
+                <button type="button" onclick="removeResaleRate(${index})"
+                    class="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+                ` : ''}
+            `;
+            container.appendChild(div);
+        });
     };
 
-    const ctxNet = document.getElementById('netCashChart').getContext('2d');
-    new Chart(ctxNet, {
-        type: 'line',
-        data: { labels: labels, datasets: netDatasets },
-        options: netChartOptions
-    });
+    window.updateResaleRate = function(index, value) {
+        currentRates[index] = parseFloat(value) / 100;
+        currentRates.sort((a, b) => a - b);
+        renderResaleRates();
+        updateCharts();
+    };
 
-    // Graphique répartition E1/E2 - Contribution totale
+    window.addResaleRate = function() {
+        if (currentRates.length >= 5) {
+            alert('Maximum 5 sc\u00e9narios');
+            return;
+        }
+        const lastRate = currentRates.length > 0 ? currentRates[currentRates.length - 1] : 0;
+        currentRates.push(lastRate + 0.01);
+        currentRates.sort((a, b) => a - b);
+        renderResaleRates();
+        updateCharts();
+    };
+
+    window.removeResaleRate = function(index) {
+        currentRates.splice(index, 1);
+        renderResaleRates();
+        updateCharts();
+    };
+
+    window.setResalePreset = function(preset) {
+        const presets = {
+            'default': [-0.01, 0, 0.01],
+            'paris': [0.01, 0.02, 0.03],
+            'metro': [0, 0.01, 0.02],
+            'rural': [-0.02, -0.01, 0],
+            'pessimist': [-0.03, -0.02, -0.01]
+        };
+        currentRates = presets[preset] || presets['default'];
+        renderResaleRates();
+        updateCharts();
+    };
+
+    window.updateSellCosts = function(value) {
+        sellCostsPercent = parseFloat(value) || 0;
+        updateCharts();
+    };
+
+    // Initialisation
+    renderResaleRates();
+    updateCharts();
+
+    // Graphique répartition E1/E2
     const e1e2Canvas = document.getElementById('saleCashE1E2Chart');
     if (e1e2Canvas) {
         const schedule = {{toJSON .Result.MonthlySchedule}};
-        const amortization = {{toJSON .Result.Amortization}};
         const mp1 = {{.Result.Ownership.MonthlyPayment1}};
         const mp2 = {{.Result.Ownership.MonthlyPayment2}};
         const totalMP = mp1 + mp2;
@@ -282,7 +428,6 @@
         const initial1 = apport1 + saleProceeds1;
         const initial2 = apport2 + saleProceeds2;
 
-        // Build monthly totals from MonthlySchedule (multi-loan) or Amortization (single loan)
         const monthlyTotals = [];
         if (schedule && schedule.length > 0) {
             schedule.forEach(s => monthlyTotals.push(s.TotalAmount));
@@ -291,9 +436,7 @@
         }
 
         if (monthlyTotals.length > 0) {
-            // Compute total contribution per borrower: initial (apport + vente) + cumul remboursements
-            const totalContrib1 = [];
-            const totalContrib2 = [];
+            const totalContrib1 = [], totalContrib2 = [];
             let sumRemb1 = 0, sumRemb2 = 0;
             for (let m = 0; m < monthlyTotals.length; m++) {
                 sumRemb1 += Math.round(monthlyTotals[m] * ratio1 * 100) / 100;
@@ -302,91 +445,42 @@
                 totalContrib2.push(Math.round((initial2 + sumRemb2) * 100) / 100);
             }
 
-            const e1e2Labels = [];
-            const e1e2FullDates = [];
+            const e1e2Labels = [], e1e2FullDates = [];
             for (let m = 0; m < monthlyTotals.length; m++) {
                 const date = new Date(e1e2StartYear, e1e2StartMonth - 1 + m, 1);
-                const month = String(date.getMonth() + 1).padStart(2, '0');
-                const year = date.getFullYear();
                 e1e2Labels.push(m + 1);
-                e1e2FullDates.push('01/' + month + '/' + year);
+                e1e2FullDates.push('01/' + String(date.getMonth() + 1).padStart(2, '0') + '/' + date.getFullYear());
             }
 
-            const ctx = e1e2Canvas.getContext('2d');
-            new Chart(ctx, {
+            new Chart(e1e2Canvas.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: e1e2Labels,
                     datasets: [
-                        {
-                            label: 'Emprunteur 1',
-                            data: totalContrib1,
-                            backgroundColor: 'rgba(99, 102, 241, 0.7)',
-                            borderColor: 'rgb(99, 102, 241)',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'Emprunteur 2',
-                            data: totalContrib2,
-                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
-                            borderColor: 'rgb(16, 185, 129)',
-                            borderWidth: 1
-                        }
+                        { label: 'Emprunteur 1', data: totalContrib1, backgroundColor: 'rgba(99, 102, 241, 0.7)', borderColor: 'rgb(99, 102, 241)', borderWidth: 1 },
+                        { label: 'Emprunteur 2', data: totalContrib2, backgroundColor: 'rgba(16, 185, 129, 0.7)', borderColor: 'rgb(16, 185, 129)', borderWidth: 1 }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
-                                title: function(items) {
+                                title: items => 'Mois #' + (items[0].dataIndex + 1) + ' \u2014 ' + e1e2FullDates[items[0].dataIndex],
+                                label: ctx => ctx.dataset.label + ' : ' + ctx.parsed.y.toLocaleString('fr-FR', {maximumFractionDigits: 0}) + ' \u20ac',
+                                footer: items => {
                                     const idx = items[0].dataIndex;
-                                    return 'Mois #' + (idx + 1) + ' \u2014 ' + e1e2FullDates[idx];
-                                },
-                                label: function(context) {
-                                    const val = context.parsed.y;
-                                    return context.dataset.label + ' : ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 0, maximumFractionDigits: 0}) + ' \u20ac';
-                                },
-                                footer: function(items) {
-                                    const idx = items[0].dataIndex;
-                                    const t1 = totalContrib1[idx];
-                                    const t2 = totalContrib2[idx];
-                                    const grandTotal = t1 + t2;
-                                    const pct1 = grandTotal > 0 ? (t1 / grandTotal * 100).toFixed(1) : '0.0';
-                                    const pct2 = grandTotal > 0 ? (t2 / grandTotal * 100).toFixed(1) : '0.0';
-                                    return 'Quote-part E1 : ' + pct1 + '% / E2 : ' + pct2 + '%';
+                                    const total = totalContrib1[idx] + totalContrib2[idx];
+                                    return 'Quote-part E1 : ' + (total > 0 ? (totalContrib1[idx] / total * 100).toFixed(1) : '0.0') + '% / E2 : ' + (total > 0 ? (totalContrib2[idx] / total * 100).toFixed(1) : '0.0') + '%';
                                 }
                             }
                         }
                     },
                     scales: {
-                        x: {
-                            stacked: true,
-                            title: {
-                                display: true,
-                                text: 'Num\u00e9ro de mensualit\u00e9'
-                            },
-                            ticks: {
-                                autoSkip: true,
-                                maxRotation: 0
-                            }
-                        },
-                        y: {
-                            stacked: true,
-                            title: {
-                                display: true,
-                                text: 'Contribution cumul\u00e9e (\u20ac)'
-                            },
-                            ticks: {
-                                callback: function(v) { return v.toLocaleString('fr-FR') + ' \u20ac'; }
-                            }
-                        }
+                        x: { stacked: true, title: { display: true, text: 'Num\u00e9ro de mensualit\u00e9' }, ticks: { autoSkip: true, maxRotation: 0 } },
+                        y: { stacked: true, title: { display: true, text: 'Contribution cumul\u00e9e (\u20ac)' }, ticks: { callback: v => v.toLocaleString('fr-FR') + ' \u20ac' } }
                     }
                 }
             });

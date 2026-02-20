@@ -60,6 +60,13 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 	// Compute summary stats
 	data := buildDashboardData(filtered, filter, sortBy, sortDesc)
 
+	// Set last update time
+	h.cache.mu.RLock()
+	if !h.cache.fetchedAt.IsZero() {
+		data.UpdatedAt = h.cache.fetchedAt.Format("02/01/2006 à 15:04")
+	}
+	h.cache.mu.RUnlock()
+
 	// Count totals from unfiltered data
 	for _, a := range assets {
 		if a.Type == "stock" {
@@ -182,21 +189,51 @@ func usdRateForCurrency(currency string, usdRate float64) float64 {
 }
 
 // fetchStockPerformance fetches and calculates performance for a stock position.
+// Returns a basic asset from DB data if Yahoo calls fail, so the asset still appears.
 func (h *DashboardHandler) fetchStockPerformance(pos persistence.StockPosition, eurRate float64) *model.AssetPerformance {
 	symbol, err := quote.ResolveISINToSymbol(pos.ISIN)
 	if err != nil {
 		log.Printf("Resolve ISIN %s failed: %v", pos.ISIN, err)
-		return nil
+		// Return basic asset from DB data so it still appears on dashboard.
+		currentPriceEUR := pos.CurrentPrice * eurRate
+		return &model.AssetPerformance{
+			ID:           pos.ISIN,
+			Name:         pos.Name,
+			Symbol:       pos.ISIN,
+			Type:         "stock",
+			CurrentPrice: currentPriceEUR,
+			TotalValue:   currentPriceEUR * pos.Quantity,
+			Quantity:     pos.Quantity,
+		}
 	}
 
 	history, err := quote.FetchStockHistory(symbol, "1y")
 	if err != nil {
 		log.Printf("Stock history %s failed: %v", symbol, err)
-		return nil
+		// Return basic asset from DB data so it still appears on dashboard.
+		currentPriceEUR := pos.CurrentPrice * eurRate
+		return &model.AssetPerformance{
+			ID:           pos.ISIN,
+			Name:         pos.Name,
+			Symbol:       symbol,
+			Type:         "stock",
+			CurrentPrice: currentPriceEUR,
+			TotalValue:   currentPriceEUR * pos.Quantity,
+			Quantity:     pos.Quantity,
+		}
 	}
 
 	if len(history) == 0 {
-		return nil
+		currentPriceEUR := pos.CurrentPrice * eurRate
+		return &model.AssetPerformance{
+			ID:           pos.ISIN,
+			Name:         pos.Name,
+			Symbol:       symbol,
+			Type:         "stock",
+			CurrentPrice: currentPriceEUR,
+			TotalValue:   currentPriceEUR * pos.Quantity,
+			Quantity:     pos.Quantity,
+		}
 	}
 
 	prices := extractPrices(history)

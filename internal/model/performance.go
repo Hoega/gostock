@@ -55,4 +55,5 @@ type PerformanceDashboardData struct {
 	TotalValue     float64 // Total portfolio value
 	StockCount     int     // Number of stock positions
 	CryptoCount    int     // Number of crypto positions
+	UpdatedAt      string  // Last data fetch timestamp (formatted)
 }

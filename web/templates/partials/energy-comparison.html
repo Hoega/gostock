@@ -247,7 +247,20 @@
 
         <!-- Evolution chart -->
         <div class="mt-4">
-            <h3 class="text-sm font-medium text-gray-600 mb-2">&Eacute;volution du co&ucirc;t total projet dans le temps</h3>
+            <h3 class="text-sm font-medium text-gray-600 mb-2">&Eacute;volution des co&ucirc;ts perdus</h3>
+            <!-- Toggle switch DPE/Réel -->
+            {{if or (and (gt .Input.Energy1DPE 0.0) (gt .Input.Energy1Surface 0.0))
+                    (and (gt .Input.Energy2DPE 0.0) (gt .Input.Energy2Surface 0.0))
+                    (and (gt .Input.Energy3DPE 0.0) (gt .Input.Energy3Surface 0.0))}}
+            <div class="flex items-center gap-3 mb-2">
+                <span class="text-sm text-gray-600">Estimation r&eacute;elle</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="energyDPEToggle" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-300 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+                <span class="text-sm text-gray-600">Projection DPE</span>
+            </div>
+            {{end}}
             <div class="h-80">
                 <canvas id="projectEvolutionChart"></canvas>
             </div>
@@ -276,6 +289,23 @@
 
         // Energy data per year (from server)
         const energyDataPerYear = {{toJSON .Result.EnergyComparisonData}};
+
+        // DPE data (kWh/m²/an) and surfaces
+        const dpe1 = {{.Input.Energy1DPE}};
+        const dpe2 = {{.Input.Energy2DPE}};
+        const dpe3 = {{.Input.Energy3DPE}};
+        const surface1 = {{.Input.Energy1Surface}};
+        const surface2 = {{.Input.Energy2Surface}};
+        const surface3 = {{.Input.Energy3Surface}};
+
+        // Energy price increase rate (from input or default 3%)
+        const energyPriceIncrease = {{.Input.EnergyPriceIncrease}} / 100;
+
+        // Calculate €/kWh from property 1 data (if available)
+        const firstYearData = energyDataPerYear[0];
+        const totalKwh1ForPrice = (firstYearData.CumulGasKWh1 || 0) + (firstYearData.CumulElecKWh1 || 0);
+        const totalCost1ForPrice = (firstYearData.CumulTotal1 || 0);
+        const pricePerKwh = (totalKwh1ForPrice > 0 && totalCost1ForPrice > 0) ? (totalCost1ForPrice / totalKwh1ForPrice) : 0.18;
 
         // Labels
         const label1 = {{if .Input.Energy1Label}}"{{.Input.Energy1Label}}"{{else}}"Bien 1"{{end}};
@@ -394,6 +424,21 @@
             return result;
         }
 
+        // Calculate cumulative energy costs based on DPE
+        function calculateDPEEnergyCosts(dpe, surface, years) {
+            if (dpe <= 0 || surface <= 0) return null;
+            const annualKwh = dpe * surface;
+            const result = [];
+            let cumul = 0;
+            for (let year = 1; year <= years; year++) {
+                const priceMultiplier = Math.pow(1 + energyPriceIncrease, year - 1);
+                const annualCost = annualKwh * pricePerKwh * priceMultiplier;
+                cumul += annualCost;
+                result.push(cumul);
+            }
+            return result;
+        }
+
         function updateAll() {
             updateApportMax();
             const durationYears = Math.ceil(durationMonths / 12);
@@ -449,72 +494,144 @@
 
             const years = energyDataPerYear.length;
 
+            // Check toggle state
+            const dpeToggle = document.getElementById('energyDPEToggle');
+            const useDPE = dpeToggle && dpeToggle.checked;
+
             // Calculate cumulative credit costs for Bien 2 and Bien 3
             const creditData2 = calculateCumulativeCreditCosts(price2, rate2, apport2, years);
             const creditData3 = hasEnergy3 ? calculateCumulativeCreditCosts(price3, rate3, apport3, years) : null;
 
-            // Build datasets
+            // Build labels
             const labels = energyDataPerYear.map(d => d.Year + ' an' + (d.Year > 1 ? 's' : ''));
 
-            // Bien 1: energy only (reference)
-            const data1 = energyDataPerYear.map(d => d.CumulTotal1);
+            // Calculate DPE-based energy costs if needed
+            const dpeEnergy1 = useDPE ? calculateDPEEnergyCosts(dpe1, surface1, years) : null;
+            const dpeEnergy2 = useDPE ? calculateDPEEnergyCosts(dpe2, surface2, years) : null;
+            const dpeEnergy3 = useDPE ? calculateDPEEnergyCosts(dpe3, surface3, years) : null;
 
-            // Bien 2: acquisition + credit + tax + energy
-            const data2 = creditData2.map((c, i) => {
-                const energyAtYear = energyDataPerYear[i] ? energyDataPerYear[i].CumulTotal2 : 0;
-                const taxAtYear = tax2 * (i + 1);
-                return c.acquisition + c.cumulativeCredit + taxAtYear + energyAtYear;
-            });
+            // Get energy data arrays
+            const energyData1 = useDPE && dpeEnergy1
+                ? dpeEnergy1
+                : energyDataPerYear.map(d => d.CumulTotal1);
+            const energyData2 = useDPE && dpeEnergy2
+                ? dpeEnergy2
+                : energyDataPerYear.map(d => d.CumulTotal2);
+            const energyData3 = useDPE && dpeEnergy3
+                ? dpeEnergy3
+                : energyDataPerYear.map(d => d.CumulTotal3);
 
-            // Bien 3: acquisition + credit + tax + energy
-            const data3 = creditData3 ? creditData3.map((c, i) => {
-                const energyAtYear = energyDataPerYear[i] ? energyDataPerYear[i].CumulTotal3 : 0;
-                const taxAtYear = tax3 * (i + 1);
-                return c.acquisition + c.cumulativeCredit + taxAtYear + energyAtYear;
-            }) : null;
+            // Fixed fees for Bien 2 and Bien 3 (constant from year 1)
+            const fixedFees2 = creditData2[0] ? creditData2[0].fixedFees : 0;
+            const fixedFees3 = creditData3 && creditData3[0] ? creditData3[0].fixedFees : 0;
 
+            const energyLabel = useDPE ? ' (DPE)' : '';
+
+            // Build stacked bar datasets
+            // Bien 1: only energy (reference, no real estate project)
             const datasets = [
                 {
-                    label: label1 + ' (\u00e9nergie seule)',
-                    data: data1,
-                    borderColor: 'rgb(99, 102, 241)',
-                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                    borderDash: [5, 5],
-                    fill: false,
-                    tension: 0.3,
-                },
-                {
-                    label: label2 + ' (projet complet)',
-                    data: data2,
-                    borderColor: 'rgb(16, 185, 129)',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    fill: false,
-                    tension: 0.3,
-                    borderWidth: 2,
+                    label: label1 + ' - \u00c9nergie' + energyLabel,
+                    data: energyData1,
+                    backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                    stack: 'bien1',
                 }
             ];
 
-            if (hasEnergy3 && data3) {
-                datasets.push({
-                    label: label3 + ' (projet complet)',
-                    data: data3,
-                    borderColor: 'rgb(245, 158, 11)',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    fill: false,
-                    tension: 0.3,
-                    borderWidth: 2,
-                });
+            // Bien 2: Fixed fees | Interests | Insurance | Property tax | Energy
+            datasets.push(
+                {
+                    label: label2 + ' - Frais',
+                    data: creditData2.map(() => fixedFees2),
+                    backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                    stack: 'bien2',
+                },
+                {
+                    label: label2 + ' - Int\u00e9r\u00eats',
+                    data: creditData2.map(c => c.cumulativeInterest),
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    stack: 'bien2',
+                },
+                {
+                    label: label2 + ' - Assurance',
+                    data: creditData2.map(c => c.cumulativeInsurance),
+                    backgroundColor: 'rgba(251, 146, 60, 0.8)',
+                    stack: 'bien2',
+                },
+                {
+                    label: label2 + ' - Taxe fonci\u00e8re',
+                    data: energyDataPerYear.map((_, i) => tax2 * (i + 1)),
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    stack: 'bien2',
+                },
+                {
+                    label: label2 + ' - \u00c9nergie' + energyLabel,
+                    data: energyData2,
+                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                    stack: 'bien2',
+                }
+            );
+
+            // Bien 3: Fixed fees | Interests | Insurance | Property tax | Energy
+            if (hasEnergy3 && creditData3) {
+                datasets.push(
+                    {
+                        label: label3 + ' - Frais',
+                        data: creditData3.map(() => fixedFees3),
+                        backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                        stack: 'bien3',
+                    },
+                    {
+                        label: label3 + ' - Int\u00e9r\u00eats',
+                        data: creditData3.map(c => c.cumulativeInterest),
+                        backgroundColor: 'rgba(220, 38, 38, 0.8)',
+                        stack: 'bien3',
+                    },
+                    {
+                        label: label3 + ' - Assurance',
+                        data: creditData3.map(c => c.cumulativeInsurance),
+                        backgroundColor: 'rgba(234, 88, 12, 0.8)',
+                        stack: 'bien3',
+                    },
+                    {
+                        label: label3 + ' - Taxe fonci\u00e8re',
+                        data: energyDataPerYear.map((_, i) => tax3 * (i + 1)),
+                        backgroundColor: 'rgba(22, 163, 74, 0.8)',
+                        stack: 'bien3',
+                    },
+                    {
+                        label: label3 + ' - \u00c9nergie' + energyLabel,
+                        data: energyData3,
+                        backgroundColor: 'rgba(217, 119, 6, 0.8)',
+                        stack: 'bien3',
+                    }
+                );
             }
+
+            // Store data for tooltip calculations
+            const tooltipData = {
+                creditData2: creditData2,
+                creditData3: creditData3,
+                energyData1: energyData1,
+                energyData2: energyData2,
+                energyData3: energyData3,
+                tax2: tax2,
+                tax3: tax3,
+                fixedFees2: fixedFees2,
+                fixedFees3: fixedFees3,
+                useDPE: useDPE
+            };
 
             if (evolutionChart) {
                 evolutionChart.data.labels = labels;
                 evolutionChart.data.datasets = datasets;
+                evolutionChart.options.plugins.tooltip.callbacks.afterBody = createTooltipCallback(tooltipData);
                 evolutionChart.update();
                 return;
             }
 
             evolutionChart = new Chart(ctx, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: labels,
                     datasets: datasets
@@ -527,37 +644,39 @@
                         intersect: false,
                     },
                     plugins: {
-                        legend: { position: 'top' },
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                filter: function(legendItem, chartData) {
+                                    // Show only one label per stack to reduce clutter
+                                    const stackLabels = {};
+                                    return chartData.datasets.every((ds, idx) => {
+                                        if (ds.stack === chartData.datasets[legendItem.datasetIndex].stack) {
+                                            if (stackLabels[ds.stack]) return false;
+                                            stackLabels[ds.stack] = true;
+                                            return idx === legendItem.datasetIndex;
+                                        }
+                                        return true;
+                                    });
+                                }
+                            }
+                        },
                         tooltip: {
                             callbacks: {
                                 label: function(context) {
                                     return context.dataset.label + ': ' + Math.round(context.parsed.y).toLocaleString('fr-FR') + ' \u20ac';
                                 },
-                                afterBody: function(context) {
-                                    const idx = context[0].dataIndex;
-                                    const lines = [];
-                                    // Show breakdown for Bien 2
-                                    if (creditData2[idx]) {
-                                        const c = creditData2[idx];
-                                        const energy = energyDataPerYear[idx] ? energyDataPerYear[idx].CumulTotal2 : 0;
-                                        const taxAtYear = tax2 * (idx + 1);
-                                        lines.push('');
-                                        lines.push('D\u00e9tail ' + label2 + ':');
-                                        lines.push('  Acquisition: ' + Math.round(c.acquisition).toLocaleString('fr-FR') + ' \u20ac');
-                                        lines.push('  Frais fixes: ' + Math.round(c.fixedFees).toLocaleString('fr-FR') + ' \u20ac');
-                                        lines.push('  Int\u00e9r\u00eats cumul\u00e9s: ' + Math.round(c.cumulativeInterest).toLocaleString('fr-FR') + ' \u20ac');
-                                        lines.push('  Assurance cumul\u00e9e: ' + Math.round(c.cumulativeInsurance).toLocaleString('fr-FR') + ' \u20ac');
-                                        lines.push('  Taxe fonci\u00e8re cumul\u00e9e: ' + Math.round(taxAtYear).toLocaleString('fr-FR') + ' \u20ac');
-                                        lines.push('  \u00c9nergie cumul\u00e9e: ' + Math.round(energy).toLocaleString('fr-FR') + ' \u20ac');
-                                    }
-                                    return lines;
-                                }
+                                afterBody: createTooltipCallback(tooltipData)
                             }
                         }
                     },
                     scales: {
+                        x: {
+                            stacked: true,
+                        },
                         y: {
-                            beginAtZero: false,
+                            stacked: true,
+                            beginAtZero: true,
                             ticks: {
                                 callback: function(value) {
                                     return (value / 1000).toLocaleString('fr-FR') + ' k\u20ac';
@@ -565,12 +684,55 @@
                             },
                             title: {
                                 display: true,
-                                text: 'Co\u00fbt total cumul\u00e9 (\u20ac)'
+                                text: 'Co\u00fbts perdus cumul\u00e9s (\u20ac)'
                             }
                         }
                     }
                 }
             });
+        }
+
+        function createTooltipCallback(data) {
+            return function(context) {
+                const idx = context[0].dataIndex;
+                const lines = [];
+
+                // Total Bien 1
+                const total1 = data.energyData1[idx] || 0;
+                lines.push('');
+                lines.push('Total ' + label1 + ': ' + Math.round(total1).toLocaleString('fr-FR') + ' \u20ac');
+
+                // Total Bien 2
+                if (data.creditData2[idx]) {
+                    const c2 = data.creditData2[idx];
+                    const taxAtYear2 = data.tax2 * (idx + 1);
+                    const energy2 = data.energyData2[idx] || 0;
+                    const total2 = data.fixedFees2 + c2.cumulativeInterest + c2.cumulativeInsurance + taxAtYear2 + energy2;
+                    lines.push('Total ' + label2 + ': ' + Math.round(total2).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Frais: ' + Math.round(data.fixedFees2).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Int\u00e9r\u00eats: ' + Math.round(c2.cumulativeInterest).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Assurance: ' + Math.round(c2.cumulativeInsurance).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Taxe fonci\u00e8re: ' + Math.round(taxAtYear2).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  \u00c9nergie' + (data.useDPE ? ' (DPE)' : '') + ': ' + Math.round(energy2).toLocaleString('fr-FR') + ' \u20ac');
+                }
+
+                // Total Bien 3
+                if (hasEnergy3 && data.creditData3 && data.creditData3[idx]) {
+                    const c3 = data.creditData3[idx];
+                    const taxAtYear3 = data.tax3 * (idx + 1);
+                    const energy3 = data.energyData3[idx] || 0;
+                    const total3 = data.fixedFees3 + c3.cumulativeInterest + c3.cumulativeInsurance + taxAtYear3 + energy3;
+                    lines.push('');
+                    lines.push('Total ' + label3 + ': ' + Math.round(total3).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Frais: ' + Math.round(data.fixedFees3).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Int\u00e9r\u00eats: ' + Math.round(c3.cumulativeInterest).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Assurance: ' + Math.round(c3.cumulativeInsurance).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  Taxe fonci\u00e8re: ' + Math.round(taxAtYear3).toLocaleString('fr-FR') + ' \u20ac');
+                    lines.push('  \u00c9nergie' + (data.useDPE ? ' (DPE)' : '') + ': ' + Math.round(energy3).toLocaleString('fr-FR') + ' \u20ac');
+                }
+
+                return lines;
+            };
         }
 
         function updateChart(c2, price2, taxCumul2, c3, price3, taxCumul3) {
@@ -675,6 +837,12 @@
             var el = document.getElementById(id);
             if (el) el.addEventListener('input', updateAll);
         });
+
+        // DPE toggle event listener
+        const dpeToggleEl = document.getElementById('energyDPEToggle');
+        if (dpeToggleEl) {
+            dpeToggleEl.addEventListener('change', updateAll);
+        }
 
         // Initial render
         updateAll();

@@ -83,6 +83,9 @@ type FormInputs struct {
 	Energy3Surface        float64 `db:"energy_3_surface"`
 	Energy3DPE            float64 `db:"energy_3_dpe"`
 	EnergyPriceIncrease   float64 `db:"energy_price_increase"`
+	// Resale projection fields
+	ResaleRates     string  `db:"resale_rates"`      // JSON array
+	ResaleSellCosts float64 `db:"resale_sell_costs"`
 }
 
 // Store defines the interface for persisting form inputs.
@@ -114,6 +117,8 @@ type Store interface {
 	GetAvailableQuantityByISIN(isin string) (float64, error)
 	ReduceRemainingQuantity(isin string, qty float64) error
 	ResetRemainingQuantity(id int) error
+	GetStockPurchaseNameByISIN(isin string) (string, string, error)
+	GetEarliestPurchaseDateByISIN(isin string) (string, error)
 	Close() error
 }
 
@@ -223,5 +228,7 @@ func DefaultInputs() *FormInputs {
 		HouseholdSize:          1,
 		PropertyZone:           "B1",
 		EnergyPriceIncrease:    4.0,
+		ResaleRates:            "[]",
+		ResaleSellCosts:        0,
 	}
 }

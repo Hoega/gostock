@@ -14,6 +14,7 @@ import (
 	"github.com/Hoega/gostock/internal/calculator"
 	"github.com/Hoega/gostock/internal/model"
 	"github.com/Hoega/gostock/internal/persistence"
+	"github.com/Hoega/gostock/internal/quote"
 )
 
 type TaxHandler struct {
@@ -359,10 +360,24 @@ func (h *TaxHandler) GetPRUForISIN(w http.ResponseWriter, r *http.Request) {
 		availableQty = 0
 	}
 
+	name, broker, err := h.store.GetStockPurchaseNameByISIN(isin)
+	if err != nil {
+		// No purchase found at all, try Yahoo lookup
+		result, lookupErr := quote.LookupISIN(isin)
+		if lookupErr == nil && result != nil {
+			name = result.Name
+		}
+	}
+
+	purchaseDate, _ := h.store.GetEarliestPurchaseDateByISIN(isin)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"pru":      pru,
-		"quantity": availableQty,
+		"pru":           pru,
+		"quantity":      availableQty,
+		"name":          name,
+		"broker":        broker,
+		"purchase_date": purchaseDate,
 	})
 }
 

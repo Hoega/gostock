@@ -1,6 +1,6 @@
 {{define "tax-stock-table.html"}}
 <!-- Section dépliable achats -->
-<details class="mb-6 bg-white shadow rounded-lg" id="purchases-section">
+<details class="mb-6 bg-white shadow rounded-lg" id="purchases-section" open>
     <summary class="px-4 py-3 cursor-pointer font-medium text-gray-900 hover:bg-gray-50 flex justify-between items-center">
         <span>
             Mes achats (PRU automatique)
@@ -83,26 +83,26 @@
         <!-- Tableau des achats -->
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50">
+                <thead class="bg-gray-50" id="purchase-thead">
                     <tr>
-                        <th class="px-3 py-2 text-left font-medium text-gray-500">Nom</th>
-                        <th class="px-3 py-2 text-left font-medium text-gray-500">ISIN</th>
-                        <th class="px-3 py-2 text-left font-medium text-gray-500">Courtier</th>
-                        <th class="px-3 py-2 text-center font-medium text-gray-500">Date</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-500">Qt&eacute;</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-500">Restant</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-500">Prix unit.</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-500">Frais</th>
-                        <th class="px-3 py-2 text-right font-medium text-gray-500">Total</th>
+                        <th data-col="0" class="px-3 py-2 text-left font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Nom <span class="sort-arrow"></span></th>
+                        <th data-col="1" class="px-3 py-2 text-left font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">ISIN <span class="sort-arrow"></span></th>
+                        <th data-col="2" class="px-3 py-2 text-left font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Courtier <span class="sort-arrow"></span></th>
+                        <th data-col="3" class="px-3 py-2 text-center font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Date <span class="sort-arrow"></span></th>
+                        <th data-col="4" class="px-3 py-2 text-right font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Qt&eacute; <span class="sort-arrow"></span></th>
+                        <th data-col="5" class="px-3 py-2 text-right font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Restant <span class="sort-arrow"></span></th>
+                        <th data-col="6" class="px-3 py-2 text-right font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Prix unit. <span class="sort-arrow"></span></th>
+                        <th data-col="7" class="px-3 py-2 text-right font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Frais <span class="sort-arrow"></span></th>
+                        <th data-col="8" class="px-3 py-2 text-right font-medium text-gray-500 cursor-pointer select-none hover:text-gray-700">Total <span class="sort-arrow"></span></th>
                         <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200">
                     {{range .StockSummary.Purchases}}
                     <tr class="hover:bg-gray-50 {{if eq .RemainingQuantity 0.0}}opacity-50{{end}}">
-                        <td class="px-3 py-2 font-medium text-gray-900">{{.Name}}</td>
-                        <td class="px-3 py-2 text-gray-500 font-mono text-xs">{{.ISIN}}</td>
-                        <td class="px-3 py-2">
+                        <td class="px-3 py-2 font-medium text-gray-900" data-sort="{{.Name}}">{{.Name}}</td>
+                        <td class="px-3 py-2 text-gray-500 font-mono text-xs" data-sort="{{.ISIN}}">{{.ISIN}}</td>
+                        <td class="px-3 py-2" data-sort="{{.Broker}}">
                             {{if eq .Broker "boursobank"}}
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">Boursobank</span>
                             {{else if eq .Broker "degiro"}}
@@ -111,14 +111,14 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{{.Broker}}</span>
                             {{end}}
                         </td>
-                        <td class="px-3 py-2 text-center text-xs">{{.PurchaseDate}}</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.4f" .Quantity}}</td>
-                        <td class="px-3 py-2 text-right {{if eq .RemainingQuantity 0.0}}text-red-500{{else}}text-green-600{{end}}">
+                        <td class="px-3 py-2 text-center text-xs" data-sort="{{.PurchaseDate}}">{{formatDate .PurchaseDate}}</td>
+                        <td class="px-3 py-2 text-right" data-sort="{{.Quantity}}">{{printf "%.4f" .Quantity}}</td>
+                        <td class="px-3 py-2 text-right {{if eq .RemainingQuantity 0.0}}text-red-500{{else}}text-green-600{{end}}" data-sort="{{.RemainingQuantity}}">
                             {{printf "%.4f" .RemainingQuantity}}
                         </td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .UnitPrice}} &euro;</td>
-                        <td class="px-3 py-2 text-right text-gray-500">{{formatMoney .Fees}} &euro;</td>
-                        <td class="px-3 py-2 text-right font-medium">{{formatMoney .TotalCost}} &euro;</td>
+                        <td class="px-3 py-2 text-right" data-sort="{{.UnitPrice}}">{{formatMoney .UnitPrice}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-gray-500" data-sort="{{.Fees}}">{{formatMoney .Fees}} &euro;</td>
+                        <td class="px-3 py-2 text-right font-medium" data-sort="{{.TotalCost}}">{{formatMoney .TotalCost}} &euro;</td>
                         <td class="px-3 py-2 text-center whitespace-nowrap">
                             {{if lt .RemainingQuantity .Quantity}}
                             <button type="button"
@@ -287,11 +287,11 @@
                     </td>
                     <td class="px-3 py-2 text-right">{{printf "%.4f" .Quantity}}</td>
                     <td class="px-3 py-2 text-center text-xs">
-                        <div>{{.PurchaseDate}}</div>
+                        <div>{{formatDate .PurchaseDate}}</div>
                         <div class="text-gray-500">{{formatMoney .PurchasePrice}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</div>
                     </td>
                     <td class="px-3 py-2 text-center text-xs">
-                        <div>{{.SaleDate}}</div>
+                        <div>{{formatDate .SaleDate}}</div>
                         <div class="text-gray-500">{{formatMoney .SalePrice}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</div>
                     </td>
                     <td class="px-3 py-2 text-right">{{formatMoney .AcquisitionCost}} {{if eq .Currency "USD"}}${{else}}&euro;{{end}}</td>
@@ -448,6 +448,15 @@ function fetchPRU(skipEditCheck) {
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var pruIndicator = document.getElementById('pru-indicator');
+            if (data.name && !document.getElementById('stock_name').value) {
+                document.getElementById('stock_name').value = data.name;
+            }
+            if (data.broker && !document.getElementById('stock_broker').value) {
+                document.getElementById('stock_broker').value = data.broker;
+            }
+            if (data.purchase_date) {
+                document.getElementById('stock_purchase_date').value = data.purchase_date;
+            }
             if (data.pru > 0) {
                 document.getElementById('stock_purchase_price').value = data.pru.toFixed(2);
                 if (pruIndicator) {
@@ -501,6 +510,67 @@ if (!window._htmxSwapBound) {
         }
     });
     window._htmxSwapBound = true;
+}
+
+// Purchase table column sorting
+// Numeric columns by index (Qté, Restant, Prix unit., Frais, Total)
+var _purchaseNumericCols = {4:true, 5:true, 6:true, 7:true, 8:true};
+var _purchaseSortCol = -1;
+var _purchaseSortAsc = true;
+
+function sortPurchaseTable(colIndex) {
+    var thead = document.getElementById('purchase-thead');
+    if (!thead) return;
+    var tbody = thead.nextElementSibling;
+    if (!tbody || tbody.tagName !== 'TBODY') return;
+
+    // Toggle direction if same column
+    if (_purchaseSortCol === colIndex) {
+        _purchaseSortAsc = !_purchaseSortAsc;
+    } else {
+        _purchaseSortCol = colIndex;
+        _purchaseSortAsc = true;
+    }
+
+    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var isNumeric = _purchaseNumericCols[colIndex];
+
+    rows.sort(function(a, b) {
+        var aVal = a.children[colIndex].getAttribute('data-sort') || '';
+        var bVal = b.children[colIndex].getAttribute('data-sort') || '';
+        var cmp;
+        if (isNumeric) {
+            cmp = parseFloat(aVal) - parseFloat(bVal);
+        } else {
+            cmp = aVal.localeCompare(bVal, 'fr', {sensitivity: 'base'});
+        }
+        return _purchaseSortAsc ? cmp : -cmp;
+    });
+
+    for (var i = 0; i < rows.length; i++) {
+        tbody.appendChild(rows[i]);
+    }
+
+    // Update sort indicators
+    var arrows = thead.querySelectorAll('.sort-arrow');
+    for (var j = 0; j < arrows.length; j++) {
+        arrows[j].textContent = '';
+    }
+    var activeTh = thead.querySelector('[data-col="' + colIndex + '"] .sort-arrow');
+    if (activeTh) {
+        activeTh.textContent = _purchaseSortAsc ? ' \u25B2' : ' \u25BC';
+    }
+}
+
+// Event delegation for purchase table header clicks (survives HTMX swaps)
+if (!window._purchaseSortBound) {
+    document.addEventListener('click', function(e) {
+        var th = e.target.closest('#purchase-thead th[data-col]');
+        if (th) {
+            sortPurchaseTable(parseInt(th.getAttribute('data-col'), 10));
+        }
+    });
+    window._purchaseSortBound = true;
 }
 </script>
 {{end}}

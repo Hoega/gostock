@@ -65,6 +65,12 @@ func New(port int, store persistence.Store) *http.Server {
 			}
 			return af / bf
 		},
+		"formatDate": func(s string) string {
+			if t, err := time.Parse("2006-01-02", s); err == nil {
+				return t.Format("02/01/2006")
+			}
+			return s
+		},
 		"percentInRange": func(current, low, high float64) float64 {
 			if high == low {
 				return 50

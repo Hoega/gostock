@@ -61,14 +61,29 @@ func LookupISIN(isin string) (*QuoteResult, error) {
 		return nil, fmt.Errorf("search: %w", err)
 	}
 
-	// Expected currency based on ISIN country code.
-	expectedCurrency := ""
 	isUS := len(isin) >= 2 && isin[:2] == "US"
+
+	// For US ISINs, try the resolved base symbol first (1 API call instead of N).
+	// This avoids rate limiting when Yahoo search only returns European listings.
+	if isUS {
+		baseSymbol := resolveUSBaseSymbol(symbols)
+		price, currency, err := fetchPrice(baseSymbol)
+		if err == nil && currency == "USD" {
+			return &QuoteResult{
+				Name:     name,
+				Price:    price,
+				Currency: currency,
+				Sector:   sector,
+			}, nil
+		}
+	}
+
+	// Try each symbol candidate until we find one with the expected currency.
+	expectedCurrency := ""
 	if isUS {
 		expectedCurrency = "USD"
 	}
 
-	// Try each symbol candidate until we find one with the expected currency.
 	var lastErr error
 	for _, symbol := range symbols {
 		price, currency, err := fetchPrice(symbol)
@@ -77,7 +92,6 @@ func LookupISIN(isin string) (*QuoteResult, error) {
 			continue
 		}
 
-		// If we have an expected currency, skip listings that don't match.
 		if expectedCurrency != "" && currency != expectedCurrency {
 			continue
 		}
@@ -88,25 +102,6 @@ func LookupISIN(isin string) (*QuoteResult, error) {
 			Currency: currency,
 			Sector:   sector,
 		}, nil
-	}
-
-	// For US ISINs, try to extract base symbol and fetch directly from US exchange.
-	// Yahoo sometimes returns only European listings (e.g., "1GOOGL.MI" for Alphabet).
-	if isUS && len(symbols) > 0 {
-		for _, symbol := range symbols {
-			if matches := symbolPattern.FindStringSubmatch(symbol); len(matches) > 1 {
-				baseSymbol := matches[1]
-				price, currency, err := fetchPrice(baseSymbol)
-				if err == nil && currency == "USD" {
-					return &QuoteResult{
-						Name:     name,
-						Price:    price,
-						Currency: currency,
-						Sector:   sector,
-					}, nil
-				}
-			}
-		}
 	}
 
 	// Fallback: return the first symbol's data even if currency doesn't match.
@@ -237,7 +232,35 @@ var yahooRangeParams = map[string][2]string{
 	"max": {"max", "1mo"},
 }
 
+// resolveUSBaseSymbol extracts the US base ticker from Yahoo search results
+// without making any API calls. For example, if Yahoo only returns European
+// listings like "1GOOGL.MI", this extracts "GOOGL".
+func resolveUSBaseSymbol(symbols []string) string {
+	if len(symbols) == 0 {
+		return ""
+	}
+	// If the first symbol is already a clean US ticker (no numeric prefix, no .XX suffix),
+	// return it directly.
+	first := symbols[0]
+	if symbolPattern.MatchString(first) {
+		m := symbolPattern.FindStringSubmatch(first)
+		if m[1] == first {
+			// Already a clean ticker like "GOOGL" or "AMZN".
+			return first
+		}
+	}
+	// Otherwise, extract the base ticker from any symbol (e.g. "1GOOGL.MI" -> "GOOGL").
+	for _, symbol := range symbols {
+		if m := symbolPattern.FindStringSubmatch(symbol); len(m) > 1 {
+			return m[1]
+		}
+	}
+	return symbols[0]
+}
+
 // ResolveISINToSymbol resolves an ISIN to the best Yahoo Finance symbol.
+// For US ISINs, it extracts the base ticker without extra API calls to avoid
+// rate limiting when called concurrently for multiple positions.
 func ResolveISINToSymbol(isin string) (string, error) {
 	symbols, _, _, err := searchISIN(isin)
 	if err != nil {
@@ -246,6 +269,12 @@ func ResolveISINToSymbol(isin string) (string, error) {
 	if len(symbols) == 0 {
 		return "", fmt.Errorf("no symbol found for ISIN %s", isin)
 	}
+
+	isUS := len(isin) >= 2 && isin[:2] == "US"
+	if isUS {
+		return resolveUSBaseSymbol(symbols), nil
+	}
+
 	return symbols[0], nil
 }
 

@@ -474,6 +474,26 @@ func (h *PortfolioHandler) loadStockSummary() (model.PortfolioSummary, error) {
 		}
 	}
 
+	// Refresh current prices from Yahoo Finance (like crypto does from CoinGecko).
+	var wg sync.WaitGroup
+	for i := range positions {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			isin := positions[idx].ISIN
+			if isin == "" {
+				return
+			}
+			result, err := quote.LookupISIN(isin)
+			if err != nil {
+				log.Printf("Refresh price for %s failed: %v", isin, err)
+				return
+			}
+			positions[idx].CurrentPrice = result.Price
+		}(i)
+	}
+	wg.Wait()
+
 	rates := map[string]float64{"EUR": 1.0}
 	if needUSD {
 		eurusd, err := quote.FetchExchangeRate("EUR", "USD")

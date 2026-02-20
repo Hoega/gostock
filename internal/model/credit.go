@@ -78,6 +78,9 @@ type CreditInput struct {
 	Energy3Surface        float64 // Surface bien 3 (m²)
 	Energy3DPE            float64 // DPE bien 3 (kWh/m²/an)
 	EnergyPriceIncrease   float64 // Augmentation annuelle prix énergie (%)
+	// Resale projection parameters
+	ResaleRates     []float64 // Taux de revalorisation annuelle personnalisés (ex: [-0.02, 0, 0.03])
+	ResaleSellCosts float64   // Frais de vente à la revente (%)
 }
 
 // EnergyComparisonYear holds the energy cost comparison data for one year.

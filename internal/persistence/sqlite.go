@@ -275,6 +275,9 @@ func runMigrations(db *sqlx.DB) {
 		`ALTER TABLE simulation_inputs ADD COLUMN energy_3_label TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE simulation_inputs ADD COLUMN energy_3_surface REAL NOT NULL DEFAULT 0`,
 		`ALTER TABLE simulation_inputs ADD COLUMN energy_3_dpe REAL NOT NULL DEFAULT 0`,
+		// Resale projection fields
+		`ALTER TABLE simulation_inputs ADD COLUMN resale_rates TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE simulation_inputs ADD COLUMN resale_sell_costs REAL NOT NULL DEFAULT 0`,
 	}
 
 	for _, migration := range migrations {
@@ -318,7 +321,8 @@ func (s *SQLiteStore) Load() (*FormInputs, error) {
 		energy_2_gas, energy_2_electricity, energy_2_gas_kwh, energy_2_electricity_kwh,
 		energy_2_other, energy_2_other_label, energy_2_label, energy_2_surface, energy_2_dpe,
 		energy_3_gas, energy_3_electricity, energy_3_gas_kwh, energy_3_electricity_kwh,
-		energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase
+		energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase,
+		resale_rates, resale_sell_costs
 		FROM simulation_inputs WHERE id = 1`)
 
 	if err == sql.ErrNoRows {
@@ -364,7 +368,8 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			energy_2_gas, energy_2_electricity, energy_2_gas_kwh, energy_2_electricity_kwh,
 			energy_2_other, energy_2_other_label, energy_2_label, energy_2_surface, energy_2_dpe,
 			energy_3_gas, energy_3_electricity, energy_3_gas_kwh, energy_3_electricity_kwh,
-			energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase
+			energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase,
+			resale_rates, resale_sell_costs
 		) VALUES (
 			:id, :property_price, :down_payment, :interest_rate, :duration_years,
 			:insurance_rate, :notary_rate, :agency_rate, :agency_fixed,
@@ -386,7 +391,8 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			:energy_2_gas, :energy_2_electricity, :energy_2_gas_kwh, :energy_2_electricity_kwh,
 			:energy_2_other, :energy_2_other_label, :energy_2_label, :energy_2_surface, :energy_2_dpe,
 			:energy_3_gas, :energy_3_electricity, :energy_3_gas_kwh, :energy_3_electricity_kwh,
-			:energy_3_other, :energy_3_other_label, :energy_3_label, :energy_3_surface, :energy_3_dpe, :energy_price_increase
+			:energy_3_other, :energy_3_other_label, :energy_3_label, :energy_3_surface, :energy_3_dpe, :energy_price_increase,
+			:resale_rates, :resale_sell_costs
 		)
 		ON CONFLICT(id) DO UPDATE SET
 			property_price = :property_price,
@@ -467,7 +473,9 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			energy_3_label = :energy_3_label,
 			energy_3_surface = :energy_3_surface,
 			energy_3_dpe = :energy_3_dpe,
-			energy_price_increase = :energy_price_increase
+			energy_price_increase = :energy_price_increase,
+			resale_rates = :resale_rates,
+			resale_sell_costs = :resale_sell_costs
 	`, inputs)
 
 	if err != nil {
@@ -819,6 +827,29 @@ func (s *SQLiteStore) ReduceRemainingQuantity(isin string, qty float64) error {
 		remaining -= reduction
 	}
 	return nil
+}
+
+// GetStockPurchaseNameByISIN returns the name and broker for an ISIN from any purchase (ignoring remaining_quantity).
+func (s *SQLiteStore) GetStockPurchaseNameByISIN(isin string) (string, string, error) {
+	var result struct {
+		Name   string `db:"name"`
+		Broker string `db:"broker"`
+	}
+	err := s.db.Get(&result, `SELECT name, broker FROM stock_purchases WHERE isin = ? LIMIT 1`, isin)
+	if err != nil {
+		return "", "", err
+	}
+	return result.Name, result.Broker, nil
+}
+
+// GetEarliestPurchaseDateByISIN returns the purchase date of the oldest lot with remaining stock (FIFO).
+func (s *SQLiteStore) GetEarliestPurchaseDateByISIN(isin string) (string, error) {
+	var date string
+	err := s.db.Get(&date, `SELECT purchase_date FROM stock_purchases WHERE isin = ? AND remaining_quantity > 0 ORDER BY purchase_date ASC LIMIT 1`, isin)
+	if err != nil {
+		return "", err
+	}
+	return date, nil
 }
 
 // ResetRemainingQuantity resets the remaining quantity to the original quantity.
