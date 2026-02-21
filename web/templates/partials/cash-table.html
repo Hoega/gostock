@@ -1,0 +1,169 @@
+{{define "cash-table.html"}}
+<div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Positions cash</h2>
+
+    {{if eq (len .Positions) 0}}
+    <p class="text-gray-500 text-sm">Aucune position cash. Ajoutez votre premi&egrave;re ligne ci-dessus.</p>
+    {{else}}
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {{range .Banks}}
+        <div class="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">{{.BankName}}</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .TotalAmount}} &euro;</p>
+            <p class="text-sm text-green-600">
+                +{{formatMoney .AnnualReturn}} &euro;/an
+            </p>
+            <p class="text-xs text-gray-500">{{.Count}} compte{{if gt .Count 1}}s{{end}}</p>
+        </div>
+        {{end}}
+        <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Total</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .TotalAmount}} &euro;</p>
+            <p class="text-sm text-green-600">
+                +{{formatMoney .AnnualReturn}} &euro;/an
+            </p>
+            <p class="text-xs text-gray-500">{{len .Positions}} compte{{if gt (len .Positions) 1}}s{{end}}</p>
+        </div>
+    </div>
+
+    <!-- Positions table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Banque</th>
+                    <th class="px-3 py-2 text-left font-medium text-gray-500">Type de compte</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Montant</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Taux</th>
+                    <th class="px-3 py-2 text-right font-medium text-gray-500">Rendement annuel</th>
+                    <th class="px-3 py-2 text-center font-medium text-gray-500">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {{range .Positions}}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 font-medium text-gray-900">{{.BankName}}</td>
+                    <td class="px-3 py-2 text-gray-600">
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">{{.AccountTypeDisplay}}</span>
+                    </td>
+                    <td class="px-3 py-2 text-right font-medium">{{formatMoney .Amount}} &euro;</td>
+                    <td class="px-3 py-2 text-right">{{printf "%.2f" .InterestRate}}%</td>
+                    <td class="px-3 py-2 text-right text-green-600">+{{formatMoney .AnnualReturn}} &euro;</td>
+                    <td class="px-3 py-2 text-center">
+                        <button type="button"
+                            onclick="editCashPosition({{.ID}}, '{{.BankName}}', '{{.AccountType}}', {{.Amount}}, {{.InterestRate}})"
+                            class="text-indigo-600 hover:text-indigo-900 text-sm mr-2">
+                            Modifier
+                        </button>
+                        <button type="button"
+                            hx-delete="/portfolio/cash/positions/{{.ID}}"
+                            hx-target="#cash-results"
+                            hx-swap="innerHTML"
+                            hx-confirm="Supprimer cette position cash ?"
+                            class="text-red-600 hover:text-red-900 text-sm">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+
+    {{if gt (len .BankLabels) 1}}
+    <!-- Charts -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">R&eacute;partition par banque</h3>
+            <canvas id="cashBankChart" height="250"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">R&eacute;partition par type</h3>
+            <canvas id="cashTypeChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var bankLabels = {{toJSON .BankLabels}};
+        var bankValues = {{toJSON .BankValues}};
+        var typeLabels = {{toJSON .TypeLabels}};
+        var typeValues = {{toJSON .TypeValues}};
+
+        var colors = [
+            'rgba(99, 102, 241, 0.7)',
+            'rgba(59, 130, 246, 0.7)',
+            'rgba(16, 185, 129, 0.7)',
+            'rgba(245, 158, 11, 0.7)',
+            'rgba(239, 68, 68, 0.7)',
+            'rgba(139, 92, 246, 0.7)',
+            'rgba(236, 72, 153, 0.7)',
+            'rgba(20, 184, 166, 0.7)'
+        ];
+
+        var bankCtx = document.getElementById('cashBankChart');
+        if (bankCtx) {
+            new Chart(bankCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: bankLabels,
+                    datasets: [{
+                        data: bankValues,
+                        backgroundColor: colors.slice(0, bankLabels.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var val = ctx.parsed;
+                                    var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+                                    return ctx.label + ': ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        var typeCtx = document.getElementById('cashTypeChart');
+        if (typeCtx) {
+            new Chart(typeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: typeLabels,
+                    datasets: [{
+                        data: typeValues,
+                        backgroundColor: colors.slice(0, typeLabels.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var val = ctx.parsed;
+                                    var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+                                    return ctx.label + ': ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    })();
+    </script>
+    {{end}}
+
+    {{end}}
+</div>
+{{end}}

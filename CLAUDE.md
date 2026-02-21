@@ -18,64 +18,100 @@ PORT=3000 ./gostock
 
 ## Architecture
 
-GoStock is a French mortgage/credit simulator web application built with Go, Chi router, HTMX, and Chart.js.
+GoStock is a French personal finance web application built with Go, Chi router, HTMX, and Chart.js. It combines:
+- **Mortgage/credit simulation** with French-specific calculations (PTZ, HCSF rules)
+- **Portfolio tracking** for stocks, crypto, and cash
+- **Tax reporting** for French tax forms (2042-C, 2086)
+- **Dashboard** with global wealth overview
 
 ### Package Structure
 
-- **cmd/gostock/main.go** - Entry point, flag parsing, graceful shutdown with signal handling
-- **internal/server/** - HTTP server setup, Chi router configuration, template loading
-- **internal/handler/** - HTTP request handlers for form display and calculation
-- **internal/calculator/** - Pure calculation logic (amortization, resale profitability, rent vs buy)
-- **internal/model/** - Data structures (`CreditInput`, `CreditResult`, amortization rows)
+- **cmd/gostock/main.go** - Entry point, flag parsing, graceful shutdown
+- **internal/server/** - HTTP server, Chi router, template loading with custom FuncMap
+- **internal/handler/** - HTTP handlers: `credit`, `portfolio`, `dashboard`, `tax`
+- **internal/calculator/** - Pure calculation logic (amortization, performance, tax)
+- **internal/model/** - Data structures and summary computations
+- **internal/persistence/** - SQLite storage with Store interface
+- **internal/quote/** - Market data: Yahoo Finance (stocks) and CoinGecko (crypto)
 - **web/templates/** - Go HTML templates with layout and partials
-- **web/static/** - Static assets
+- **web/static/** - Static assets (JS, CSS)
 
 ### Request Flow
 
-1. `GET /credit` renders the main form (`credit.html`)
-2. `POST /credit/calculate` parses form inputs, runs `calculator.Calculate()`, returns 4 HTML partials via HTMX
-3. Partials: results summary, amortization table, charts, rent-vs-buy comparison
+All pages use HTMX for dynamic updates without full page reloads:
+1. `GET /page` renders the full page template
+2. User actions trigger `POST`/`PUT`/`DELETE` that return HTML partials
+3. HTMX swaps the partial into the page
+
+### Routes
+
+| Path | Handler | Description |
+|------|---------|-------------|
+| `/credit` | creditHandler | Mortgage simulator form |
+| `/credit/calculate` | creditHandler | Calculate amortization (HTMX partial) |
+| `/portfolio` | portfolioHandler | Stock/crypto/cash positions |
+| `/portfolio/quote` | portfolioHandler | ISIN lookup via Yahoo Finance |
+| `/portfolio/crypto/quote` | portfolioHandler | Crypto lookup via CoinGecko |
+| `/portfolio/history/*` | portfolioHandler | Historical price charts |
+| `/dashboard` | dashboardHandler | Global wealth overview |
+| `/tax` | taxHandler | French tax reporting (2042-C, 2086) |
+
+### External APIs
+
+**Yahoo Finance** (`internal/quote/yahoo.go`):
+- ISIN → symbol resolution with exchange preferences by country
+- Real-time prices and historical data
+- Exchange rate caching (24h TTL)
+
+**CoinGecko** (`internal/quote/coingecko.go`):
+- Crypto search and price lookup (EUR)
+- Batch price fetching with 5-minute cache
+- History with singleflight pattern to prevent duplicate requests
 
 ### Template System
 
-Templates use `html/template` with custom functions:
-- `formatMoney` - French currency formatting (space thousand separator)
-- `seq` - Integer sequence generation
-- `toJSON` - Go value to JSON conversion
+Templates use `html/template` with custom functions defined in `server.go`:
+- `formatMoney` - French currency (space separator)
+- `formatDate` - DD/MM/YYYY format
+- `seq`, `toJSON`, `sub`, `add`, `mul`, `div`
+- `percentInRange` - Calculate position in a range (for UI meters)
+
+### Data Persistence
+
+SQLite database at `~/.local/share/gostock/gostock.db`:
+- `FormInputs` - Credit simulator state (single row, upsert)
+- `StockPosition`, `CryptoPosition`, `CashPosition` - Portfolio holdings
+- `StockSale`, `CryptoSale` - Tax reporting transactions
+- `StockPurchase` - Purchase history for PRU (Prix de Revient Unitaire) calculation
+
+The `Store` interface (`persistence/store.go`) defines all persistence operations.
 
 ### Key Design Patterns
 
-- HTMX-driven: Form submissions return HTML partials, no JSON APIs
-- French localization throughout (month names, labels, formatting)
-- Calculator package is pure functions with no side effects
-- All monetary calculations round to 2 decimal places
+- **HTMX-driven**: Form submissions return HTML partials, no JSON APIs
+- **French localization**: All UI text, number formatting, date formatting
+- **Pure calculators**: Calculator package has no side effects, easy to test
+- **Monetary precision**: All calculations round to 2 decimal places
+- **Rate limiting protection**: Semaphores and caching for external APIs
 
-### Features
+### Credit Simulator Features
 
-#### Multi-loan Support
-The simulator supports multiple loan lines (prêt principal, PTZ, PAL, etc.):
-- Each loan line has its own amount, rate, duration, and insurance rate
-- Monthly payments and costs are calculated separately then summed
-- Results display a detailed breakdown by loan line
+- Multi-loan support (prêt principal, PTZ, PAL)
+- Aid eligibility calculation (PTZ/PAL/BRS by zone and household size)
+- HCSF 35% debt ratio enforcement
+- Rent vs. buy comparison with opportunity cost
+- Resale profitability projections at various appreciation rates
 
-#### Aid Eligibility (PTZ/PAL/BRS)
-Calculates eligibility for French housing assistance programs:
-- **PTZ** (Prêt à Taux Zéro): Income ceilings by zone (A/Abis/B1/B2/C) and household size
-- **PAL** (Prêt Action Logement): 40,000€ max at 1% rate
-- **BRS** (Bail Réel Solidaire): Available in tense zones (A/Abis/B1)
+### Portfolio Features
 
-RFR (Revenu Fiscal de Référence) inputs:
-- Separate RFR N-1 and N-2 for each borrower
-- Automatically summed for joint declarations
-- Reference RFR = max(N-1 total, N-2 total)
+- Stock positions with ISIN-based price lookup
+- Crypto positions with CoinGecko integration
+- Cash positions with interest rate tracking
+- Multi-currency support (USD→EUR conversion)
+- Historical performance charts (1m, 3m, 1y, 5y, max)
 
-#### Fees Structure
-- **Notary fees**: Percentage of property price (default ~7.5% for old properties)
-- **Agency fees**: Percentage or fixed amount
-- **Bank fees**: Flat processing fee
-- **Guarantee fees**: Hypothèque, caution (Crédit Logement), or PPD
+### Tax Features
 
-#### Data Persistence
-Form inputs are persisted to SQLite (`~/.local/share/gostock/gostock.db`):
-- Auto-migration for new columns
-- Single-row storage with upsert pattern
+- PRU calculation from purchase history
+- French stock tax (2042-C) gain/loss computation
+- French crypto tax (2086) with portfolio method

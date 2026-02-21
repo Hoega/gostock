@@ -1284,7 +1284,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-9 gap-4 mb-4">
+                <div class="grid grid-cols-2 md:grid-cols-5 lg:grid-cols-11 gap-4 mb-4">
                     <div>
                         <label class="block text-xs text-gray-500">Montant emprunt&eacute;</label>
                         <input type="number" value="${originalAmount}" step="any" min="0"
@@ -1347,6 +1347,20 @@
                                 class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700 text-xs whitespace-nowrap"
                                 title="IRA max: ${formatMoney(iraMax)}">Max</button>
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">D&eacute;but (mois)</label>
+                        <input type="number" value="${line.startMonth || ''}" step="1" min="1" max="12"
+                            placeholder="Global"
+                            oninput="updateLoanLineValue(${index}, 'startMonth', parseInt(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">D&eacute;but (ann&eacute;e)</label>
+                        <input type="number" value="${line.startYear || ''}" step="1" min="2000" max="2040"
+                            placeholder="Global"
+                            oninput="updateLoanLineValue(${index}, 'startYear', parseInt(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-sm px-2 py-1">
                     </div>
                 </div>
                 <div class="mt-3">
@@ -1424,8 +1438,8 @@
             balance: 0,
             rate: 0,
             ira: 0,
-            startMonth: 1,
-            startYear: currentYear,
+            startMonth: 0,
+            startYear: 0,
             durationYears: durationYears,
             insuranceRate: 0,
             deferralMonths: 0,

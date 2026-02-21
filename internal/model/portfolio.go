@@ -1,5 +1,7 @@
 package model
 
+import "sort"
+
 // StockPosition represents a single stock position in a portfolio.
 type StockPosition struct {
 	ID            int     `db:"id"`
@@ -162,6 +164,119 @@ func brokerDisplayName(b string) string {
 	}
 }
 
+// CashPosition represents a cash position in a bank account.
+type CashPosition struct {
+	ID              int
+	BankName        string
+	Amount          float64
+	AccountType     string
+	InterestRate    float64
+	AnnualReturn    float64 // Computed: Amount * InterestRate / 100
+}
+
+// AccountTypeDisplay returns a human-readable account type label.
+func (p CashPosition) AccountTypeDisplay() string {
+	return accountTypeDisplayName(p.AccountType)
+}
+
+func accountTypeDisplayName(t string) string {
+	switch t {
+	case "courant":
+		return "Compte courant"
+	case "livret_a":
+		return "Livret A"
+	case "ldds":
+		return "LDDS"
+	case "lep":
+		return "LEP"
+	case "pel":
+		return "PEL"
+	case "cel":
+		return "CEL"
+	case "assurance_vie":
+		return "Assurance vie (fonds euros)"
+	case "compte_terme":
+		return "Compte à terme"
+	default:
+		return t
+	}
+}
+
+// BankSummary holds aggregated data for one bank.
+type BankSummary struct {
+	BankName     string
+	TotalAmount  float64
+	AnnualReturn float64
+	Count        int
+}
+
+// CashSummary holds computed totals for the cash portfolio.
+type CashSummary struct {
+	Positions    []CashPosition
+	Banks        []BankSummary
+	TotalAmount  float64
+	AnnualReturn float64
+	// Chart data
+	BankLabels   []string
+	BankValues   []float64
+	TypeLabels   []string
+	TypeValues   []float64
+}
+
+// ComputeCashSummary calculates the summary from a list of cash positions.
+func ComputeCashSummary(positions []CashPosition) CashSummary {
+	s := CashSummary{Positions: positions}
+
+	bankMap := make(map[string]*BankSummary)
+	typeAlloc := make(map[string]float64)
+	var typeOrder []string
+
+	for i, p := range positions {
+		annualReturn := p.Amount * p.InterestRate / 100
+		s.Positions[i].AnnualReturn = annualReturn
+
+		s.TotalAmount += p.Amount
+		s.AnnualReturn += annualReturn
+
+		bs, ok := bankMap[p.BankName]
+		if !ok {
+			bs = &BankSummary{BankName: p.BankName}
+			bankMap[p.BankName] = bs
+		}
+		bs.TotalAmount += p.Amount
+		bs.AnnualReturn += annualReturn
+		bs.Count++
+
+		// Type allocation chart data
+		typeLabel := accountTypeDisplayName(p.AccountType)
+		if _, seen := typeAlloc[typeLabel]; !seen {
+			typeOrder = append(typeOrder, typeLabel)
+		}
+		typeAlloc[typeLabel] += p.Amount
+	}
+
+	// Build type allocation chart slices
+	for _, t := range typeOrder {
+		s.TypeLabels = append(s.TypeLabels, t)
+		s.TypeValues = append(s.TypeValues, typeAlloc[t])
+	}
+
+	// Build bank summaries and chart data (sorted by name)
+	var bankNames []string
+	for name := range bankMap {
+		bankNames = append(bankNames, name)
+	}
+	sort.Strings(bankNames)
+	for _, name := range bankNames {
+		bs := bankMap[name]
+		s.Banks = append(s.Banks, *bs)
+		s.BankLabels = append(s.BankLabels, name)
+		s.BankValues = append(s.BankValues, bs.TotalAmount)
+	}
+
+	return s
+}
+
 // CryptoPosition represents a single cryptocurrency position.
 type CryptoPosition struct {
 	ID            int     `db:"id"`
@@ -250,6 +365,164 @@ type CryptoSummary struct {
 	GainLabels    []string
 	GainValues    []float64
 	GainColors    []string
+}
+
+// PaymentDetail holds the breakdown of a single loan payment for one month.
+type PaymentDetail struct {
+	Total     float64 // Total pour ce prêt (capital + intérêts + assurance)
+	Principal float64 // Capital remboursé
+	Interest  float64 // Intérêts (ou intérêts intercalaires en période de différé)
+	Insurance float64 // Assurance
+}
+
+// PaymentSchedulePoint holds payment data for one month across all loans of a property.
+type PaymentSchedulePoint struct {
+	Month    int             // mois absolu (1-based depuis le début du premier prêt)
+	Label    string          // "01/2021"
+	Payments []PaymentDetail // détail par loan (même ordre que Loans)
+}
+
+// RealEstateLoan represents a single real estate loan with amortization progress.
+type RealEstateLoan struct {
+	Label            string
+	OriginalAmount   float64
+	RemainingBalance float64
+	AmortizedCapital float64
+	Rate             float64
+	MonthlyPayment   float64
+	MonthlyInsurance float64
+	StartDate        string
+	EndDate          string
+	ProgressPct      float64 // % du capital amorti
+}
+
+// RealEstateProperty represents a single real estate property.
+type RealEstateProperty struct {
+	Label               string
+	PropertyValue       float64
+	Loans               []RealEstateLoan
+	TotalOriginalAmount float64
+	TotalLoanBalance    float64
+	TotalAmortized      float64
+	TotalMonthlyPayment float64
+	NetEquity           float64
+	PaymentSchedule     []PaymentSchedulePoint
+	StartYear           int
+	StartMonth          int
+}
+
+// RealEstateSummary holds the summary of real estate patrimony.
+type RealEstateSummary struct {
+	Properties         []RealEstateProperty
+	TotalPropertyValue float64
+	TotalLoanBalance   float64
+	TotalAmortized     float64
+	NetEquity          float64
+	// Slider data (absolute months = year*12 + month)
+	AtYear   int // currently displayed year
+	AtMonth  int // currently displayed month
+	SliderMin   int // earliest loan start (absolute month)
+	SliderMax   int // latest loan end (absolute month)
+	SliderValue int // current position (absolute month)
+}
+
+// GlobalPosition represents a single position from any asset class.
+type GlobalPosition struct {
+	Name    string
+	Type    string  // "stock", "crypto", "cash"
+	Value   float64
+	Percent float64 // % of grand total
+}
+
+// GlobalSummary holds aggregated data across all asset classes.
+type GlobalSummary struct {
+	StockTotal      float64
+	CryptoTotal     float64
+	CashTotal       float64
+	RealEstateTotal         float64
+	RealEstateAmortized     float64
+	RealEstatePropertyValue float64
+	GrandTotal              float64
+	// Chart data
+	ClassLabels []string  // ["Actions", "Crypto", "Cash", "Immobilier"]
+	ClassValues []float64
+	// Top positions (all types merged)
+	TopPositions []GlobalPosition
+}
+
+// ComputeGlobalSummary aggregates stock, crypto, cash and real estate summaries into a global overview.
+func ComputeGlobalSummary(stocks PortfolioSummary, crypto CryptoSummary, cash CashSummary, realEstate RealEstateSummary) GlobalSummary {
+	g := GlobalSummary{
+		StockTotal:      stocks.TotalValue,
+		CryptoTotal:     crypto.TotalValue,
+		CashTotal:       cash.TotalAmount,
+		RealEstateTotal:         realEstate.NetEquity,
+		RealEstateAmortized:     realEstate.TotalAmortized,
+		RealEstatePropertyValue: realEstate.TotalPropertyValue,
+	}
+	g.GrandTotal = g.StockTotal + g.CryptoTotal + g.CashTotal + g.RealEstateTotal
+
+	// Class allocation chart
+	initialPlusValue := g.RealEstateTotal - g.RealEstateAmortized
+	g.ClassLabels = []string{"Actions", "Crypto", "Cash", "Immo. Capital amorti", "Immo. Plus-value"}
+	g.ClassValues = []float64{g.StockTotal, g.CryptoTotal, g.CashTotal, g.RealEstateAmortized, initialPlusValue}
+
+	// Merge all positions into a single list
+	var all []GlobalPosition
+	for _, p := range stocks.Positions {
+		all = append(all, GlobalPosition{
+			Name:  p.Name,
+			Type:  "stock",
+			Value: p.ValueEUR,
+		})
+	}
+	// Aggregate crypto by symbol (may appear in multiple wallets)
+	cryptoBySymbol := make(map[string]float64)
+	var cryptoOrder []string
+	for _, p := range crypto.Positions {
+		if _, seen := cryptoBySymbol[p.Symbol]; !seen {
+			cryptoOrder = append(cryptoOrder, p.Symbol)
+		}
+		cryptoBySymbol[p.Symbol] += p.TotalValue()
+	}
+	for _, sym := range cryptoOrder {
+		all = append(all, GlobalPosition{
+			Name:  sym,
+			Type:  "crypto",
+			Value: cryptoBySymbol[sym],
+		})
+	}
+	for _, p := range cash.Positions {
+		label := p.BankName + " - " + accountTypeDisplayName(p.AccountType)
+		all = append(all, GlobalPosition{
+			Name:  label,
+			Type:  "cash",
+			Value: p.Amount,
+		})
+	}
+	for _, p := range realEstate.Properties {
+		all = append(all, GlobalPosition{
+			Name:  p.Label,
+			Type:  "immobilier",
+			Value: p.NetEquity,
+		})
+	}
+
+	// Sort by value descending
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Value > all[j].Value
+	})
+
+	// Compute percent and keep top 10
+	limit := min(10, len(all))
+	for i := 0; i < limit; i++ {
+		if g.GrandTotal > 0 {
+			all[i].Percent = all[i].Value / g.GrandTotal * 100
+		}
+		g.TopPositions = append(g.TopPositions, all[i])
+	}
+
+	return g
 }
 
 // ComputeCryptoSummary calculates the summary from a list of crypto positions.

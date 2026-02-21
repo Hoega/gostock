@@ -65,6 +65,21 @@ func New(port int, store persistence.Store) *http.Server {
 			}
 			return af / bf
 		},
+		"mod": func(a, b int) int {
+			if b == 0 {
+				return 0
+			}
+			return a % b
+		},
+		"intDiv": func(a, b int) int {
+			if b == 0 {
+				return 0
+			}
+			return a / b
+		},
+		"intAdd": func(a, b int) int {
+			return a + b
+		},
 		"formatDate": func(s string) string {
 			if t, err := time.Parse("2006-01-02", s); err == nil {
 				return t.Format("02/01/2006")
@@ -125,6 +140,11 @@ func New(port int, store persistence.Store) *http.Server {
 	r.Post("/portfolio/positions", portfolioHandler.AddPosition)
 	r.Put("/portfolio/positions/{id}", portfolioHandler.UpdatePosition)
 	r.Delete("/portfolio/positions/{id}", portfolioHandler.DeletePosition)
+
+	// Portfolio routes - Cash
+	r.Post("/portfolio/cash/positions", portfolioHandler.AddCashPosition)
+	r.Put("/portfolio/cash/positions/{id}", portfolioHandler.UpdateCashPosition)
+	r.Delete("/portfolio/cash/positions/{id}", portfolioHandler.DeleteCashPosition)
 
 	// Portfolio routes - Crypto
 	r.Get("/portfolio/crypto/quote", portfolioHandler.LookupCryptoQuote)

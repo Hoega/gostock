@@ -882,7 +882,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 
 		// Calculer les versements de prêt E1 (mensualités cumulées) par ligne
 		var apportE1Loans float64
-		loanSchedule := calculateCurrentLoanSchedule(input.CurrentLoanLines)
+		loanSchedule := CalculateCurrentLoanSchedule(input.CurrentLoanLines)
 
 		// Structure pour accumuler le détail par ligne de prêt
 		type loanAccum struct {
@@ -963,7 +963,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	var currentBorrowerPayments []model.CurrentBorrowerPayment
 	if input.CurrentSalePrice > 0 && len(input.CurrentLoanLines) > 0 {
 		currentPropertyProjection = calculateCurrentPropertyProjection(input, resaleRates)
-		currentLoanSchedule = calculateCurrentLoanSchedule(input.CurrentLoanLines)
+		currentLoanSchedule = CalculateCurrentLoanSchedule(input.CurrentLoanLines)
 
 		// Calculate cumulative payments per borrower for current property
 		// Only if E2 has contributions (virtual contribution or monthly payments)
@@ -1282,6 +1282,273 @@ func calculateIRR(cashFlows []float64) float64 {
 	return (low + high) / 2 // Return best approximation
 }
 
+// ComputeLoanRemainingBalance computes the remaining balance and monthly payment for a LoanLine
+// at the given date (year, month). Returns remainingBalance, amortizedCapital, monthlyPayment, monthlyInsurance.
+func ComputeLoanRemainingBalance(line model.LoanLine, atYear, atMonth int) (remaining, amortized, monthly, insurance float64) {
+	if line.OriginalAmount <= 0 {
+		return 0, 0, 0, 0
+	}
+
+	// Si l'utilisateur a saisi un CRD (Balance), l'utiliser directement
+	// Cela garantit que: Montant emprunté - CRD = Capital amorti
+	if line.Balance > 0 {
+		remaining = round2(line.Balance)
+		amortized = round2(line.OriginalAmount - line.Balance)
+
+		// Calculer la mensualité basée sur le CRD et le temps restant
+		totalDurationMonths := line.DurationYears*12 + line.DeferralMonths
+		if line.DurationYears <= 0 && len(line.Tiers) > 0 {
+			lastEnd := 0
+			for _, t := range line.Tiers {
+				if t.EndMonth > lastEnd {
+					lastEnd = t.EndMonth
+				}
+			}
+			totalDurationMonths = lastEnd + line.DeferralMonths
+		}
+
+		// Calcul des mois écoulés
+		monthsElapsed := 0
+		if line.StartYear > 0 {
+			startMonths := line.StartYear*12 + line.StartMonth
+			currentMonths := atYear*12 + atMonth
+			monthsElapsed = currentMonths - startMonths
+			if monthsElapsed < 0 {
+				monthsElapsed = 0
+			}
+		}
+
+		remainingMonths := totalDurationMonths - monthsElapsed
+		if remainingMonths <= 0 {
+			remainingMonths = 1 // Éviter division par zéro
+		}
+
+		monthlyRate := line.Rate / 100 / 12
+		if monthlyRate == 0 {
+			monthly = line.Balance / float64(remainingMonths)
+		} else {
+			monthly = line.Balance * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-remainingMonths)))
+		}
+
+		// Assurance
+		var monthlyInsurance float64
+		if line.InsuranceMonthly > 0 {
+			monthlyInsurance = line.InsuranceMonthly
+		} else {
+			monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
+		}
+		monthly += monthlyInsurance
+
+		monthly = round2(monthly)
+		insurance = round2(monthlyInsurance)
+		return remaining, amortized, monthly, insurance
+	}
+
+	// Derive total duration from tiers if DurationYears is not set
+	totalDurationMonths := line.DurationYears*12 + line.DeferralMonths
+	if line.DurationYears <= 0 && len(line.Tiers) > 0 {
+		// Infer duration from last tier's EndMonth + deferral
+		lastEnd := 0
+		for _, t := range line.Tiers {
+			if t.EndMonth > lastEnd {
+				lastEnd = t.EndMonth
+			}
+		}
+		totalDurationMonths = lastEnd + line.DeferralMonths
+	} else if line.DurationYears <= 0 {
+		return 0, 0, 0, 0
+	}
+	monthlyRate := line.Rate / 100 / 12
+
+	// Deferral rate
+	deferralRate := line.DeferralRate
+	if deferralRate == 0 {
+		deferralRate = line.Rate
+	}
+	monthlyDeferralRate := deferralRate / 100 / 12
+
+	// Compute months elapsed since loan start
+	if line.StartYear == 0 {
+		// No start date: can't compute elapsed months, return full balance
+		return line.OriginalAmount, 0, 0, 0
+	}
+	startMonths := line.StartYear*12 + line.StartMonth
+	currentMonths := atYear*12 + atMonth
+	monthsElapsed := currentMonths - startMonths
+	if monthsElapsed < 0 {
+		monthsElapsed = 0
+	}
+	if monthsElapsed > totalDurationMonths {
+		monthsElapsed = totalDurationMonths
+	}
+
+	balance := line.OriginalAmount
+
+	// If tiers are defined, use them; otherwise compute constant payment
+	if len(line.Tiers) > 0 {
+		for m := 1; m <= monthsElapsed; m++ {
+			if balance <= 0 {
+				break
+			}
+			if m <= line.DeferralMonths {
+				// Deferral: interest only, no principal
+				continue
+			}
+			interest := balance * monthlyRate
+			amortMonth := m - line.DeferralMonths
+			tierPayment := getPaymentForMonth(line.Tiers, amortMonth)
+			principal := tierPayment - interest
+			if principal < 0 {
+				principal = 0
+			}
+			if principal > balance {
+				principal = balance
+			}
+			balance -= principal
+		}
+		// Monthly payment: use current tier
+		if monthsElapsed <= line.DeferralMonths {
+			monthly = balance * monthlyDeferralRate
+		} else {
+			amortMonth := monthsElapsed - line.DeferralMonths + 1
+			monthly = getPaymentForMonth(line.Tiers, amortMonth)
+		}
+	} else {
+		// Constant payment amortization
+		amortDuration := totalDurationMonths - line.DeferralMonths
+		if amortDuration <= 0 {
+			return line.OriginalAmount, 0, 0, 0
+		}
+		if monthlyRate == 0 {
+			monthly = line.OriginalAmount / float64(amortDuration)
+		} else {
+			monthly = line.OriginalAmount * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-amortDuration)))
+		}
+
+		for m := 1; m <= monthsElapsed; m++ {
+			if balance <= 0 {
+				break
+			}
+			if m <= line.DeferralMonths {
+				continue
+			}
+			interest := balance * monthlyRate
+			principal := monthly - interest
+			if principal > balance {
+				principal = balance
+			}
+			balance -= principal
+		}
+	}
+
+	if balance < 0.01 {
+		balance = 0
+	}
+
+	// Inclure l'assurance dans la mensualité pour cohérence avec le graphique
+	var monthlyInsurance float64
+	if line.InsuranceMonthly > 0 {
+		monthlyInsurance = line.InsuranceMonthly
+	} else {
+		monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
+	}
+	monthly += monthlyInsurance
+
+	remaining = round2(balance)
+	amortized = round2(line.OriginalAmount - balance)
+	monthly = round2(monthly)
+	insurance = round2(monthlyInsurance)
+	return
+}
+
+// ComputeMonthlyPaymentAt returns the total monthly payment (principal + interest + insurance)
+// for a LoanLine at a given absolute month (1-based from loan start).
+// It handles deferral periods, tiers, and constant-payment amortization.
+func ComputeMonthlyPaymentAt(line model.LoanLine, absoluteMonth int) float64 {
+	if line.OriginalAmount <= 0 || absoluteMonth <= 0 {
+		return 0
+	}
+
+	totalDurationMonths := line.DurationYears*12 + line.DeferralMonths
+	if line.DurationYears <= 0 && len(line.Tiers) > 0 {
+		lastEnd := 0
+		for _, t := range line.Tiers {
+			if t.EndMonth > lastEnd {
+				lastEnd = t.EndMonth
+			}
+		}
+		totalDurationMonths = lastEnd + line.DeferralMonths
+	}
+	if totalDurationMonths <= 0 {
+		return 0
+	}
+	if absoluteMonth > totalDurationMonths {
+		return 0
+	}
+
+	monthlyRate := line.Rate / 100 / 12
+	deferralRate := line.DeferralRate
+	if deferralRate == 0 {
+		deferralRate = line.Rate
+	}
+	monthlyDeferralRate := deferralRate / 100 / 12
+
+	// Insurance
+	var monthlyInsurance float64
+	if line.InsuranceMonthly > 0 {
+		monthlyInsurance = line.InsuranceMonthly
+	} else {
+		monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
+	}
+
+	// During deferral: interest only + insurance
+	if absoluteMonth <= line.DeferralMonths {
+		return round2(line.OriginalAmount*monthlyDeferralRate + monthlyInsurance)
+	}
+
+	// Post-deferral: need to simulate balance up to this month
+	amortMonth := absoluteMonth - line.DeferralMonths
+	balance := line.OriginalAmount
+
+	if len(line.Tiers) > 0 {
+		// Tier-based: simulate to find balance, then return tier payment + insurance
+		for m := 1; m < amortMonth; m++ {
+			interest := balance * monthlyRate
+			tierPayment := getPaymentForMonth(line.Tiers, m)
+			principal := tierPayment - interest
+			if principal < 0 {
+				principal = 0
+			}
+			if principal > balance {
+				principal = balance
+			}
+			balance -= principal
+			if balance < 0.01 {
+				balance = 0
+				break
+			}
+		}
+		if balance <= 0 {
+			return round2(monthlyInsurance)
+		}
+		tierPayment := getPaymentForMonth(line.Tiers, amortMonth)
+		return round2(tierPayment + monthlyInsurance)
+	}
+
+	// Constant payment amortization
+	amortDuration := totalDurationMonths - line.DeferralMonths
+	if amortDuration <= 0 {
+		return round2(monthlyInsurance)
+	}
+	var monthlyPayment float64
+	if monthlyRate == 0 {
+		monthlyPayment = line.OriginalAmount / float64(amortDuration)
+	} else {
+		monthlyPayment = line.OriginalAmount * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-amortDuration)))
+	}
+	return round2(monthlyPayment + monthlyInsurance)
+}
+
 // PTZ income ceilings by zone and household size (2024 barème)
 // Index: household size - 1 (0 = 1 person, 4 = 5+ persons)
 var ptzIncomeCeilings = map[string][]float64{
@@ -1479,9 +1746,9 @@ func calculateCurrentPropertyProjection(input model.CreditInput, rates []float64
 	return projections
 }
 
-// calculateCurrentLoanSchedule computes the month-by-month payment schedule for existing loans.
+// CalculateCurrentLoanSchedule computes the month-by-month payment schedule for existing loans.
 // Uses manual tiers defined by the user for each loan line, with deferral support.
-func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedule {
+func CalculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedule {
 	if len(lines) == 0 {
 		return nil
 	}
@@ -1497,6 +1764,7 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 		deferralRate     float64 // Taux mensuel pour intérêts intercalaires
 		monthlyInsurance float64 // Assurance mensuelle
 		tiers            []model.PaymentTier
+		constantPayment  float64 // Fallback quand pas de paliers
 	}
 
 	// Create a state for EVERY line to keep alignment with input array
@@ -1542,16 +1810,28 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 			monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
 		}
 
+		monthlyRate := line.Rate / 100 / 12
+		var constantPayment float64
+		amortDuration := totalMonths - line.DeferralMonths
+		if amortDuration > 0 {
+			if monthlyRate == 0 {
+				constantPayment = line.OriginalAmount / float64(amortDuration)
+			} else {
+				constantPayment = line.OriginalAmount * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-amortDuration)))
+			}
+		}
+
 		states[i] = &currentLoanState{
 			label:            line.Label,
 			totalMonths:      totalMonths,
 			deferralMonths:   line.DeferralMonths,
 			originalAmount:   line.OriginalAmount,
 			balance:          line.OriginalAmount,
-			monthlyRate:      line.Rate / 100 / 12,
+			monthlyRate:      monthlyRate,
 			deferralRate:     deferralRate / 100 / 12,
 			monthlyInsurance: monthlyInsurance,
 			tiers:            line.Tiers,
+			constantPayment:  constantPayment,
 		}
 	}
 
@@ -1583,7 +1863,11 @@ func calculateCurrentLoanSchedule(lines []model.LoanLine) []model.MonthlySchedul
 			} else {
 				// Get payment from tier - offset by deferral months
 				amortizationMonth := month - s.deferralMonths
-				tierPayment = getPaymentForMonth(s.tiers, amortizationMonth)
+				if len(s.tiers) > 0 {
+					tierPayment = getPaymentForMonth(s.tiers, amortizationMonth)
+				} else {
+					tierPayment = s.constantPayment
+				}
 
 				// Calculer intérêts et capital
 				interest = s.balance * s.monthlyRate

@@ -79,8 +79,8 @@ func (h *DashboardHandler) ShowDashboard(w http.ResponseWriter, r *http.Request)
 
 	// Render response
 	if r.Header.Get("HX-Request") == "true" {
-		if err := h.templates.ExecuteTemplate(w, "dashboard-table.html", data); err != nil {
-			log.Printf("Dashboard table template error: %v", err)
+		if err := h.templates.ExecuteTemplate(w, "dashboard-content.html", data); err != nil {
+			log.Printf("Dashboard content template error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return

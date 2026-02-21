@@ -2,15 +2,18 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/Hoega/gostock/internal/calculator"
 	"github.com/Hoega/gostock/internal/model"
 	"github.com/Hoega/gostock/internal/persistence"
 	"github.com/Hoega/gostock/internal/quote"
@@ -18,9 +21,12 @@ import (
 
 // PortfolioPageData holds all data needed to render the portfolio page.
 type PortfolioPageData struct {
-	ActiveTab    string
-	StockSummary model.PortfolioSummary
-	CryptoSummary model.CryptoSummary
+	ActiveTab          string
+	StockSummary       model.PortfolioSummary
+	CryptoSummary      model.CryptoSummary
+	CashSummary        model.CashSummary
+	GlobalSummary      model.GlobalSummary
+	RealEstateSummary  model.RealEstateSummary
 }
 
 type PortfolioHandler struct {
@@ -35,26 +41,47 @@ func NewPortfolioHandler(templates *template.Template, store persistence.Store) 
 // ShowPortfolio renders the portfolio page with all positions.
 func (h *PortfolioHandler) ShowPortfolio(w http.ResponseWriter, r *http.Request) {
 	activeTab := r.URL.Query().Get("tab")
-	if activeTab != "crypto" {
-		activeTab = "stocks"
+	if activeTab != "stocks" && activeTab != "crypto" && activeTab != "cash" && activeTab != "immobilier" {
+		activeTab = "overview"
 	}
 
 	data := PortfolioPageData{ActiveTab: activeTab}
 
-	if activeTab == "stocks" {
-		summary, err := h.loadStockSummary()
-		if err != nil {
-			log.Printf("Failed to load stock positions: %v", err)
-			summary = model.ComputePortfolioSummary(nil, nil)
-		}
-		data.StockSummary = summary
-	} else {
+	switch activeTab {
+	case "overview":
+		data.GlobalSummary = h.loadGlobalSummary()
+	case "crypto":
 		summary, err := h.loadCryptoSummary()
 		if err != nil {
 			log.Printf("Failed to load crypto positions: %v", err)
 			summary = model.ComputeCryptoSummary(nil)
 		}
 		data.CryptoSummary = summary
+	case "cash":
+		summary, err := h.loadCashSummary()
+		if err != nil {
+			log.Printf("Failed to load cash positions: %v", err)
+			summary = model.ComputeCashSummary(nil)
+		}
+		data.CashSummary = summary
+	case "immobilier":
+		// Parse optional year/month for date slider
+		atYear := 0
+		atMonth := 0
+		if y := r.URL.Query().Get("year"); y != "" {
+			atYear, _ = strconv.Atoi(y)
+		}
+		if m := r.URL.Query().Get("month"); m != "" {
+			atMonth, _ = strconv.Atoi(m)
+		}
+		data.RealEstateSummary = h.loadRealEstateSummaryAt(atYear, atMonth)
+	default:
+		summary, err := h.loadStockSummary()
+		if err != nil {
+			log.Printf("Failed to load stock positions: %v", err)
+			summary = model.ComputePortfolioSummary(nil, nil)
+		}
+		data.StockSummary = summary
 	}
 
 	// If HTMX request, render only the container partial
@@ -579,6 +606,443 @@ func (h *PortfolioHandler) renderCryptoPartials(w http.ResponseWriter) {
 	if err := h.templates.ExecuteTemplate(w, "crypto-charts.html", summary); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// AddCashPosition handles POST /portfolio/cash/positions.
+func (h *PortfolioHandler) AddCashPosition(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Formulaire invalide", http.StatusBadRequest)
+		return
+	}
+
+	pos := h.parseCashPositionForm(r)
+	if err := h.store.SaveCashPosition(pos); err != nil {
+		log.Printf("Failed to save cash position: %v", err)
+		http.Error(w, "Erreur lors de la sauvegarde", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderCashPartials(w)
+}
+
+// UpdateCashPosition handles PUT /portfolio/cash/positions/{id}.
+func (h *PortfolioHandler) UpdateCashPosition(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Formulaire invalide", http.StatusBadRequest)
+		return
+	}
+
+	pos := h.parseCashPositionForm(r)
+	pos.ID = id
+	if err := h.store.SaveCashPosition(pos); err != nil {
+		log.Printf("Failed to update cash position: %v", err)
+		http.Error(w, "Erreur lors de la mise à jour", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderCashPartials(w)
+}
+
+// DeleteCashPosition handles DELETE /portfolio/cash/positions/{id}.
+func (h *PortfolioHandler) DeleteCashPosition(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.DeleteCashPosition(id); err != nil {
+		log.Printf("Failed to delete cash position: %v", err)
+		http.Error(w, "Erreur lors de la suppression", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderCashPartials(w)
+}
+
+func (h *PortfolioHandler) parseCashPositionForm(r *http.Request) *persistence.CashPosition {
+	return &persistence.CashPosition{
+		BankName:     r.FormValue("bank_name"),
+		Amount:       pParseFloat(r.FormValue("amount"), 0),
+		AccountType:  r.FormValue("account_type"),
+		InterestRate: pParseFloat(r.FormValue("interest_rate"), 0),
+	}
+}
+
+func (h *PortfolioHandler) loadCashSummary() (model.CashSummary, error) {
+	dbPositions, err := h.store.LoadCashPositions()
+	if err != nil {
+		return model.CashSummary{}, err
+	}
+
+	positions := make([]model.CashPosition, len(dbPositions))
+	for i, p := range dbPositions {
+		positions[i] = model.CashPosition{
+			ID:           p.ID,
+			BankName:     p.BankName,
+			Amount:       p.Amount,
+			AccountType:  p.AccountType,
+			InterestRate: p.InterestRate,
+		}
+	}
+
+	return model.ComputeCashSummary(positions), nil
+}
+
+func (h *PortfolioHandler) loadGlobalSummary() model.GlobalSummary {
+	var stockSummary model.PortfolioSummary
+	var cryptoSummary model.CryptoSummary
+	var cashSummary model.CashSummary
+	var realEstateSummary model.RealEstateSummary
+
+	var wg sync.WaitGroup
+	wg.Add(4)
+
+	go func() {
+		defer wg.Done()
+		s, err := h.loadStockSummary()
+		if err != nil {
+			log.Printf("Failed to load stock positions for overview: %v", err)
+			s = model.ComputePortfolioSummary(nil, nil)
+		}
+		stockSummary = s
+	}()
+
+	go func() {
+		defer wg.Done()
+		s, err := h.loadCryptoSummary()
+		if err != nil {
+			log.Printf("Failed to load crypto positions for overview: %v", err)
+			s = model.ComputeCryptoSummary(nil)
+		}
+		cryptoSummary = s
+	}()
+
+	go func() {
+		defer wg.Done()
+		s, err := h.loadCashSummary()
+		if err != nil {
+			log.Printf("Failed to load cash positions for overview: %v", err)
+			s = model.ComputeCashSummary(nil)
+		}
+		cashSummary = s
+	}()
+
+	go func() {
+		defer wg.Done()
+		realEstateSummary = h.loadRealEstateSummaryAt(0, 0)
+	}()
+
+	wg.Wait()
+	return model.ComputeGlobalSummary(stockSummary, cryptoSummary, cashSummary, realEstateSummary)
+}
+
+func (h *PortfolioHandler) loadRealEstateSummaryAt(reqYear, reqMonth int) model.RealEstateSummary {
+	inputs, err := h.store.Load()
+	if err != nil {
+		log.Printf("Failed to load form inputs for real estate: %v", err)
+		return model.RealEstateSummary{}
+	}
+
+	now := time.Now()
+	atYear := reqYear
+	atMonth := reqMonth
+	isSliderRequest := reqYear > 0 // Explicit date = slider request, force simulation
+	if atYear == 0 {
+		atYear = now.Year()
+		atMonth = int(now.Month())
+	}
+
+	var summary model.RealEstateSummary
+	summary.AtYear = atYear
+	summary.AtMonth = atMonth
+
+	// Track slider bounds (using year*12 + (month-1) for proper decoding)
+	sliderMin := atYear*12 + (atMonth - 1)
+	sliderMax := atYear*12 + (atMonth - 1)
+
+	// Current property (bien actuel)
+	if inputs.CurrentSalePrice > 0 && inputs.CurrentLoanLines != "" {
+		var loanLines []model.LoanLine
+		if err := json.Unmarshal([]byte(inputs.CurrentLoanLines), &loanLines); err != nil {
+			log.Printf("Failed to parse current loan lines: %v", err)
+		} else {
+			prop := model.RealEstateProperty{
+				Label:         "Bien actuel",
+				PropertyValue: inputs.CurrentSalePrice,
+			}
+			// Fallback start date from global inputs
+			fallbackStartYear := inputs.CurrentLoanStartYear
+			fallbackStartMonth := inputs.CurrentLoanStartMonth
+			if fallbackStartYear == 0 {
+				fallbackStartYear = atYear
+				fallbackStartMonth = atMonth
+			}
+
+			for i := range loanLines {
+				line := &loanLines[i]
+				if line.OriginalAmount <= 0 {
+					continue
+				}
+				// Use per-line start date if set, otherwise fallback to global start
+				lineStartYear := line.StartYear
+				lineStartMonth := line.StartMonth
+				if lineStartYear == 0 {
+					lineStartYear = fallbackStartYear
+					lineStartMonth = fallbackStartMonth
+				}
+				// Set the start date on the line for the calculator
+				line.StartYear = lineStartYear
+				line.StartMonth = lineStartMonth
+
+				// For slider requests, clear Balance to force simulation from OriginalAmount
+				lineCopy := *line
+				if isSliderRequest {
+					lineCopy.Balance = 0
+				}
+				remaining, amortized, monthly, monthlyIns := calculator.ComputeLoanRemainingBalance(lineCopy, atYear, atMonth)
+				var progressPct float64
+				if line.OriginalAmount > 0 {
+					progressPct = amortized / line.OriginalAmount * 100
+				}
+
+				// Compute end date: start + deferral + amortization duration
+				totalMonths := line.DurationYears*12 + line.DeferralMonths
+				if line.DurationYears <= 0 && len(line.Tiers) > 0 {
+					lastEnd := 0
+					for _, t := range line.Tiers {
+						if t.EndMonth > lastEnd {
+							lastEnd = t.EndMonth
+						}
+					}
+					totalMonths = lastEnd + line.DeferralMonths
+				}
+				endMonth := lineStartMonth + (totalMonths % 12)
+				endYear := lineStartYear + (totalMonths / 12)
+				if endMonth > 12 {
+					endMonth -= 12
+					endYear++
+				}
+
+				// Track slider bounds (using year*12 + (month-1) for proper decoding)
+				startAbs := lineStartYear*12 + (lineStartMonth - 1)
+				endAbs := endYear*12 + (endMonth - 1)
+				if startAbs < sliderMin {
+					sliderMin = startAbs
+				}
+				if endAbs > sliderMax {
+					sliderMax = endAbs
+				}
+
+				prop.Loans = append(prop.Loans, model.RealEstateLoan{
+					Label:            line.Label,
+					OriginalAmount:   line.OriginalAmount,
+					RemainingBalance: remaining,
+					AmortizedCapital: amortized,
+					Rate:             line.Rate,
+					MonthlyPayment:   monthly,
+					MonthlyInsurance: monthlyIns,
+					StartDate:        fmt.Sprintf("%02d/%d", lineStartMonth, lineStartYear),
+					EndDate:          fmt.Sprintf("%02d/%d", endMonth, endYear),
+					ProgressPct:      progressPct,
+				})
+				prop.TotalOriginalAmount += line.OriginalAmount
+				prop.TotalLoanBalance += remaining
+				prop.TotalAmortized += amortized
+				prop.TotalMonthlyPayment += monthly
+			}
+			prop.NetEquity = prop.PropertyValue - prop.TotalLoanBalance
+			prop.StartYear = fallbackStartYear
+			prop.StartMonth = fallbackStartMonth
+
+			// Build payment schedule reusing the existing calculator
+			loanSchedule := calculator.CalculateCurrentLoanSchedule(loanLines)
+			prop.PaymentSchedule = scheduleToPaymentSchedule(loanSchedule, fallbackStartYear, fallbackStartMonth)
+
+			summary.Properties = append(summary.Properties, prop)
+			summary.TotalPropertyValue += prop.PropertyValue
+			summary.TotalLoanBalance += prop.TotalLoanBalance
+			summary.TotalAmortized += prop.TotalAmortized
+		}
+	}
+
+	// New property (nouveau bien) from NewLoanLines
+	if inputs.PropertyPrice > 0 && inputs.NewLoanLines != "" {
+		var newLoanLines []model.NewLoanLine
+		if err := json.Unmarshal([]byte(inputs.NewLoanLines), &newLoanLines); err != nil {
+			log.Printf("Failed to parse new loan lines: %v", err)
+		} else if len(newLoanLines) > 0 {
+			// Only show if there are actual loan lines with amounts
+			hasLoans := false
+			for _, line := range newLoanLines {
+				if line.Amount > 0 {
+					hasLoans = true
+					break
+				}
+			}
+			if hasLoans {
+				prop := model.RealEstateProperty{
+					Label:         "Nouveau bien",
+					PropertyValue: inputs.PropertyPrice,
+				}
+				startYear := inputs.StartYear
+				startMonth := inputs.StartMonth
+				if startYear == 0 {
+					startYear = atYear
+					startMonth = atMonth
+				}
+				for _, nline := range newLoanLines {
+					if nline.Amount <= 0 {
+						continue
+					}
+					// Convert NewLoanLine to LoanLine for calculation
+					line := model.LoanLine{
+						Label:          nline.Label,
+						OriginalAmount: nline.Amount,
+						Rate:           nline.Rate,
+						StartYear:      startYear,
+						StartMonth:     startMonth,
+						DurationYears:  nline.DurationYears,
+						InsuranceRate:  nline.InsuranceRate,
+						DeferralMonths: nline.DeferralMonths,
+						DeferralRate:   nline.DeferralRate,
+						Tiers:          nline.Tiers,
+					}
+					remaining, amortized, monthly, monthlyIns := calculator.ComputeLoanRemainingBalance(line, atYear, atMonth)
+					var progressPct float64
+					if nline.Amount > 0 {
+						progressPct = amortized / nline.Amount * 100
+					}
+
+					// Compute end date: start + deferral + amortization duration
+					totalMonths := nline.DurationYears*12 + nline.DeferralMonths
+					endMonth := startMonth + (totalMonths % 12)
+					endYear := startYear + (totalMonths / 12)
+					if endMonth > 12 {
+						endMonth -= 12
+						endYear++
+					}
+
+					// Track slider bounds (using year*12 + (month-1) for proper decoding)
+					startAbs := startYear*12 + (startMonth - 1)
+					endAbs := endYear*12 + (endMonth - 1)
+					if startAbs < sliderMin {
+						sliderMin = startAbs
+					}
+					if endAbs > sliderMax {
+						sliderMax = endAbs
+					}
+
+					prop.Loans = append(prop.Loans, model.RealEstateLoan{
+						Label:            nline.Label,
+						OriginalAmount:   nline.Amount,
+						RemainingBalance: remaining,
+						AmortizedCapital: amortized,
+						Rate:             nline.Rate,
+						MonthlyPayment:   monthly,
+						MonthlyInsurance: monthlyIns,
+						StartDate:        fmt.Sprintf("%02d/%d", startMonth, startYear),
+						EndDate:          fmt.Sprintf("%02d/%d", endMonth, endYear),
+						ProgressPct:      progressPct,
+					})
+					prop.TotalOriginalAmount += nline.Amount
+					prop.TotalLoanBalance += remaining
+					prop.TotalAmortized += amortized
+					prop.TotalMonthlyPayment += monthly
+				}
+				prop.NetEquity = prop.PropertyValue - prop.TotalLoanBalance
+				prop.StartYear = startYear
+				prop.StartMonth = startMonth
+
+				// Build payment schedule: convert NewLoanLines to LoanLines for the calculator
+				var scheduleLines []model.LoanLine
+				for _, nline := range newLoanLines {
+					if nline.Amount <= 0 {
+						continue
+					}
+					scheduleLines = append(scheduleLines, model.LoanLine{
+						Label:          nline.Label,
+						OriginalAmount: nline.Amount,
+						Rate:           nline.Rate,
+						DurationYears:  nline.DurationYears,
+						InsuranceRate:  nline.InsuranceRate,
+						DeferralMonths: nline.DeferralMonths,
+						DeferralRate:   nline.DeferralRate,
+						Tiers:          nline.Tiers,
+					})
+				}
+				loanSchedule := calculator.CalculateCurrentLoanSchedule(scheduleLines)
+				prop.PaymentSchedule = scheduleToPaymentSchedule(loanSchedule, startYear, startMonth)
+
+				summary.Properties = append(summary.Properties, prop)
+				summary.TotalPropertyValue += prop.PropertyValue
+				summary.TotalLoanBalance += prop.TotalLoanBalance
+				summary.TotalAmortized += prop.TotalAmortized
+			}
+		}
+	}
+
+	summary.NetEquity = summary.TotalPropertyValue - summary.TotalLoanBalance
+
+	// Set slider values
+	summary.SliderMin = sliderMin
+	summary.SliderMax = sliderMax
+	summary.SliderValue = atYear*12 + (atMonth - 1)
+	return summary
+}
+
+func (h *PortfolioHandler) renderCashPartials(w http.ResponseWriter) {
+	summary, err := h.loadCashSummary()
+	if err != nil {
+		log.Printf("Failed to load cash positions: %v", err)
+		summary = model.ComputeCashSummary(nil)
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "cash-table.html", summary); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// scheduleToPaymentSchedule converts a MonthlySchedule (from calculateCurrentLoanSchedule
+// or calculateTierBasedSchedule) into PaymentSchedulePoint with date labels.
+func scheduleToPaymentSchedule(schedule []model.MonthlySchedule, startYear, startMonth int) []model.PaymentSchedulePoint {
+	if len(schedule) == 0 {
+		return nil
+	}
+
+	result := make([]model.PaymentSchedulePoint, 0, len(schedule))
+	for _, ms := range schedule {
+		// Compute date label from global start + month offset
+		m := (startMonth - 1 + ms.Month - 1) % 12 + 1
+		y := startYear + (startMonth - 1 + ms.Month - 1) / 12
+		label := fmt.Sprintf("%02d/%d", m, y)
+
+		payments := make([]model.PaymentDetail, len(ms.Payments))
+		for i, p := range ms.Payments {
+			payments[i] = model.PaymentDetail{
+				Total:     p.Total,
+				Principal: p.Principal,
+				Interest:  p.Interest,
+				Insurance: p.Insurance,
+			}
+		}
+
+		result = append(result, model.PaymentSchedulePoint{
+			Month:    ms.Month,
+			Label:    label,
+			Payments: payments,
+		})
+	}
+
+	return result
 }
 
 func pParseFloat(s string, fallback float64) float64 {

@@ -197,6 +197,21 @@ func NewSQLiteStore() (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to create stock_purchases table: %w", err)
 	}
 
+	// Create cash_positions table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS cash_positions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			bank_name TEXT NOT NULL,
+			amount REAL NOT NULL,
+			account_type TEXT NOT NULL,
+			interest_rate REAL NOT NULL DEFAULT 0
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create cash_positions table: %w", err)
+	}
+
 	// Run migrations for any missing columns
 	runMigrations(db)
 
@@ -857,6 +872,52 @@ func (s *SQLiteStore) ResetRemainingQuantity(id int) error {
 	_, err := s.db.Exec(`UPDATE stock_purchases SET remaining_quantity = quantity WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to reset remaining quantity: %w", err)
+	}
+	return nil
+}
+
+// LoadCashPositions retrieves all cash positions ordered by bank name then account type.
+func (s *SQLiteStore) LoadCashPositions() ([]CashPosition, error) {
+	var positions []CashPosition
+	err := s.db.Select(&positions, `SELECT id, bank_name, amount, account_type, interest_rate FROM cash_positions ORDER BY bank_name, account_type`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load cash positions: %w", err)
+	}
+	return positions, nil
+}
+
+// SaveCashPosition inserts or updates a cash position.
+func (s *SQLiteStore) SaveCashPosition(pos *CashPosition) error {
+	if pos.ID == 0 {
+		result, err := s.db.NamedExec(`
+			INSERT INTO cash_positions (bank_name, amount, account_type, interest_rate)
+			VALUES (:bank_name, :amount, :account_type, :interest_rate)
+		`, pos)
+		if err != nil {
+			return fmt.Errorf("failed to insert cash position: %w", err)
+		}
+		id, _ := result.LastInsertId()
+		pos.ID = int(id)
+		return nil
+	}
+
+	_, err := s.db.NamedExec(`
+		UPDATE cash_positions SET
+			bank_name = :bank_name, amount = :amount,
+			account_type = :account_type, interest_rate = :interest_rate
+		WHERE id = :id
+	`, pos)
+	if err != nil {
+		return fmt.Errorf("failed to update cash position: %w", err)
+	}
+	return nil
+}
+
+// DeleteCashPosition removes a cash position by ID.
+func (s *SQLiteStore) DeleteCashPosition(id int) error {
+	_, err := s.db.Exec(`DELETE FROM cash_positions WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete cash position: %w", err)
 	}
 	return nil
 }

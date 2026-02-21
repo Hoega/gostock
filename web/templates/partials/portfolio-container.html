@@ -2,6 +2,10 @@
 <!-- Tab navigation -->
 <div class="border-b border-gray-200 mb-6">
     <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+        <button hx-get="/portfolio?tab=overview" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "overview"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Vue d'ensemble
+        </button>
         <button hx-get="/portfolio?tab=stocks" hx-target="#portfolio-container" hx-swap="innerHTML"
             class="{{if eq .ActiveTab "stocks"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
             Actions
@@ -10,9 +14,756 @@
             class="{{if eq .ActiveTab "crypto"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
             Crypto
         </button>
+        <button hx-get="/portfolio?tab=cash" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "cash"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Cash
+        </button>
+        <button hx-get="/portfolio?tab=immobilier" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "immobilier"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Immobilier
+        </button>
     </nav>
 </div>
-    {{if eq .ActiveTab "crypto"}}
+    {{if eq .ActiveTab "overview"}}
+    {{template "portfolio-overview.html" .GlobalSummary}}
+    {{else if eq .ActiveTab "cash"}}
+    <!-- Cash form -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Ajouter une position cash</h2>
+        <form id="cash-form"
+              hx-post="/portfolio/cash/positions"
+              hx-target="#cash-results"
+              hx-swap="innerHTML"
+              class="space-y-4">
+            <input type="hidden" name="cash_position_id" id="cash_position_id" value="">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Banque -->
+                <div>
+                    <label for="cash_bank_name" class="block text-sm font-medium text-gray-700">Banque</label>
+                    <input type="text" name="bank_name" id="cash_bank_name" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                        placeholder="Ex: Boursorama, LCL">
+                </div>
+
+                <!-- Type de compte -->
+                <div>
+                    <label for="cash_account_type" class="block text-sm font-medium text-gray-700">Type de compte</label>
+                    <select name="account_type" id="cash_account_type"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="courant">Compte courant</option>
+                        <option value="livret_a">Livret A</option>
+                        <option value="ldds">LDDS</option>
+                        <option value="lep">LEP</option>
+                        <option value="pel">PEL</option>
+                        <option value="cel">CEL</option>
+                        <option value="assurance_vie">Assurance vie (fonds euros)</option>
+                        <option value="compte_terme">Compte &agrave; terme</option>
+                    </select>
+                </div>
+
+                <!-- Montant -->
+                <div>
+                    <label for="cash_amount" class="block text-sm font-medium text-gray-700">Montant (&euro;)</label>
+                    <input type="number" name="amount" id="cash_amount" step="0.01" min="0" required
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+
+                <!-- Taux -->
+                <div>
+                    <label for="cash_interest_rate" class="block text-sm font-medium text-gray-700">Taux annuel (%)</label>
+                    <input type="number" name="interest_rate" id="cash_interest_rate" step="0.01" min="0" value="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" id="cash_submit_btn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Ajouter
+                </button>
+                <button type="button" id="cash_cancel_btn" onclick="cancelCashEdit()" style="display:none"
+                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Annuler
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Cash results area -->
+    <div id="cash-results">
+        {{template "cash-table.html" .CashSummary}}
+    </div>
+
+    <script>
+    function editCashPosition(id, bankName, accountType, amount, interestRate) {
+        document.getElementById('cash_position_id').value = id;
+        document.getElementById('cash_bank_name').value = bankName;
+        document.getElementById('cash_account_type').value = accountType;
+        document.getElementById('cash_amount').value = amount;
+        document.getElementById('cash_interest_rate').value = interestRate;
+
+        var form = document.getElementById('cash-form');
+        form.setAttribute('hx-put', '/portfolio/cash/positions/' + id);
+        form.removeAttribute('hx-post');
+        htmx.process(form);
+
+        document.getElementById('cash_submit_btn').textContent = 'Modifier';
+        document.getElementById('cash_cancel_btn').style.display = '';
+    }
+
+    function cancelCashEdit() {
+        document.getElementById('cash_position_id').value = '';
+        document.getElementById('cash-form').reset();
+
+        var form = document.getElementById('cash-form');
+        form.setAttribute('hx-post', '/portfolio/cash/positions');
+        form.removeAttribute('hx-put');
+        htmx.process(form);
+
+        document.getElementById('cash_submit_btn').textContent = 'Ajouter';
+        document.getElementById('cash_cancel_btn').style.display = 'none';
+    }
+
+    // Taux reglementaires par type de compte
+    // Taux en vigueur au 1er fevrier 2026
+    var tauxReglementaires = {
+        'courant': 0,
+        'livret_a': 1.5,
+        'ldds': 1.5,
+        'lep': 2.5,
+        'pel': 1.75,
+        'cel': 1.50
+    };
+
+    // Auto-fill taux when account type changes (only when adding, not editing)
+    document.getElementById('cash_account_type').addEventListener('change', function() {
+        if (document.getElementById('cash_position_id').value) return; // skip in edit mode
+        var taux = tauxReglementaires[this.value];
+        if (taux !== undefined) {
+            document.getElementById('cash_interest_rate').value = taux;
+        }
+    });
+
+    // Reset form after successful submission
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'cash-results') {
+            cancelCashEdit();
+        }
+    });
+    </script>
+
+    {{else if eq .ActiveTab "immobilier"}}
+    <!-- Real Estate content -->
+    {{with .RealEstateSummary}}
+    {{if gt .SliderMax .SliderMin}}
+    <!-- Date slider -->
+    <div class="bg-white shadow rounded-lg p-4 mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-600">Date de projection</h3>
+            <span id="slider-date-label" class="text-sm font-medium text-indigo-600">
+                {{printf "%02d" .AtMonth}}/{{.AtYear}}
+            </span>
+        </div>
+        <input type="range"
+               id="date-slider"
+               min="{{.SliderMin}}"
+               max="{{.SliderMax}}"
+               value="{{.SliderValue}}"
+               class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+               hx-get="/portfolio"
+               hx-trigger="change"
+               hx-target="#portfolio-container"
+               hx-swap="innerHTML"
+               hx-vals='js:{tab: "immobilier", year: Math.floor(parseInt(document.getElementById("date-slider").value) / 12), month: (parseInt(document.getElementById("date-slider").value) % 12) + 1}'
+        >
+        <div class="flex justify-between text-xs text-gray-500 mt-1">
+            <span>{{printf "%02d/%d" (intAdd (mod .SliderMin 12) 1) (intDiv .SliderMin 12)}}</span>
+            <span>{{printf "%02d/%d" (intAdd (mod .SliderMax 12) 1) (intDiv .SliderMax 12)}}</span>
+        </div>
+        <script>
+        (function() {
+            var slider = document.getElementById('date-slider');
+            var label = document.getElementById('slider-date-label');
+            if (slider && label) {
+                slider.addEventListener('input', function() {
+                    var absMonth = parseInt(this.value);
+                    var year = Math.floor(absMonth / 12);
+                    var month = (absMonth % 12) + 1;
+                    label.textContent = String(month).padStart(2, '0') + '/' + year;
+                });
+            }
+        })();
+        </script>
+    </div>
+    {{end}}
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Valeur des biens</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .TotalPropertyValue}} &euro;</p>
+        </div>
+        <div class="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Capital restant d&ucirc;</h3>
+            <p class="text-xl font-bold text-red-600">{{formatMoney .TotalLoanBalance}} &euro;</p>
+        </div>
+        <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Capital amorti</h3>
+            <p class="text-xl font-bold text-green-600">{{formatMoney .TotalAmortized}} &euro;</p>
+        </div>
+        <div class="bg-gradient-to-r from-purple-50 to-fuchsia-50 border border-purple-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600">Patrimoine net immobilier</h3>
+            <p class="text-xl font-bold text-gray-900">{{formatMoney .NetEquity}} &euro;</p>
+        </div>
+    </div>
+
+    {{if gt (len .Properties) 0}}
+    {{range .Properties}}
+    <div class="bg-white shadow rounded-lg p-6 mb-6">
+        <div class="flex items-center justify-between border-b border-gray-200 pb-3 mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">{{.Label}}</h2>
+            <div class="text-right">
+                <p class="text-sm text-gray-500">Valeur estim&eacute;e</p>
+                <p class="text-lg font-bold text-gray-900">{{formatMoney .PropertyValue}} &euro;</p>
+            </div>
+        </div>
+
+        <!-- Property summary -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="text-center p-3 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500">Capital restant d&ucirc;</p>
+                <p class="text-lg font-bold text-red-600">{{formatMoney .TotalLoanBalance}} &euro;</p>
+            </div>
+            <div class="text-center p-3 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500">Capital amorti</p>
+                <p class="text-lg font-bold text-green-600">{{formatMoney .TotalAmortized}} &euro;</p>
+            </div>
+            <div class="text-center p-3 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500">&Eacute;quit&eacute; nette</p>
+                <p class="text-lg font-bold text-indigo-600">{{formatMoney .NetEquity}} &euro;</p>
+            </div>
+        </div>
+
+        {{if gt (len .Loans) 0}}
+        <!-- Loans table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left font-medium text-gray-500">Pr&ecirc;t</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Montant initial</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">CRD</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Capital amorti</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Taux</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Mensualit&eacute;</th>
+                        <th class="px-3 py-2 text-center font-medium text-gray-500">P&eacute;riode</th>
+                        <th class="px-3 py-2 text-right font-medium text-gray-500">Progression</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {{range .Loans}}
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-3 py-2 font-medium text-gray-900">{{.Label}}</td>
+                        <td class="px-3 py-2 text-right">{{formatMoney .OriginalAmount}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-red-600 font-medium">{{formatMoney .RemainingBalance}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-green-600 font-medium">{{formatMoney .AmortizedCapital}} &euro;</td>
+                        <td class="px-3 py-2 text-right">{{printf "%.2f" .Rate}}%</td>
+                        <td class="px-3 py-2 text-right">
+                            {{formatMoney .MonthlyPayment}} &euro;
+                            {{if gt .MonthlyInsurance 0.0}}
+                            <div class="text-xs text-gray-400">dont assurance {{formatMoney .MonthlyInsurance}} &euro;</div>
+                            {{end}}
+                        </td>
+                        <td class="px-3 py-2 text-center text-xs text-gray-500">{{.StartDate}} &rarr; {{.EndDate}}</td>
+                        <td class="px-3 py-3 text-right" style="min-width: 120px;">
+                            <div class="flex items-center gap-2 justify-end">
+                                <div class="flex-1 bg-gray-200 rounded-full h-2.5 max-w-[80px]">
+                                    <div class="bg-indigo-600 h-2.5 rounded-full" style="width: {{printf "%.1f" .ProgressPct}}%"></div>
+                                </div>
+                                <span class="text-xs font-medium text-gray-600">{{printf "%.1f" .ProgressPct}}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                {{if gt (len .Loans) 1}}
+                <tfoot class="bg-gray-100 font-semibold">
+                    <tr>
+                        <td class="px-3 py-2 text-gray-900">Total</td>
+                        <td class="px-3 py-2 text-right">{{formatMoney .TotalOriginalAmount}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-red-600">{{formatMoney .TotalLoanBalance}} &euro;</td>
+                        <td class="px-3 py-2 text-right text-green-600">{{formatMoney .TotalAmortized}} &euro;</td>
+                        <td class="px-3 py-2"></td>
+                        <td class="px-3 py-2 text-right">{{formatMoney .TotalMonthlyPayment}} &euro;</td>
+                        <td class="px-3 py-2"></td>
+                        <td class="px-3 py-2"></td>
+                    </tr>
+                </tfoot>
+                {{end}}
+            </table>
+        </div>
+        {{end}}
+
+        {{if gt (len .PaymentSchedule) 0}}
+        <!-- Payment composition chart -->
+        <div class="mt-6">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">Composition des mensualit&eacute;s dans le temps</h3>
+            <canvas id="paymentScheduleChart-{{.Label}}" height="200"></canvas>
+        </div>
+        <script>
+        (function() {
+            var schedule = {{toJSON .PaymentSchedule}};
+            var loans = {{toJSON .Loans}};
+            var startYear = {{.StartYear}};
+            var startMonth = {{.StartMonth}};
+            var canvasId = 'paymentScheduleChart-' + {{toJSON .Label}};
+            var ctx = document.getElementById(canvasId);
+            if (!ctx || !schedule || schedule.length === 0) return;
+
+            var step = 1;
+            var numLoans = loans.length;
+
+            // Build sampled data: one dataset per (loan x type)
+            // Types: Capital, Int\u00e9r\u00eats, Assurance
+            var labels = [];
+            // Store raw schedule indices for tooltip lookup
+            var scheduleIndices = [];
+
+            // Per-loan, per-type data arrays
+            var capitalData = [];   // [loan][point]
+            var interestData = [];
+            var insuranceData = [];
+            var crdData = [];       // [loan][point] CRD (capital restant dû)
+            var crdRunning = [];    // running CRD per loan
+            for (var l = 0; l < numLoans; l++) {
+                capitalData.push([]);
+                interestData.push([]);
+                insuranceData.push([]);
+                crdData.push([]);
+                crdRunning.push(loans[l].OriginalAmount || 0);
+            }
+
+            // We need to iterate all months to compute CRD correctly (cumulative)
+            var pointIndex = 0;
+            for (var i = 0; i < schedule.length; i++) {
+                for (var l = 0; l < numLoans; l++) {
+                    var p = (schedule[i].Payments && schedule[i].Payments[l]) ? schedule[i].Payments[l] : {};
+                    crdRunning[l] -= (p.Principal || 0);
+                    if (crdRunning[l] < 0) crdRunning[l] = 0;
+                }
+                if (i % step === 0) {
+                    labels.push(schedule[i].Label);
+                    scheduleIndices.push(i);
+                    for (var l = 0; l < numLoans; l++) {
+                        var p = (schedule[i].Payments && schedule[i].Payments[l]) ? schedule[i].Payments[l] : {};
+                        capitalData[l].push(p.Principal || 0);
+                        interestData[l].push(p.Interest || 0);
+                        insuranceData[l].push(p.Insurance || 0);
+                        crdData[l].push(Math.round(crdRunning[l] * 100) / 100);
+                    }
+                }
+            }
+
+            // Colors per loan (base)
+            var loanColors = [
+                [99, 102, 241],   // indigo
+                [16, 185, 129],   // emerald
+                [245, 158, 11],   // amber
+                [244, 63, 94],    // rose
+                [6, 182, 212],    // cyan
+                [168, 85, 247]    // purple
+            ];
+
+            // Build datasets: for each loan, 3 stacked datasets (capital, int\u00e9r\u00eats, assurance)
+            // Capital = full opacity, Int\u00e9r\u00eats = medium, Assurance = light
+            var datasets = [];
+            for (var l = 0; l < numLoans; l++) {
+                var c = loanColors[l % loanColors.length];
+                // Capital (full color)
+                datasets.push({
+                    label: loans[l].Label + ' - Capital',
+                    data: capitalData[l],
+                    backgroundColor: 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ', 0.85)',
+                    stack: 'stack',
+                    loanIndex: l,
+                    payType: 'capital'
+                });
+                // Int\u00e9r\u00eats (medium opacity)
+                datasets.push({
+                    label: loans[l].Label + ' - Int\u00e9r\u00eats',
+                    data: interestData[l],
+                    backgroundColor: 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ', 0.5)',
+                    stack: 'stack',
+                    loanIndex: l,
+                    payType: 'interest'
+                });
+                // Assurance (light)
+                datasets.push({
+                    label: loans[l].Label + ' - Assurance',
+                    data: insuranceData[l],
+                    backgroundColor: 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ', 0.25)',
+                    stack: 'stack',
+                    loanIndex: l,
+                    payType: 'insurance'
+                });
+            }
+
+            // "Aujourd'hui" annotation
+            var now = new Date();
+            var todayIndex = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1) - startMonth;
+            if (step > 1) todayIndex = Math.round(todayIndex / step);
+            if (todayIndex < 0 || todayIndex >= labels.length) todayIndex = -1;
+
+            var annotation = {};
+            if (todayIndex >= 0) {
+                annotation = {
+                    annotations: {
+                        todayLine: {
+                            type: 'line',
+                            xMin: todayIndex, xMax: todayIndex,
+                            borderColor: 'rgba(239, 68, 68, 0.8)',
+                            borderWidth: 2, borderDash: [5, 5],
+                            label: {
+                                display: true, content: "Aujourd'hui", position: 'start',
+                                backgroundColor: 'rgba(239, 68, 68, 0.8)', color: '#fff', font: { size: 11 }
+                            }
+                        }
+                    }
+                };
+            }
+
+            var fmt = function(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' \u20ac'; };
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            ticks: { maxTicksLimit: 20, maxRotation: 45, minRotation: 0 }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { callback: function(v) { return v.toLocaleString('fr-FR') + ' \u20ac'; } }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                // Show only one entry per loan (not 3)
+                                filter: function(item) {
+                                    return item.text.indexOf('Capital') !== -1;
+                                },
+                                generateLabels: function(chart) {
+                                    var defaultLabels = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                                    return defaultLabels.filter(function(lb) {
+                                        return lb.text.indexOf('Capital') !== -1;
+                                    }).map(function(lb) {
+                                        lb.text = lb.text.replace(' - Capital', '');
+                                        return lb;
+                                    });
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(items) {
+                                    return items[0].label;
+                                },
+                                // Custom tooltip: group by loan, show breakdown
+                                label: function() { return null; },
+                                afterBody: function(items) {
+                                    if (items.length === 0) return '';
+                                    var idx = scheduleIndices[items[0].dataIndex];
+                                    var pt = schedule[idx];
+                                    if (!pt || !pt.Payments) return '';
+                                    var lines = [];
+                                    var grandTotal = 0;
+                                    var dataIdx = items[0].dataIndex;
+                                    var totalCrd = 0;
+                                    for (var l = 0; l < numLoans; l++) {
+                                        var p = pt.Payments[l];
+                                        if (!p || p.Total === 0) continue;
+                                        lines.push('');
+                                        lines.push(loans[l].Label + ' : ' + fmt(p.Total));
+                                        if (p.Principal > 0) lines.push('  Capital : ' + fmt(p.Principal));
+                                        if (p.Interest > 0) {
+                                            // Si pas de capital remboursé, c'est une période de différé
+                                            var intLabel = (p.Principal === 0) ? '  Int. intercalaires' : '  Intérêts';
+                                            lines.push(intLabel + ' : ' + fmt(p.Interest));
+                                        }
+                                        if (p.Insurance > 0) lines.push('  Assurance : ' + fmt(p.Insurance));
+                                        var loanCrd = crdData[l][dataIdx];
+                                        lines.push('  CRD : ' + fmt(loanCrd));
+                                        grandTotal += p.Total;
+                                        totalCrd += loanCrd;
+                                    }
+                                    lines.push('');
+                                    lines.push('Total mensualité : ' + fmt(grandTotal));
+                                    if (numLoans > 1) lines.push('CRD total : ' + fmt(totalCrd));
+                                    return lines;
+                                }
+                            }
+                        },
+                        annotation: annotation
+                    }
+                }
+            });
+        })();
+        </script>
+
+        <!-- Cumulative amortized capital chart -->
+        <div class="mt-6">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">Capital amorti cumul&eacute; dans le temps</h3>
+            <canvas id="cumulativeAmortChart-{{.Label}}" height="200"></canvas>
+        </div>
+        <script>
+        (function() {
+            var schedule = {{toJSON .PaymentSchedule}};
+            var loans = {{toJSON .Loans}};
+            var startYear = {{.StartYear}};
+            var startMonth = {{.StartMonth}};
+            var canvasId = 'cumulativeAmortChart-' + {{toJSON .Label}};
+            var ctx = document.getElementById(canvasId);
+            if (!ctx || !schedule || schedule.length === 0) return;
+
+            // Dynamic step based on schedule length for readability
+            var step = 1;
+            if (schedule.length > 120) step = 12;      // > 10 years: yearly
+            else if (schedule.length > 60) step = 6;   // > 5 years: semi-annual
+            else if (schedule.length > 24) step = 3;   // > 2 years: quarterly
+
+            var numLoans = loans.length;
+
+            var labels = [];
+            var cumulData = []; // [loan][point]
+            var cumul = [];     // running totals per loan
+            for (var l = 0; l < numLoans; l++) {
+                cumulData.push([]);
+                cumul.push(0);
+            }
+
+            for (var i = 0; i < schedule.length; i++) {
+                for (var l = 0; l < numLoans; l++) {
+                    var p = (schedule[i].Payments && schedule[i].Payments[l]) ? schedule[i].Payments[l] : {};
+                    cumul[l] += (p.Principal || 0);
+                }
+                if (i % step === 0) {
+                    labels.push(schedule[i].Label);
+                    for (var l = 0; l < numLoans; l++) {
+                        cumulData[l].push(Math.round(cumul[l] * 100) / 100);
+                    }
+                }
+            }
+
+            var loanColors = [
+                [99, 102, 241],   // indigo
+                [16, 185, 129],   // emerald
+                [245, 158, 11],   // amber
+                [244, 63, 94],    // rose
+                [6, 182, 212],    // cyan
+                [168, 85, 247]    // purple
+            ];
+
+            var datasets = [];
+            for (var l = 0; l < numLoans; l++) {
+                var c = loanColors[l % loanColors.length];
+                datasets.push({
+                    label: loans[l].Label,
+                    data: cumulData[l],
+                    backgroundColor: 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ', 0.3)',
+                    borderColor: 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ', 0.9)',
+                    borderWidth: 2,
+                    fill: true,
+                    pointRadius: 0,
+                    tension: 0.1
+                });
+            }
+
+            // "Aujourd'hui" annotation
+            var now = new Date();
+            var todayIndex = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1) - startMonth;
+            if (step > 1) todayIndex = Math.round(todayIndex / step);
+            if (todayIndex < 0 || todayIndex >= labels.length) todayIndex = -1;
+
+            var annotation = {};
+            if (todayIndex >= 0) {
+                annotation = {
+                    annotations: {
+                        todayLine: {
+                            type: 'line',
+                            xMin: todayIndex, xMax: todayIndex,
+                            borderColor: 'rgba(239, 68, 68, 0.8)',
+                            borderWidth: 2, borderDash: [5, 5],
+                            label: {
+                                display: true, content: "Aujourd'hui", position: 'start',
+                                backgroundColor: 'rgba(239, 68, 68, 0.8)', color: '#fff', font: { size: 11 }
+                            }
+                        }
+                    }
+                };
+            }
+
+            var fmt = function(v) { return v.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' \u20ac'; };
+
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 20, maxRotation: 45, minRotation: 0 }
+                        },
+                        y: {
+                            stacked: true,
+                            ticks: { callback: function(v) { return v.toLocaleString('fr-FR') + ' \u20ac'; } }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true },
+                        tooltip: {
+                            callbacks: {
+                                title: function(items) { return items[0].label; },
+                                label: function() { return null; },
+                                afterBody: function(items) {
+                                    if (items.length === 0) return '';
+                                    var idx = items[0].dataIndex;
+                                    var lines = [];
+                                    var total = 0;
+                                    for (var l = 0; l < numLoans; l++) {
+                                        var val = cumulData[l][idx];
+                                        if (val > 0) {
+                                            lines.push(loans[l].Label + ' : ' + fmt(val));
+                                            total += val;
+                                        }
+                                    }
+                                    lines.push('');
+                                    lines.push('Total amorti : ' + fmt(total));
+                                    return lines;
+                                }
+                            }
+                        },
+                        annotation: annotation
+                    }
+                }
+            });
+        })();
+        </script>
+        {{end}}
+
+    </div>
+    {{end}}
+
+    {{if gt .TotalPropertyValue 0.0}}
+    <!-- Doughnut chart: Equity vs Remaining debt -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">R&eacute;partition patrimoine immobilier</h3>
+            <canvas id="realEstateEquityChart" height="200"></canvas>
+        </div>
+        {{if gt (len .Properties) 1}}
+        <div class="bg-white shadow rounded-lg p-6">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">&Eacute;quit&eacute; par bien</h3>
+            <canvas id="realEstatePropertyChart" height="200"></canvas>
+        </div>
+        {{end}}
+    </div>
+
+    <script>
+    (function() {
+        var equityCtx = document.getElementById('realEstateEquityChart');
+        if (equityCtx) {
+            new Chart(equityCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['\u00c9quit\u00e9 nette', 'Capital restant d\u00fb'],
+                    datasets: [{
+                        data: [{{.NetEquity}}, {{.TotalLoanBalance}}],
+                        backgroundColor: [
+                            'rgba(99, 102, 241, 0.7)',
+                            'rgba(239, 68, 68, 0.5)'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var val = ctx.parsed;
+                                    var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+                                    return ctx.label + ': ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        {{if gt (len .Properties) 1}}
+        var propCtx = document.getElementById('realEstatePropertyChart');
+        if (propCtx) {
+            var propLabels = [];
+            var propValues = [];
+            var propColors = [
+                'rgba(99, 102, 241, 0.7)',
+                'rgba(59, 130, 246, 0.7)',
+                'rgba(16, 185, 129, 0.7)',
+                'rgba(245, 158, 11, 0.7)'
+            ];
+            {{range .Properties}}
+            propLabels.push({{toJSON .Label}});
+            propValues.push({{.NetEquity}});
+            {{end}}
+            new Chart(propCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: propLabels,
+                    datasets: [{
+                        data: propValues,
+                        backgroundColor: propColors.slice(0, propLabels.length)
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    var val = ctx.parsed;
+                                    var total = ctx.dataset.data.reduce(function(a, b) { return a + b; }, 0);
+                                    var pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+                                    return ctx.label + ': ' + val.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac (' + pct + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        {{end}}
+    })();
+    </script>
+    {{end}}
+
+    {{else}}
+    <div class="bg-white shadow rounded-lg p-6 text-center text-gray-500">
+        <p>Aucune donn&eacute;e immobili&egrave;re trouv&eacute;e.</p>
+        <p class="text-sm mt-2">Renseignez vos pr&ecirc;ts dans le <a href="/credit" class="text-indigo-600 hover:underline">simulateur de cr&eacute;dit</a> pour voir votre patrimoine immobilier ici.</p>
+    </div>
+    {{end}}
+    {{end}}
+
+    {{else if eq .ActiveTab "crypto"}}
     <!-- Crypto form -->
     <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Ajouter une position crypto</h2>

@@ -119,6 +119,10 @@ type Store interface {
 	ResetRemainingQuantity(id int) error
 	GetStockPurchaseNameByISIN(isin string) (string, string, error)
 	GetEarliestPurchaseDateByISIN(isin string) (string, error)
+	// Cash positions
+	LoadCashPositions() ([]CashPosition, error)
+	SaveCashPosition(pos *CashPosition) error
+	DeleteCashPosition(id int) error
 	Close() error
 }
 
@@ -196,6 +200,15 @@ type StockPurchase struct {
 	PurchaseDate      string  `db:"purchase_date"`
 	Currency          string  `db:"currency"`
 	RemainingQuantity float64 `db:"remaining_quantity"`
+}
+
+// CashPosition represents a cash position in a bank account (persistence layer).
+type CashPosition struct {
+	ID           int     `db:"id"`
+	BankName     string  `db:"bank_name"`
+	Amount       float64 `db:"amount"`
+	AccountType  string  `db:"account_type"`
+	InterestRate float64 `db:"interest_rate"`
 }
 
 // DefaultInputs returns the default form values.
