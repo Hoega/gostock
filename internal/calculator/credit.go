@@ -1289,60 +1289,9 @@ func ComputeLoanRemainingBalance(line model.LoanLine, atYear, atMonth int) (rema
 		return 0, 0, 0, 0
 	}
 
-	// Si l'utilisateur a saisi un CRD (Balance), l'utiliser directement
-	// Cela garantit que: Montant emprunté - CRD = Capital amorti
-	if line.Balance > 0 {
-		remaining = round2(line.Balance)
-		amortized = round2(line.OriginalAmount - line.Balance)
-
-		// Calculer la mensualité basée sur le CRD et le temps restant
-		totalDurationMonths := line.DurationYears*12 + line.DeferralMonths
-		if line.DurationYears <= 0 && len(line.Tiers) > 0 {
-			lastEnd := 0
-			for _, t := range line.Tiers {
-				if t.EndMonth > lastEnd {
-					lastEnd = t.EndMonth
-				}
-			}
-			totalDurationMonths = lastEnd + line.DeferralMonths
-		}
-
-		// Calcul des mois écoulés
-		monthsElapsed := 0
-		if line.StartYear > 0 {
-			startMonths := line.StartYear*12 + line.StartMonth
-			currentMonths := atYear*12 + atMonth
-			monthsElapsed = currentMonths - startMonths
-			if monthsElapsed < 0 {
-				monthsElapsed = 0
-			}
-		}
-
-		remainingMonths := totalDurationMonths - monthsElapsed
-		if remainingMonths <= 0 {
-			remainingMonths = 1 // Éviter division par zéro
-		}
-
-		monthlyRate := line.Rate / 100 / 12
-		if monthlyRate == 0 {
-			monthly = line.Balance / float64(remainingMonths)
-		} else {
-			monthly = line.Balance * monthlyRate / (1 - math.Pow(1+monthlyRate, float64(-remainingMonths)))
-		}
-
-		// Assurance
-		var monthlyInsurance float64
-		if line.InsuranceMonthly > 0 {
-			monthlyInsurance = line.InsuranceMonthly
-		} else {
-			monthlyInsurance = line.InsuranceRate / 100 / 12 * line.OriginalAmount
-		}
-		monthly += monthlyInsurance
-
-		monthly = round2(monthly)
-		insurance = round2(monthlyInsurance)
-		return remaining, amortized, monthly, insurance
-	}
+	// Si l'utilisateur a saisi un CRD (Balance), l'utiliser pour remaining/amortized
+	// mais calculer la mensualité à partir du montant initial (elle ne change pas)
+	userBalance := line.Balance
 
 	// Derive total duration from tiers if DurationYears is not set
 	totalDurationMonths := line.DurationYears*12 + line.DeferralMonths
@@ -1454,8 +1403,15 @@ func ComputeLoanRemainingBalance(line model.LoanLine, atYear, atMonth int) (rema
 	}
 	monthly += monthlyInsurance
 
-	remaining = round2(balance)
-	amortized = round2(line.OriginalAmount - balance)
+	// Si l'utilisateur a saisi un CRD, utiliser cette valeur pour remaining/amortized
+	// mais garder la mensualité calculée (elle est basée sur le montant initial)
+	if userBalance > 0 {
+		remaining = round2(userBalance)
+		amortized = round2(line.OriginalAmount - userBalance)
+	} else {
+		remaining = round2(balance)
+		amortized = round2(line.OriginalAmount - balance)
+	}
 	monthly = round2(monthly)
 	insurance = round2(monthlyInsurance)
 	return

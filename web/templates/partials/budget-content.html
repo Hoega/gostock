@@ -1,0 +1,498 @@
+{{define "budget-content.html"}}
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <!-- Form (left column) -->
+    <div class="xl:col-span-1">
+        <form hx-post="/budget/save" hx-target="#budget-content" hx-swap="innerHTML"
+              class="bg-white shadow rounded-lg p-6 space-y-6">
+
+            <!-- Revenus -->
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 mb-3 border-b pb-2">Revenus</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Salaire brut mensuel (&euro;)</label>
+                        <input type="number" name="gross_salary" value="{{.Inputs.GrossSalary}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Salaire net mensuel (&euro;)</label>
+                        <input type="number" name="net_salary" value="{{.Inputs.NetSalary}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Dividendes mensuels (&euro;)</label>
+                        <input type="number" name="dividends" value="{{.Inputs.Dividends}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Revenus locatifs (&euro;)</label>
+                        <input type="number" name="rental_income" value="{{.Inputs.RentalIncome}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Autres revenus (&euro;)</label>
+                        <input type="number" name="other_income" value="{{.Inputs.OtherIncome}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charges -->
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 mb-3 border-b pb-2">Charges</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Imp&ocirc;t sur le revenu mensuel (&euro;)</label>
+                        <input type="number" name="income_tax" value="{{.Inputs.IncomeTax}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    {{if .HasMortgage}}
+                    <div class="bg-blue-50 border border-blue-200 rounded-md p-3">
+                        <p class="text-sm font-medium text-blue-800 mb-2">Cr&eacute;dit immobilier (auto-d&eacute;tect&eacute;)</p>
+                        <div class="grid grid-cols-3 gap-2 text-sm text-blue-700">
+                            <div>
+                                <span class="block text-xs text-blue-500">Capital</span>
+                                <span class="font-semibold">{{formatMoney .MortgageCapital}} &euro;</span>
+                            </div>
+                            <div>
+                                <span class="block text-xs text-blue-500">Int&eacute;r&ecirc;ts</span>
+                                <span class="font-semibold">{{formatMoney .MortgageInterest}} &euro;</span>
+                            </div>
+                            <div>
+                                <span class="block text-xs text-blue-500">Assurance</span>
+                                <span class="font-semibold">{{formatMoney .MortgageInsurance}} &euro;</span>
+                            </div>
+                        </div>
+                        <p class="text-xs text-blue-500 mt-1">Total : {{formatMoney .MortgageTotal}} &euro;/mois</p>
+                    </div>
+                    {{else}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Loyer (&euro;)</label>
+                        <input type="number" name="housing" value="{{.Inputs.Housing}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    {{end}}
+                    <!-- Dépenses courantes (dynamic list) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">D&eacute;penses courantes</label>
+                        <div id="lifestyle-list" class="space-y-2">
+                            {{range $i, $item := .LifestyleItems}}
+                            <div class="flex items-center gap-2 lifestyle-row">
+                                <input type="text" placeholder="Nom" value="{{$item.Name}}"
+                                       class="life-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <input type="number" placeholder="Montant" value="{{$item.Amount}}" step="0.01" min="0"
+                                       class="life-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <button type="button" onclick="this.closest('.lifestyle-row').remove()"
+                                        class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+                            </div>
+                            {{end}}
+                        </div>
+                        <button type="button" id="add-lifestyle"
+                                class="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Ajouter une d&eacute;pense</button>
+                        <input type="hidden" name="lifestyle_json" id="lifestyle-json-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Transport (&euro;)</label>
+                        <input type="number" name="transport" value="{{.Inputs.Transport}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assurances (&euro;)</label>
+                        <input type="number" name="insurance" value="{{.Inputs.Insurance}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Mode de garde (&euro;)</label>
+                        <input type="number" name="childcare" value="{{.Inputs.Childcare}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Tickets restaurant (&euro;)</label>
+                        <input type="number" name="meal_vouchers" value="{{.Inputs.MealVouchers}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <!-- Abonnements (dynamic list) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Abonnements</label>
+                        <div id="subscriptions-list" class="space-y-2">
+                            {{range $i, $item := .SubscriptionItems}}
+                            <div class="flex items-center gap-2 subscription-row">
+                                <input type="text" placeholder="Nom" value="{{$item.Name}}"
+                                       class="sub-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <input type="number" placeholder="Montant" value="{{$item.Amount}}" step="0.01" min="0"
+                                       class="sub-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <button type="button" onclick="this.closest('.subscription-row').remove()"
+                                        class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+                            </div>
+                            {{end}}
+                        </div>
+                        <button type="button" id="add-subscription"
+                                class="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Ajouter un abonnement</button>
+                        <input type="hidden" name="subscriptions_json" id="subscriptions-json-input">
+                    </div>
+                    <!-- Autres dépenses (dynamic list) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Autres d&eacute;penses</label>
+                        <div id="other-expenses-list" class="space-y-2">
+                            {{range $i, $item := .OtherExpensesItems}}
+                            <div class="flex items-center gap-2 other-expense-row">
+                                <input type="text" placeholder="Nom" value="{{$item.Name}}"
+                                       class="oexp-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <input type="number" placeholder="Montant" value="{{$item.Amount}}" step="0.01" min="0"
+                                       class="oexp-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                                <button type="button" onclick="this.closest('.other-expense-row').remove()"
+                                        class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+                            </div>
+                            {{end}}
+                        </div>
+                        <button type="button" id="add-other-expense"
+                                class="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium">+ Ajouter une d&eacute;pense</button>
+                        <input type="hidden" name="other_expenses_json" id="other-expenses-json-input">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Épargne -->
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900 mb-3 border-b pb-2">&Eacute;pargne</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">PEA (&euro;)</label>
+                        <input type="number" name="pea" value="{{.Inputs.PEA}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assurance Vie (&euro;)</label>
+                        <input type="number" name="assurance_vie" value="{{.Inputs.AssuranceVie}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">PER (&euro;)</label>
+                        <input type="number" name="per" value="{{.Inputs.PER}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Livret A (&euro;)</label>
+                        <input type="number" name="livret_a" value="{{.Inputs.LivretA}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Crypto (&euro;)</label>
+                        <input type="number" name="crypto_savings" value="{{.Inputs.CryptoSavings}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Autres &eacute;pargnes (&euro;)</label>
+                        <input type="number" name="other_savings" value="{{.Inputs.OtherSavings}}" step="1" min="0"
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit"
+                    class="w-full bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 font-medium">
+                Sauvegarder
+            </button>
+        </form>
+    </div>
+
+    <!-- Sankey Diagram (right columns) -->
+    <div class="xl:col-span-2">
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Diagramme de flux</h2>
+            <div id="sankey-chart" style="min-height: 700px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    function renderSankey() {
+        fetch('/budget/sankey')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.nodes || data.nodes.length === 0 || !data.links || data.links.length === 0) {
+                    document.getElementById('sankey-chart').innerHTML =
+                        '<p class="text-gray-400 text-center py-20">Remplissez le formulaire pour visualiser vos flux financiers.</p>';
+                    return;
+                }
+                drawSankey(data);
+            })
+            .catch(err => {
+                console.error('Sankey fetch error:', err);
+                document.getElementById('sankey-chart').innerHTML =
+                    '<p class="text-red-400 text-center py-20">Erreur de chargement du diagramme.</p>';
+            });
+    }
+
+    function drawSankey(data) {
+        const container = document.getElementById('sankey-chart');
+        container.innerHTML = '';
+
+        const margin = {top: 20, right: 180, bottom: 20, left: 20};
+        const width = container.clientWidth - margin.left - margin.right;
+        const height = Math.max(700, data.nodes.length * 50) - margin.top - margin.bottom;
+
+        const svg = d3.select('#sankey-chart')
+            .append('svg')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+            .append('g')
+            .attr('transform', `translate(${margin.left},${margin.top})`);
+
+        const sankey = d3.sankey()
+            .nodeId(d => d.index)
+            .nodeWidth(20)
+            .nodePadding(20)
+            .extent([[0, 0], [width, height]])
+            .iterations(64);
+
+        const graph = sankey({
+            nodes: data.nodes.map((d, i) => Object.assign({}, d, {index: i})),
+            links: data.links.map(d => Object.assign({}, d))
+        });
+
+        // Color scale
+        const colorMap = {
+            'Salaire brut': '#6366f1',
+            'Salaire net': '#818cf8',
+            'Dividendes': '#8b5cf6',
+            'Revenus locatifs': '#a78bfa',
+            'Autres revenus': '#c4b5fd',
+            'Revenu disponible': '#4f46e5',
+            'Cotisations sociales': '#ef4444',
+            'Impôt sur le revenu': '#dc2626',
+            'Logement': '#f97316',
+            'Crédit immobilier': '#f97316',
+            'Intérêts': '#ef4444',
+            'Assurance emprunt': '#f59e0b',
+            'Capital amorti': '#10b981',
+            'Dépenses courantes': '#fb923c',
+            'Transport': '#f59e0b',
+            'Assurances': '#eab308',
+            'Mode de garde': '#d946ef',
+            'Tickets restaurant': '#f472b6',
+            'Abonnements': '#facc15',
+            'Autres dépenses': '#fbbf24',
+            'PEA': '#10b981',
+            'Assurance Vie': '#059669',
+            'PER': '#047857',
+            'Livret A': '#34d399',
+            'Crypto': '#06b6d4',
+            'Autres épargnes': '#6ee7b7',
+        };
+
+        function nodeColor(name) {
+            return colorMap[name] || '#94a3b8';
+        }
+
+        // Links
+        svg.append('g')
+            .selectAll('path')
+            .data(graph.links)
+            .join('path')
+            .attr('d', d3.sankeyLinkHorizontal())
+            .attr('fill', 'none')
+            .attr('stroke', d => nodeColor(d.source.name))
+            .attr('stroke-opacity', 0.4)
+            .attr('stroke-width', d => Math.max(1, d.width))
+            .append('title')
+            .text(d => `${d.source.name} → ${d.target.name}: ${d.value.toLocaleString('fr-FR')} €`);
+
+        // Nodes
+        const node = svg.append('g')
+            .selectAll('g')
+            .data(graph.nodes)
+            .join('g');
+
+        node.append('rect')
+            .attr('x', d => d.x0)
+            .attr('y', d => d.y0)
+            .attr('height', d => Math.max(1, d.y1 - d.y0))
+            .attr('width', d => d.x1 - d.x0)
+            .attr('fill', d => nodeColor(d.name))
+            .attr('rx', 3)
+            .append('title')
+            .text(d => `${d.name}: ${d.value.toLocaleString('fr-FR')} €`);
+
+        // Labels (separate group rendered last to stay on top)
+        svg.append('g')
+            .selectAll('text')
+            .data(graph.nodes)
+            .join('text')
+            .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+            .attr('y', d => (d.y1 + d.y0) / 2)
+            .attr('dy', '0.35em')
+            .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+            .attr('font-size', '12px')
+            .attr('fill', '#374151')
+            .text(d => `${d.name} (${d.value.toLocaleString('fr-FR')} €)`);
+    }
+
+    // Render on load and after HTMX swaps
+    if (typeof d3 !== 'undefined' && typeof d3.sankey !== 'undefined') {
+        renderSankey();
+    } else {
+        // Wait for D3 scripts to load
+        let tries = 0;
+        const interval = setInterval(() => {
+            tries++;
+            if ((typeof d3 !== 'undefined' && typeof d3.sankey !== 'undefined') || tries > 50) {
+                clearInterval(interval);
+                if (typeof d3 !== 'undefined' && typeof d3.sankey !== 'undefined') {
+                    renderSankey();
+                }
+            }
+        }, 100);
+    }
+
+    // Re-render after HTMX swap
+    document.body.addEventListener('htmx:afterSwap', function(evt) {
+        if (evt.detail.target.id === 'budget-content') {
+            setTimeout(renderSankey, 50);
+        }
+    });
+
+    // === Subscriptions dynamic list ===
+    function addSubscriptionRow(name, amount) {
+        const list = document.getElementById('subscriptions-list');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 subscription-row';
+        row.innerHTML = `
+            <input type="text" placeholder="Nom" value="${name || ''}"
+                   class="sub-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <input type="number" placeholder="Montant" value="${amount || ''}" step="0.01" min="0"
+                   class="sub-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <button type="button" onclick="this.closest('.subscription-row').remove()"
+                    class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+        `;
+        list.appendChild(row);
+    }
+
+    const addBtn = document.getElementById('add-subscription');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            addSubscriptionRow('', '');
+        });
+    }
+
+    // === Lifestyle dynamic list ===
+    function addLifestyleRow(name, amount) {
+        const list = document.getElementById('lifestyle-list');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 lifestyle-row';
+        row.innerHTML = `
+            <input type="text" placeholder="Nom" value="${name || ''}"
+                   class="life-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <input type="number" placeholder="Montant" value="${amount || ''}" step="0.01" min="0"
+                   class="life-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <button type="button" onclick="this.closest('.lifestyle-row').remove()"
+                    class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+        `;
+        list.appendChild(row);
+    }
+
+    const addLifestyleBtn = document.getElementById('add-lifestyle');
+    if (addLifestyleBtn) {
+        addLifestyleBtn.addEventListener('click', function() {
+            addLifestyleRow('', '');
+        });
+    }
+
+    // Serialize subscriptions to hidden input before form submit
+    function serializeSubscriptions() {
+        const rows = document.querySelectorAll('.subscription-row');
+        const items = [];
+        rows.forEach(function(row) {
+            const name = row.querySelector('.sub-name').value.trim();
+            const amount = parseFloat(row.querySelector('.sub-amount').value) || 0;
+            if (name || amount > 0) {
+                items.push({name: name, amount: amount});
+            }
+        });
+        const input = document.getElementById('subscriptions-json-input');
+        if (input) {
+            input.value = JSON.stringify(items);
+        }
+    }
+
+    // === Other expenses dynamic list ===
+    function addOtherExpenseRow(name, amount) {
+        const list = document.getElementById('other-expenses-list');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 other-expense-row';
+        row.innerHTML = `
+            <input type="text" placeholder="Nom" value="${name || ''}"
+                   class="oexp-name flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <input type="number" placeholder="Montant" value="${amount || ''}" step="0.01" min="0"
+                   class="oexp-amount w-28 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2">
+            <button type="button" onclick="this.closest('.other-expense-row').remove()"
+                    class="text-red-500 hover:text-red-700 px-2 py-1 text-lg font-bold">&times;</button>
+        `;
+        list.appendChild(row);
+    }
+
+    const addOtherExpenseBtn = document.getElementById('add-other-expense');
+    if (addOtherExpenseBtn) {
+        addOtherExpenseBtn.addEventListener('click', function() {
+            addOtherExpenseRow('', '');
+        });
+    }
+
+    // Serialize lifestyle items to hidden input
+    function serializeLifestyle() {
+        const rows = document.querySelectorAll('.lifestyle-row');
+        const items = [];
+        rows.forEach(function(row) {
+            const name = row.querySelector('.life-name').value.trim();
+            const amount = parseFloat(row.querySelector('.life-amount').value) || 0;
+            if (name || amount > 0) {
+                items.push({name: name, amount: amount});
+            }
+        });
+        const input = document.getElementById('lifestyle-json-input');
+        if (input) {
+            input.value = JSON.stringify(items);
+        }
+    }
+
+    // Serialize other expenses to hidden input
+    function serializeOtherExpenses() {
+        const rows = document.querySelectorAll('.other-expense-row');
+        const items = [];
+        rows.forEach(function(row) {
+            const name = row.querySelector('.oexp-name').value.trim();
+            const amount = parseFloat(row.querySelector('.oexp-amount').value) || 0;
+            if (name || amount > 0) {
+                items.push({name: name, amount: amount});
+            }
+        });
+        const input = document.getElementById('other-expenses-json-input');
+        if (input) {
+            input.value = JSON.stringify(items);
+        }
+    }
+
+    // Hook into HTMX request to inject serialized JSON fields
+    document.body.addEventListener('htmx:configRequest', function(evt) {
+        if (evt.detail.path === '/budget/save') {
+            serializeSubscriptions();
+            const subInput = document.getElementById('subscriptions-json-input');
+            if (subInput) {
+                evt.detail.parameters['subscriptions_json'] = subInput.value;
+            }
+            serializeLifestyle();
+            const lifeInput = document.getElementById('lifestyle-json-input');
+            if (lifeInput) {
+                evt.detail.parameters['lifestyle_json'] = lifeInput.value;
+            }
+            serializeOtherExpenses();
+            const oexpInput = document.getElementById('other-expenses-json-input');
+            if (oexpInput) {
+                evt.detail.parameters['other_expenses_json'] = oexpInput.value;
+            }
+        }
+    });
+})();
+</script>
+{{end}}

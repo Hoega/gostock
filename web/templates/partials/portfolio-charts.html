@@ -3,7 +3,7 @@
 <div class="bg-white shadow rounded-lg p-6 mt-6">
     <h2 class="text-xl font-bold text-gray-900 mb-4">R&eacute;partition</h2>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Allocation by broker -->
         <div>
             <h3 class="text-sm font-semibold text-gray-600 text-center mb-2">Par courtier</h3>
@@ -16,11 +16,23 @@
             <canvas id="stockChart" height="250"></canvas>
         </div>
 
-        <!-- Gain/loss per position -->
+        <!-- Allocation by sector -->
         <div>
-            <h3 class="text-sm font-semibold text-gray-600 text-center mb-2">Plus/moins-value</h3>
-            <canvas id="gainChart" height="250"></canvas>
+            <h3 class="text-sm font-semibold text-gray-600 text-center mb-2">Par secteur</h3>
+            <canvas id="sectorChart" height="250"></canvas>
         </div>
+
+        <!-- Allocation by currency -->
+        <div>
+            <h3 class="text-sm font-semibold text-gray-600 text-center mb-2">Par devise</h3>
+            <canvas id="currencyChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- Gain/loss per position — full width -->
+    <div class="mt-6">
+        <h3 class="text-sm font-semibold text-gray-600 text-center mb-2">Plus/moins-value</h3>
+        <canvas id="gainChart" height="80"></canvas>
     </div>
 </div>
 
@@ -41,6 +53,25 @@
         Chargement...
     </div>
     <canvas id="stockTotalChart" height="100" style="display:none;"></canvas>
+</div>
+
+<!-- EUR/USD exchange rate history -->
+<div class="bg-white shadow rounded-lg p-6 mt-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-gray-900">Taux de change EUR/USD</h2>
+        <div class="flex gap-1" id="eurusd-range-btns">
+            <button onclick="loadEURUSDHistory('1m')" class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 transition-colors">1M</button>
+            <button onclick="loadEURUSDHistory('3m')" class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 transition-colors">3M</button>
+            <button onclick="loadEURUSDHistory('1y')" class="px-3 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-700 border border-indigo-300 transition-colors">1A</button>
+            <button onclick="loadEURUSDHistory('5y')" class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 transition-colors">5A</button>
+            <button onclick="loadEURUSDHistory('max')" class="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-300 transition-colors">Max</button>
+        </div>
+    </div>
+    <div id="eurusd-loading" class="flex items-center justify-center py-8 text-gray-400">
+        <svg class="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+        Chargement...
+    </div>
+    <canvas id="eurusdChart" height="100" style="display:none;"></canvas>
 </div>
 
 <!-- Per-asset history chart -->
@@ -68,18 +99,37 @@
 <script>
 (function() {
     // Destroy existing charts if they exist
-    ['brokerChart', 'stockChart', 'gainChart'].forEach(function(id) {
+    ['brokerChart', 'stockChart', 'sectorChart', 'currencyChart', 'gainChart'].forEach(function(id) {
         var existing = Chart.getChart(id);
         if (existing) existing.destroy();
     });
 
     var brokerLabels = {{toJSON .BrokerLabels}};
     var brokerValues = {{toJSON .BrokerValues}};
+    var brokerStocks = {{toJSON .BrokerStocks}};
     var stockLabels = {{toJSON .StockLabels}};
     var stockValues = {{toJSON .StockValues}};
     var gainLabels = {{toJSON .GainLabels}};
     var gainValues = {{toJSON .GainValues}};
     var gainColors = {{toJSON .GainColors}};
+    var sectorLabels = {{toJSON .SectorLabels}};
+    var sectorValues = {{toJSON .SectorValues}};
+    var sectorStocks = {{toJSON .SectorStocks}};
+    var currencyLabels = {{toJSON .CurrencyLabels}};
+    var currencyValues = {{toJSON .CurrencyValues}};
+    var currencyStocks = {{toJSON .CurrencyStocks}};
+
+    function stocksTooltip(stocksArr) {
+        return {
+            callbacks: {
+                afterLabel: function(context) {
+                    var stocks = stocksArr && stocksArr[context.dataIndex];
+                    if (!stocks || !stocks.length) return '';
+                    return stocks.map(function(s) { return '• ' + s; });
+                }
+            }
+        };
+    }
 
     var pieColors = [
         'rgba(99, 102, 241, 0.7)',
@@ -104,7 +154,8 @@
         options: {
             responsive: true,
             plugins: {
-                legend: { position: 'bottom' }
+                legend: { position: 'bottom' },
+                tooltip: stocksTooltip(brokerStocks)
             }
         }
     });
@@ -122,6 +173,42 @@
             responsive: true,
             plugins: {
                 legend: { position: 'bottom' }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('sectorChart'), {
+        type: 'pie',
+        data: {
+            labels: sectorLabels,
+            datasets: [{
+                data: sectorValues,
+                backgroundColor: pieColors.slice(0, sectorLabels.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: stocksTooltip(sectorStocks)
+            }
+        }
+    });
+
+    new Chart(document.getElementById('currencyChart'), {
+        type: 'pie',
+        data: {
+            labels: currencyLabels,
+            datasets: [{
+                data: currencyValues,
+                backgroundColor: pieColors.slice(0, currencyLabels.length)
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: stocksTooltip(currencyStocks)
             }
         }
     });
@@ -242,6 +329,76 @@
 
     // Load default (1y)
     loadStockTotalHistory('1y');
+
+    // --- EUR/USD exchange rate history ---
+    var eurusdLineOpts = {
+        responsive: true,
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                callbacks: {
+                    title: function(items) {
+                        if (!items.length) return '';
+                        return new Date(items[0].parsed.x).toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'numeric'});
+                    },
+                    label: function(item) {
+                        return '1 EUR = ' + item.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits:4, maximumFractionDigits:4}) + ' USD';
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                type: 'time',
+                time: { tooltipFormat: 'dd MMM yyyy' },
+                ticks: { maxTicksLimit: 8 }
+            },
+            y: {
+                ticks: {
+                    callback: function(value) { return value.toLocaleString('fr-FR', {minimumFractionDigits:4, maximumFractionDigits:4}); }
+                }
+            }
+        }
+    };
+
+    window.loadEURUSDHistory = function(range) {
+        setActiveBtn('eurusd-range-btns', rangeIndex[range]);
+        var loading = document.getElementById('eurusd-loading');
+        var canvas = document.getElementById('eurusdChart');
+        loading.style.display = 'flex';
+        canvas.style.display = 'none';
+
+        fetch('/portfolio/history/eurusd?range=' + range)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                loading.style.display = 'none';
+                canvas.style.display = 'block';
+                var existing = Chart.getChart('eurusdChart');
+                if (existing) existing.destroy();
+                new Chart(canvas, {
+                    type: 'line',
+                    data: {
+                        datasets: [{
+                            data: mapPoints(data),
+                            borderColor: 'rgba(34, 197, 94, 1)',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0,
+                            borderWidth: 2
+                        }]
+                    },
+                    options: eurusdLineOpts
+                });
+            })
+            .catch(function() {
+                loading.style.display = 'none';
+                canvas.style.display = 'block';
+            });
+    };
+
+    loadEURUSDHistory('1y');
 
     // --- Per-asset stock history ---
     var currentStockISIN = '';

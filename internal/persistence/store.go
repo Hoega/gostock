@@ -1,5 +1,7 @@
 package persistence
 
+import "time"
+
 // FormInputs contains all form fields that need to be persisted.
 type FormInputs struct {
 	ID                      int     `db:"id"`
@@ -123,6 +125,16 @@ type Store interface {
 	LoadCashPositions() ([]CashPosition, error)
 	SaveCashPosition(pos *CashPosition) error
 	DeleteCashPosition(id int) error
+	// Watchlist
+	LoadWatchlistItems() ([]WatchlistItem, error)
+	SaveWatchlistItem(item *WatchlistItem) error
+	DeleteWatchlistItem(id int) error
+	// Portfolio snapshots
+	SavePortfolioSnapshot(snap *PortfolioSnapshot) error
+	LoadPortfolioSnapshots(since time.Time) ([]PortfolioSnapshot, error)
+	// Budget
+	LoadBudgetInputs() (*BudgetInputs, error)
+	SaveBudgetInputs(inputs *BudgetInputs) error
 	Close() error
 }
 
@@ -202,6 +214,24 @@ type StockPurchase struct {
 	RemainingQuantity float64 `db:"remaining_quantity"`
 }
 
+// PortfolioSnapshot stores a daily snapshot of portfolio totals by asset class.
+type PortfolioSnapshot struct {
+	ID              int     `db:"id"`
+	Date            string  `db:"date"` // YYYY-MM-DD, unique
+	StockTotal      float64 `db:"stock_total"`
+	CryptoTotal     float64 `db:"crypto_total"`
+	CashTotal       float64 `db:"cash_total"`
+	RealEstateTotal float64 `db:"real_estate_total"`
+	GrandTotal      float64 `db:"grand_total"`
+}
+
+// WatchlistItem represents a stock in the user's watchlist (persistence layer).
+type WatchlistItem struct {
+	ID   int    `db:"id"`
+	ISIN string `db:"isin"`
+	Name string `db:"name"`
+}
+
 // CashPosition represents a cash position in a bank account (persistence layer).
 type CashPosition struct {
 	ID           int     `db:"id"`
@@ -209,6 +239,39 @@ type CashPosition struct {
 	Amount       float64 `db:"amount"`
 	AccountType  string  `db:"account_type"`
 	InterestRate float64 `db:"interest_rate"`
+}
+
+// BudgetInputs contains all budget fields for the Sankey diagram page.
+type BudgetInputs struct {
+	ID              int     `db:"id"`
+	GrossSalary     float64 `db:"gross_salary"`
+	NetSalary       float64 `db:"net_salary"`
+	Dividends       float64 `db:"dividends"`
+	RentalIncome    float64 `db:"rental_income"`
+	OtherIncome     float64 `db:"other_income"`
+	IncomeTax       float64 `db:"income_tax"`
+	Housing         float64 `db:"housing"`
+	Lifestyle       float64 `db:"lifestyle"`
+	Transport       float64 `db:"transport"`
+	Insurance        float64 `db:"insurance"`
+	Subscriptions    float64 `db:"subscriptions"`
+	Childcare        float64 `db:"childcare"`
+	MealVouchers     float64 `db:"meal_vouchers"`
+	SubscriptionsJSON string  `db:"subscriptions_json"`
+	LifestyleJSON     string  `db:"lifestyle_json"`
+	OtherExpenses    float64 `db:"other_expenses"`
+	OtherExpensesJSON string `db:"other_expenses_json"`
+	PEA             float64 `db:"pea"`
+	AssuranceVie    float64 `db:"assurance_vie"`
+	PER             float64 `db:"per"`
+	LivretA         float64 `db:"livret_a"`
+	CryptoSavings   float64 `db:"crypto_savings"`
+	OtherSavings    float64 `db:"other_savings"`
+}
+
+// DefaultBudgetInputs returns the default budget values.
+func DefaultBudgetInputs() *BudgetInputs {
+	return &BudgetInputs{ID: 1}
 }
 
 // DefaultInputs returns the default form values.

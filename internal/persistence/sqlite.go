@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "modernc.org/sqlite"
@@ -212,6 +213,65 @@ func NewSQLiteStore() (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to create cash_positions table: %w", err)
 	}
 
+	// Create watchlist_items table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS watchlist_items (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			isin TEXT NOT NULL,
+			name TEXT NOT NULL DEFAULT ''
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create watchlist_items table: %w", err)
+	}
+
+	// Create portfolio_snapshots table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			date TEXT NOT NULL UNIQUE,
+			stock_total REAL NOT NULL DEFAULT 0,
+			crypto_total REAL NOT NULL DEFAULT 0,
+			cash_total REAL NOT NULL DEFAULT 0,
+			real_estate_total REAL NOT NULL DEFAULT 0,
+			grand_total REAL NOT NULL DEFAULT 0
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create portfolio_snapshots table: %w", err)
+	}
+
+	// Create budget_inputs table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS budget_inputs (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			gross_salary REAL NOT NULL DEFAULT 0,
+			net_salary REAL NOT NULL DEFAULT 0,
+			dividends REAL NOT NULL DEFAULT 0,
+			rental_income REAL NOT NULL DEFAULT 0,
+			other_income REAL NOT NULL DEFAULT 0,
+			income_tax REAL NOT NULL DEFAULT 0,
+			housing REAL NOT NULL DEFAULT 0,
+			lifestyle REAL NOT NULL DEFAULT 0,
+			transport REAL NOT NULL DEFAULT 0,
+			insurance REAL NOT NULL DEFAULT 0,
+			subscriptions REAL NOT NULL DEFAULT 0,
+			other_expenses REAL NOT NULL DEFAULT 0,
+			pea REAL NOT NULL DEFAULT 0,
+			assurance_vie REAL NOT NULL DEFAULT 0,
+			per REAL NOT NULL DEFAULT 0,
+			livret_a REAL NOT NULL DEFAULT 0,
+			crypto_savings REAL NOT NULL DEFAULT 0,
+			other_savings REAL NOT NULL DEFAULT 0
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create budget_inputs table: %w", err)
+	}
+
 	// Run migrations for any missing columns
 	runMigrations(db)
 
@@ -293,6 +353,12 @@ func runMigrations(db *sqlx.DB) {
 		// Resale projection fields
 		`ALTER TABLE simulation_inputs ADD COLUMN resale_rates TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE simulation_inputs ADD COLUMN resale_sell_costs REAL NOT NULL DEFAULT 0`,
+		// Budget migrations
+		`ALTER TABLE budget_inputs ADD COLUMN childcare REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE budget_inputs ADD COLUMN subscriptions_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE budget_inputs ADD COLUMN meal_vouchers REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE budget_inputs ADD COLUMN lifestyle_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE budget_inputs ADD COLUMN other_expenses_json TEXT NOT NULL DEFAULT '[]'`,
 	}
 
 	for _, migration := range migrations {
@@ -918,6 +984,118 @@ func (s *SQLiteStore) DeleteCashPosition(id int) error {
 	_, err := s.db.Exec(`DELETE FROM cash_positions WHERE id = ?`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete cash position: %w", err)
+	}
+	return nil
+}
+
+// LoadWatchlistItems retrieves all watchlist items ordered by name.
+func (s *SQLiteStore) LoadWatchlistItems() ([]WatchlistItem, error) {
+	var items []WatchlistItem
+	err := s.db.Select(&items, `SELECT id, isin, name FROM watchlist_items ORDER BY name`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load watchlist items: %w", err)
+	}
+	return items, nil
+}
+
+// SaveWatchlistItem inserts or updates a watchlist item.
+func (s *SQLiteStore) SaveWatchlistItem(item *WatchlistItem) error {
+	if item.ID == 0 {
+		result, err := s.db.NamedExec(`
+			INSERT INTO watchlist_items (isin, name) VALUES (:isin, :name)
+		`, item)
+		if err != nil {
+			return fmt.Errorf("failed to insert watchlist item: %w", err)
+		}
+		id, _ := result.LastInsertId()
+		item.ID = int(id)
+		return nil
+	}
+
+	_, err := s.db.NamedExec(`
+		UPDATE watchlist_items SET isin = :isin, name = :name WHERE id = :id
+	`, item)
+	if err != nil {
+		return fmt.Errorf("failed to update watchlist item: %w", err)
+	}
+	return nil
+}
+
+// DeleteWatchlistItem removes a watchlist item by ID.
+func (s *SQLiteStore) DeleteWatchlistItem(id int) error {
+	_, err := s.db.Exec(`DELETE FROM watchlist_items WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete watchlist item: %w", err)
+	}
+	return nil
+}
+
+// SavePortfolioSnapshot upserts a daily portfolio snapshot by date.
+func (s *SQLiteStore) SavePortfolioSnapshot(snap *PortfolioSnapshot) error {
+	_, err := s.db.NamedExec(`
+		INSERT INTO portfolio_snapshots (date, stock_total, crypto_total, cash_total, real_estate_total, grand_total)
+		VALUES (:date, :stock_total, :crypto_total, :cash_total, :real_estate_total, :grand_total)
+		ON CONFLICT(date) DO UPDATE SET
+			stock_total = :stock_total,
+			crypto_total = :crypto_total,
+			cash_total = :cash_total,
+			real_estate_total = :real_estate_total,
+			grand_total = :grand_total
+	`, snap)
+	if err != nil {
+		return fmt.Errorf("failed to save portfolio snapshot: %w", err)
+	}
+	return nil
+}
+
+// LoadPortfolioSnapshots retrieves snapshots since the given date, ordered chronologically.
+func (s *SQLiteStore) LoadPortfolioSnapshots(since time.Time) ([]PortfolioSnapshot, error) {
+	var snapshots []PortfolioSnapshot
+	err := s.db.Select(&snapshots, `SELECT id, date, stock_total, crypto_total, cash_total, real_estate_total, grand_total FROM portfolio_snapshots WHERE date >= ? ORDER BY date ASC`, since.Format("2006-01-02"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load portfolio snapshots: %w", err)
+	}
+	return snapshots, nil
+}
+
+// LoadBudgetInputs retrieves the saved budget inputs or returns defaults.
+func (s *SQLiteStore) LoadBudgetInputs() (*BudgetInputs, error) {
+	inputs := &BudgetInputs{}
+	err := s.db.Get(inputs, `SELECT id, gross_salary, net_salary, dividends, rental_income, other_income,
+		income_tax, housing, lifestyle, transport, insurance, subscriptions, childcare, meal_vouchers, subscriptions_json, lifestyle_json, other_expenses, other_expenses_json,
+		pea, assurance_vie, per, livret_a, crypto_savings, other_savings
+		FROM budget_inputs WHERE id = 1`)
+	if err == sql.ErrNoRows {
+		return DefaultBudgetInputs(), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load budget inputs: %w", err)
+	}
+	return inputs, nil
+}
+
+// SaveBudgetInputs persists the budget inputs to the database.
+func (s *SQLiteStore) SaveBudgetInputs(inputs *BudgetInputs) error {
+	inputs.ID = 1
+	_, err := s.db.NamedExec(`
+		INSERT INTO budget_inputs (id, gross_salary, net_salary, dividends, rental_income, other_income,
+			income_tax, housing, lifestyle, transport, insurance, subscriptions, childcare, meal_vouchers, subscriptions_json, lifestyle_json, other_expenses, other_expenses_json,
+			pea, assurance_vie, per, livret_a, crypto_savings, other_savings)
+		VALUES (:id, :gross_salary, :net_salary, :dividends, :rental_income, :other_income,
+			:income_tax, :housing, :lifestyle, :transport, :insurance, :subscriptions, :childcare, :meal_vouchers, :subscriptions_json, :lifestyle_json, :other_expenses, :other_expenses_json,
+			:pea, :assurance_vie, :per, :livret_a, :crypto_savings, :other_savings)
+		ON CONFLICT(id) DO UPDATE SET
+			gross_salary = :gross_salary, net_salary = :net_salary, dividends = :dividends,
+			rental_income = :rental_income, other_income = :other_income, income_tax = :income_tax,
+			housing = :housing, lifestyle = :lifestyle, transport = :transport,
+			insurance = :insurance, subscriptions = :subscriptions, childcare = :childcare,
+			meal_vouchers = :meal_vouchers, subscriptions_json = :subscriptions_json, lifestyle_json = :lifestyle_json,
+			other_expenses = :other_expenses, other_expenses_json = :other_expenses_json,
+			pea = :pea, assurance_vie = :assurance_vie, per = :per,
+			livret_a = :livret_a, crypto_savings = :crypto_savings, other_savings = :other_savings
+	`, inputs)
+	if err != nil {
+		return fmt.Errorf("failed to save budget inputs: %w", err)
 	}
 	return nil
 }

@@ -110,11 +110,13 @@ func New(port int, store persistence.Store) *http.Server {
 	portfolioTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/portfolio.html"))
 	dashboardTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/dashboard.html"))
 	taxTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/tax.html"))
+	budgetTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/budget.html"))
 
 	creditHandler := handler.NewCreditHandler(creditTmpl, store)
 	portfolioHandler := handler.NewPortfolioHandler(portfolioTmpl, store)
 	dashboardHandler := handler.NewDashboardHandler(dashboardTmpl, store)
 	taxHandler := handler.NewTaxHandler(taxTmpl, store)
+	budgetHandler := handler.NewBudgetHandler(budgetTmpl, store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -137,9 +139,15 @@ func New(port int, store persistence.Store) *http.Server {
 	r.Get("/portfolio/quote", portfolioHandler.LookupQuote)
 	r.Get("/portfolio/history", portfolioHandler.StockHistory)
 	r.Get("/portfolio/history/total", portfolioHandler.TotalHistory)
+	r.Get("/portfolio/history/eurusd", portfolioHandler.EURUSDHistory)
+	r.Get("/portfolio/history/networth", portfolioHandler.NetworthHistory)
 	r.Post("/portfolio/positions", portfolioHandler.AddPosition)
 	r.Put("/portfolio/positions/{id}", portfolioHandler.UpdatePosition)
 	r.Delete("/portfolio/positions/{id}", portfolioHandler.DeletePosition)
+
+	// Portfolio routes - Watchlist
+	r.Post("/portfolio/watchlist", portfolioHandler.AddWatchlistItem)
+	r.Delete("/portfolio/watchlist/{id}", portfolioHandler.DeleteWatchlistItem)
 
 	// Portfolio routes - Cash
 	r.Post("/portfolio/cash/positions", portfolioHandler.AddCashPosition)
@@ -167,6 +175,11 @@ func New(port int, store persistence.Store) *http.Server {
 	r.Put("/tax/purchases/{id}", taxHandler.UpdateStockPurchase)
 	r.Delete("/tax/purchases/{id}", taxHandler.DeleteStockPurchase)
 	r.Post("/tax/purchases/{id}/reset", taxHandler.ResetStockPurchase)
+
+	// Budget routes
+	r.Get("/budget", budgetHandler.ShowBudget)
+	r.Post("/budget/save", budgetHandler.SaveBudget)
+	r.Get("/budget/sankey", budgetHandler.GetBudgetSankey)
 
 	// Static files
 	fileServer := http.FileServer(http.Dir("web/static"))

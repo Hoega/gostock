@@ -16,9 +16,11 @@ go build -o gostock ./cmd/gostock/
 PORT=3000 ./gostock
 ```
 
+There are no tests or linter configurations in this project. Always verify changes compile with `go build`.
+
 ## Architecture
 
-GoStock is a French personal finance web application built with Go, Chi router, HTMX, and Chart.js. It combines:
+GoStock is a French personal finance web application built with Go 1.25.5, Chi router, HTMX, and Chart.js. It combines:
 - **Mortgage/credit simulation** with French-specific calculations (PTZ, HCSF rules)
 - **Portfolio tracking** for stocks, crypto, and cash
 - **Tax reporting** for French tax forms (2042-C, 2086)
@@ -28,13 +30,17 @@ GoStock is a French personal finance web application built with Go, Chi router, 
 
 - **cmd/gostock/main.go** - Entry point, flag parsing, graceful shutdown
 - **internal/server/** - HTTP server, Chi router, template loading with custom FuncMap
-- **internal/handler/** - HTTP handlers: `credit`, `portfolio`, `dashboard`, `tax`
+- **internal/handler/** - HTTP handlers: `credit`, `portfolio`, `dashboard`, `tax`, `budget`
 - **internal/calculator/** - Pure calculation logic (amortization, performance, tax)
-- **internal/model/** - Data structures and summary computations
-- **internal/persistence/** - SQLite storage with Store interface
-- **internal/quote/** - Market data: Yahoo Finance (stocks) and CoinGecko (crypto)
+- **internal/model/** - Domain structs with computed fields and summary logic
+- **internal/persistence/** - SQLite storage with `Store` interface; has its own struct types mirroring `model/` (handlers convert between them)
+- **internal/quote/** - Market data: Yahoo Finance (stocks), CoinGecko (crypto), and INSEE (French inflation data)
 - **web/templates/** - Go HTML templates with layout and partials
 - **web/static/** - Static assets (JS, CSS)
+
+### Dual Model Types
+
+`persistence/store.go` defines DB-layer structs (e.g. `persistence.StockPosition`) and `model/portfolio.go` defines domain structs (e.g. `model.StockPosition`) with computed fields and summary methods. Handlers in `internal/handler/` manually convert between the two. When adding fields, update both packages.
 
 ### Request Flow
 
@@ -45,28 +51,38 @@ All pages use HTMX for dynamic updates without full page reloads:
 
 ### Routes
 
-| Path | Handler | Description |
-|------|---------|-------------|
-| `/credit` | creditHandler | Mortgage simulator form |
-| `/credit/calculate` | creditHandler | Calculate amortization (HTMX partial) |
-| `/portfolio` | portfolioHandler | Stock/crypto/cash positions |
-| `/portfolio/quote` | portfolioHandler | ISIN lookup via Yahoo Finance |
-| `/portfolio/crypto/quote` | portfolioHandler | Crypto lookup via CoinGecko |
-| `/portfolio/history/*` | portfolioHandler | Historical price charts |
-| `/dashboard` | dashboardHandler | Global wealth overview |
-| `/tax` | taxHandler | French tax reporting (2042-C, 2086) |
+Routes are defined in `internal/server/server.go`. `/` redirects to `/credit`.
+
+- **`/credit`** — `creditHandler`: Page (`GET`) + calculate amortization (`POST /credit/calculate`)
+- **`/dashboard`** — `dashboardHandler`: Global wealth overview (`GET`)
+- **`/portfolio`** — `portfolioHandler`:
+  - Page (`GET`), quote lookup (`GET /portfolio/quote`), history (`GET /portfolio/history`, `/portfolio/history/total`, `/portfolio/history/eurusd`, `/portfolio/history/networth`)
+  - Stock positions CRUD (`POST/PUT/DELETE /portfolio/positions/{id}`)
+  - Watchlist CRUD (`POST/DELETE /portfolio/watchlist/{id}`)
+  - Cash positions CRUD (`POST/PUT/DELETE /portfolio/cash/positions/{id}`)
+  - Crypto: quote (`GET /portfolio/crypto/quote`), history (`GET /portfolio/crypto/history`), CRUD (`POST/PUT/DELETE /portfolio/crypto/positions/{id}`)
+- **`/budget`** — `budgetHandler`: Budget visualization with Sankey diagram (`GET`), save (`POST /budget/save`), Sankey data (`GET /budget/sankey`)
+- **`/tax`** — `taxHandler`:
+  - Page (`GET`), stock sales CRUD, crypto sales CRUD
+  - Stock purchases CRUD + PRU lookup (`GET /tax/purchases/pru`) + reset (`POST /tax/purchases/{id}/reset`)
 
 ### External APIs
 
 **Yahoo Finance** (`internal/quote/yahoo.go`):
-- ISIN → symbol resolution with exchange preferences by country
+- ISIN to symbol resolution with exchange preferences by country
 - Real-time prices and historical data
 - Exchange rate caching (24h TTL)
+- Authenticated quoteSummary endpoint (crumb + cookies, cached 1h)
 
 **CoinGecko** (`internal/quote/coingecko.go`):
 - Crypto search and price lookup (EUR)
 - Batch price fetching with 5-minute cache
 - History with singleflight pattern to prevent duplicate requests
+
+**INSEE** (`internal/quote/insee.go`):
+- French inflation data from INSEE BDM (SDMX/XML format)
+- Annual inflation rates with cumulative multipliers
+- 24h cache TTL
 
 ### Template System
 
@@ -81,8 +97,10 @@ Templates use `html/template` with custom functions defined in `server.go`:
 SQLite database at `~/.local/share/gostock/gostock.db`:
 - `FormInputs` - Credit simulator state (single row, upsert)
 - `StockPosition`, `CryptoPosition`, `CashPosition` - Portfolio holdings
+- `WatchlistItem` - Watchlist ISINs for monitoring
 - `StockSale`, `CryptoSale` - Tax reporting transactions
 - `StockPurchase` - Purchase history for PRU (Prix de Revient Unitaire) calculation
+- `BudgetInputs` - Budget/Sankey diagram configuration (single row, upsert)
 
 The `Store` interface (`persistence/store.go`) defines all persistence operations.
 
@@ -93,25 +111,8 @@ The `Store` interface (`persistence/store.go`) defines all persistence operation
 - **Pure calculators**: Calculator package has no side effects, easy to test
 - **Monetary precision**: All calculations round to 2 decimal places
 - **Rate limiting protection**: Semaphores and caching for external APIs
+- **Concurrent data loading**: Handlers use `sync.WaitGroup` goroutines to fetch external data in parallel (e.g. `loadWatchlistSummary`, `loadStockSummary`)
 
-### Credit Simulator Features
+### Additional Documentation
 
-- Multi-loan support (prêt principal, PTZ, PAL)
-- Aid eligibility calculation (PTZ/PAL/BRS by zone and household size)
-- HCSF 35% debt ratio enforcement
-- Rent vs. buy comparison with opportunity cost
-- Resale profitability projections at various appreciation rates
-
-### Portfolio Features
-
-- Stock positions with ISIN-based price lookup
-- Crypto positions with CoinGecko integration
-- Cash positions with interest rate tracking
-- Multi-currency support (USD→EUR conversion)
-- Historical performance charts (1m, 3m, 1y, 5y, max)
-
-### Tax Features
-
-- PRU calculation from purchase history
-- French stock tax (2042-C) gain/loss computation
-- French crypto tax (2086) with portfolio method
+- **`docs/FEATURES.md`** — Detailed French documentation of the credit simulator features (PTZ, PAL, BRS, HCSF rules, rent vs. buy comparison, resale projections)

@@ -76,6 +76,13 @@ type PortfolioSummary struct {
 	GainLabels     []string
 	GainValues     []float64
 	GainColors     []string
+	SectorLabels   []string
+	SectorValues   []float64
+	SectorStocks   [][]string // stock names per sector slice
+	CurrencyLabels []string
+	CurrencyValues []float64
+	CurrencyStocks [][]string // stock names per currency slice
+	BrokerStocks   [][]string // stock names per broker slice
 }
 
 // ComputePortfolioSummary calculates the summary from a list of positions.
@@ -85,6 +92,13 @@ func ComputePortfolioSummary(positions []StockPosition, rates map[string]float64
 	s := PortfolioSummary{Positions: positions, ExchangeRates: rates}
 
 	brokerMap := make(map[string]*BrokerSummary)
+	sectorAlloc := make(map[string]float64)
+	sectorStocks := make(map[string][]string)
+	var sectorOrder []string
+	currencyAlloc := make(map[string]float64)
+	currencyStocks := make(map[string][]string)
+	var currencyOrder []string
+	brokerStocks := make(map[string][]string)
 
 	for i, p := range positions {
 		val := p.TotalValue()
@@ -119,6 +133,7 @@ func ComputePortfolioSummary(positions []StockPosition, rates map[string]float64
 		bs.TotalCost += costEUR
 		bs.GainLoss += glEUR
 		bs.Count++
+		brokerStocks[p.Broker] = append(brokerStocks[p.Broker], p.Name)
 
 		// Stock allocation chart data (in EUR)
 		s.StockLabels = append(s.StockLabels, p.Name)
@@ -132,10 +147,46 @@ func ComputePortfolioSummary(positions []StockPosition, rates map[string]float64
 		} else {
 			s.GainColors = append(s.GainColors, "rgba(239, 68, 68, 0.7)")
 		}
+
+		// Sector allocation chart data (in EUR)
+		sector := p.Sector
+		if sector == "" {
+			sector = "Non classé"
+		}
+		if _, seen := sectorAlloc[sector]; !seen {
+			sectorOrder = append(sectorOrder, sector)
+		}
+		sectorAlloc[sector] += valEUR
+		sectorStocks[sector] = append(sectorStocks[sector], p.Name)
+
+		// Currency allocation chart data (in EUR)
+		currency := p.Currency
+		if currency == "" {
+			currency = "EUR"
+		}
+		if _, seen := currencyAlloc[currency]; !seen {
+			currencyOrder = append(currencyOrder, currency)
+		}
+		currencyAlloc[currency] += valEUR
+		currencyStocks[currency] = append(currencyStocks[currency], p.Name)
 	}
 
 	if s.TotalCost > 0 {
 		s.TotalGainPct = (s.TotalGainLoss / s.TotalCost) * 100
+	}
+
+	// Build sector allocation chart slices
+	for _, sec := range sectorOrder {
+		s.SectorLabels = append(s.SectorLabels, sec)
+		s.SectorValues = append(s.SectorValues, sectorAlloc[sec])
+		s.SectorStocks = append(s.SectorStocks, sectorStocks[sec])
+	}
+
+	// Build currency allocation chart slices
+	for _, cur := range currencyOrder {
+		s.CurrencyLabels = append(s.CurrencyLabels, cur)
+		s.CurrencyValues = append(s.CurrencyValues, currencyAlloc[cur])
+		s.CurrencyStocks = append(s.CurrencyStocks, currencyStocks[cur])
 	}
 
 	// Build broker summaries and chart data
@@ -147,6 +198,7 @@ func ComputePortfolioSummary(positions []StockPosition, rates map[string]float64
 			s.Brokers = append(s.Brokers, *bs)
 			s.BrokerLabels = append(s.BrokerLabels, brokerDisplayName(name))
 			s.BrokerValues = append(s.BrokerValues, bs.TotalValue)
+			s.BrokerStocks = append(s.BrokerStocks, brokerStocks[name])
 		}
 	}
 
@@ -162,6 +214,36 @@ func brokerDisplayName(b string) string {
 	default:
 		return b
 	}
+}
+
+// WatchlistItem represents a stock in the user's watchlist with live market data.
+type WatchlistItem struct {
+	ID               int
+	ISIN             string
+	Name             string
+	CurrentPrice     float64
+	Currency         string
+	Sector           string
+	PER              float64
+	ForwardPER       float64
+	PEG              float64
+	EPS              float64
+	DividendYield    float64
+	FiftyTwoWeekHigh float64
+	FiftyTwoWeekLow  float64
+	MarketCap        float64
+	Beta             float64
+	Perf1W           float64
+	Perf1M           float64
+	Perf3M           float64
+	Perf6M           float64
+	Perf1Y           float64
+	HasPerf          bool
+}
+
+// WatchlistSummary holds the watchlist data for display.
+type WatchlistSummary struct {
+	Items []WatchlistItem
 }
 
 // CashPosition represents a cash position in a bank account.
@@ -221,6 +303,11 @@ type CashSummary struct {
 	BankValues   []float64
 	TypeLabels   []string
 	TypeValues   []float64
+	// Inflation chart data
+	InflationYears    []string  // ["2021", "2022", ...]
+	InflationRates    []float64 // annual rates [1.6, 5.2, ...]
+	CashNominalValues []float64 // total cash repeated per year
+	CashRealValues    []float64 // cash adjusted for cumulative inflation
 }
 
 // ComputeCashSummary calculates the summary from a list of cash positions.

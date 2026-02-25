@@ -42,6 +42,22 @@
     </div>
 </div>
 
+<!-- Net Worth History Chart -->
+<div class="bg-white shadow rounded-lg p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-600">&Eacute;volution du patrimoine</h3>
+        <div class="flex gap-1" id="networthRangeButtons">
+            <button data-range="1m" class="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100">1M</button>
+            <button data-range="3m" class="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100">3M</button>
+            <button data-range="6m" class="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100">6M</button>
+            <button data-range="1y" class="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 bg-gray-200 font-semibold">1A</button>
+            <button data-range="all" class="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100">Tout</button>
+        </div>
+    </div>
+    <canvas id="networthHistoryChart" height="120"></canvas>
+    <p id="networthNoData" class="text-sm text-gray-400 text-center py-8 hidden">Pas encore de donn&eacute;es. Revenez demain pour voir l'&eacute;volution.</p>
+</div>
+
 {{if gt .GrandTotal 0.0}}
 <!-- Charts -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
@@ -95,6 +111,100 @@
     </div>
 </div>
 {{end}}
+
+<script>
+// Net worth history chart
+(function() {
+    var networthChart = null;
+    var chartCanvas = document.getElementById('networthHistoryChart');
+    var noDataMsg = document.getElementById('networthNoData');
+
+    function loadNetworthHistory(range) {
+        fetch('/portfolio/history/networth?range=' + range)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data || data.length === 0) {
+                    if (chartCanvas) chartCanvas.style.display = 'none';
+                    if (noDataMsg) noDataMsg.classList.remove('hidden');
+                    if (networthChart) { networthChart.destroy(); networthChart = null; }
+                    return;
+                }
+                if (chartCanvas) chartCanvas.style.display = '';
+                if (noDataMsg) noDataMsg.classList.add('hidden');
+
+                var labels = data.map(function(d) {
+                    var parts = d.date.split('-');
+                    return parts[2] + '/' + parts[1] + '/' + parts[0];
+                });
+                var stocks = data.map(function(d) { return d.stocks; });
+                var crypto = data.map(function(d) { return d.crypto; });
+                var cash = data.map(function(d) { return d.cash; });
+                var realEstate = data.map(function(d) { return d.real_estate; });
+
+                var datasets = [
+                    { label: 'Actions', data: stocks, backgroundColor: 'rgba(59, 130, 246, 0.5)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1, fill: true, pointRadius: data.length > 60 ? 0 : 2 },
+                    { label: 'Crypto', data: crypto, backgroundColor: 'rgba(245, 158, 11, 0.5)', borderColor: 'rgba(245, 158, 11, 1)', borderWidth: 1, fill: true, pointRadius: data.length > 60 ? 0 : 2 },
+                    { label: 'Cash', data: cash, backgroundColor: 'rgba(16, 185, 129, 0.5)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1, fill: true, pointRadius: data.length > 60 ? 0 : 2 },
+                    { label: 'Immobilier', data: realEstate, backgroundColor: 'rgba(13, 148, 136, 0.5)', borderColor: 'rgba(13, 148, 136, 1)', borderWidth: 1, fill: true, pointRadius: data.length > 60 ? 0 : 2 }
+                ];
+
+                if (networthChart) {
+                    networthChart.data.labels = labels;
+                    networthChart.data.datasets = datasets;
+                    networthChart.update();
+                } else {
+                    networthChart = new Chart(chartCanvas, {
+                        type: 'line',
+                        data: { labels: labels, datasets: datasets },
+                        options: {
+                            responsive: true,
+                            interaction: { mode: 'index', intersect: false },
+                            scales: {
+                                x: { ticks: { maxTicksLimit: 12 } },
+                                y: {
+                                    stacked: true,
+                                    ticks: {
+                                        callback: function(v) {
+                                            return v.toLocaleString('fr-FR') + ' \u20ac';
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(ctx) {
+                                            return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac';
+                                        },
+                                        footer: function(items) {
+                                            var total = 0;
+                                            items.forEach(function(item) { total += item.parsed.y; });
+                                            return 'Total: ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(function(err) { console.error('Networth history error:', err); });
+    }
+
+    // Range selector buttons
+    var buttons = document.querySelectorAll('#networthRangeButtons button');
+    buttons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            buttons.forEach(function(b) { b.classList.remove('bg-gray-200', 'font-semibold'); });
+            this.classList.add('bg-gray-200', 'font-semibold');
+            loadNetworthHistory(this.dataset.range);
+        });
+    });
+
+    // Load default (1y)
+    loadNetworthHistory('1y');
+})();
+</script>
 
 <script>
 (function() {

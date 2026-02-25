@@ -3,7 +3,9 @@ package quote
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
 	"sync"
@@ -30,6 +32,74 @@ type QuoteResult struct {
 }
 
 var httpClient = &http.Client{Timeout: 5 * time.Second}
+
+// yahooCrumb holds a cached crumb + authenticated HTTP client for Yahoo Finance
+// endpoints that require authentication (e.g. quoteSummary v10).
+var yahooCrumb struct {
+	mu        sync.Mutex
+	crumb     string
+	client    *http.Client
+	fetchedAt time.Time
+}
+
+// getYahooCrumb returns a crumb string and an HTTP client with valid cookies.
+// The crumb is cached for 1 hour. Thread-safe.
+func getYahooCrumb() (string, *http.Client, error) {
+	yahooCrumb.mu.Lock()
+	defer yahooCrumb.mu.Unlock()
+
+	if yahooCrumb.crumb != "" && time.Since(yahooCrumb.fetchedAt) < 1*time.Hour {
+		return yahooCrumb.crumb, yahooCrumb.client, nil
+	}
+
+	jar, _ := cookiejar.New(nil)
+	client := &http.Client{Timeout: 10 * time.Second, Jar: jar}
+
+	// Step 1: hit a Yahoo page to get cookies
+	req, err := http.NewRequest("GET", "https://fc.yahoo.com", nil)
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("yahoo cookie fetch: %w", err)
+	}
+	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	// Step 2: fetch the crumb using the cookies
+	req, err = http.NewRequest("GET", "https://query2.finance.yahoo.com/v1/test/getcrumb", nil)
+	if err != nil {
+		return "", nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+	resp, err = client.Do(req)
+	if err != nil {
+		return "", nil, fmt.Errorf("yahoo crumb fetch: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", nil, fmt.Errorf("yahoo crumb returned %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", nil, fmt.Errorf("read crumb: %w", err)
+	}
+
+	crumb := string(body)
+	if crumb == "" {
+		return "", nil, fmt.Errorf("empty crumb from Yahoo")
+	}
+
+	yahooCrumb.crumb = crumb
+	yahooCrumb.client = client
+	yahooCrumb.fetchedAt = time.Now()
+
+	return crumb, client, nil
+}
 
 // preferredExchanges maps ISIN country codes (first 2 chars) to Yahoo Finance
 // exchange identifiers. When multiple Yahoo results are returned for an ISIN,
@@ -362,6 +432,150 @@ func FetchStockHistory(symbol, rangeKey string) ([]PricePoint, error) {
 	}
 
 	return points, nil
+}
+
+// StockIndicators holds fundamental financial indicators for a stock.
+type StockIndicators struct {
+	PER              float64 `json:"per"`
+	ForwardPER       float64 `json:"forwardPer"`
+	PEG              float64 `json:"peg"`
+	EPS              float64 `json:"eps"`
+	DividendYield    float64 `json:"dividendYield"`
+	FiftyTwoWeekHigh float64 `json:"fiftyTwoWeekHigh"`
+	FiftyTwoWeekLow  float64 `json:"fiftyTwoWeekLow"`
+	MarketCap        float64 `json:"marketCap"`
+	Beta             float64 `json:"beta"`
+}
+
+// FetchQuoteSummaryFull retrieves fundamental indicators for a Yahoo Finance symbol
+// using the quoteSummary endpoint (summaryDetail + defaultKeyStatistics).
+// This endpoint requires authentication (crumb + cookie).
+func FetchQuoteSummaryFull(symbol string) (*StockIndicators, error) {
+	crumb, client, err := getYahooCrumb()
+	if err != nil {
+		return nil, fmt.Errorf("yahoo auth: %w", err)
+	}
+
+	u := "https://query2.finance.yahoo.com/v10/finance/quoteSummary/" + url.PathEscape(symbol) +
+		"?modules=summaryDetail,defaultKeyStatistics&crumb=" + url.QueryEscape(crumb)
+
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", userAgent)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		// Invalidate crumb cache on auth failure so next call retries
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			yahooCrumb.mu.Lock()
+			yahooCrumb.crumb = ""
+			yahooCrumb.mu.Unlock()
+		}
+		return nil, fmt.Errorf("quoteSummary returned %d for %s", resp.StatusCode, symbol)
+	}
+
+	type yahooVal struct {
+		Raw float64 `json:"raw"`
+	}
+	var result struct {
+		QuoteSummary struct {
+			Result []struct {
+				SummaryDetail struct {
+					TrailingPE       yahooVal `json:"trailingPE"`
+					DividendYield    yahooVal `json:"dividendYield"`
+					FiftyTwoWeekHigh yahooVal `json:"fiftyTwoWeekHigh"`
+					FiftyTwoWeekLow  yahooVal `json:"fiftyTwoWeekLow"`
+					MarketCap        yahooVal `json:"marketCap"`
+				} `json:"summaryDetail"`
+				DefaultKeyStatistics struct {
+					ForwardPE   yahooVal `json:"forwardPE"`
+					PegRatio    yahooVal `json:"pegRatio"`
+					Beta        yahooVal `json:"beta"`
+					TrailingEps yahooVal `json:"trailingEps"`
+					MarketCap   yahooVal `json:"enterpriseValue"`
+				} `json:"defaultKeyStatistics"`
+			} `json:"result"`
+		} `json:"quoteSummary"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode quoteSummary: %w", err)
+	}
+
+	if len(result.QuoteSummary.Result) == 0 {
+		return nil, fmt.Errorf("no quoteSummary data for %s", symbol)
+	}
+
+	r := result.QuoteSummary.Result[0]
+	ind := &StockIndicators{
+		PER:              r.SummaryDetail.TrailingPE.Raw,
+		ForwardPER:       r.DefaultKeyStatistics.ForwardPE.Raw,
+		PEG:              r.DefaultKeyStatistics.PegRatio.Raw,
+		EPS:              r.DefaultKeyStatistics.TrailingEps.Raw,
+		DividendYield:    r.SummaryDetail.DividendYield.Raw * 100,
+		FiftyTwoWeekHigh: r.SummaryDetail.FiftyTwoWeekHigh.Raw,
+		FiftyTwoWeekLow:  r.SummaryDetail.FiftyTwoWeekLow.Raw,
+		MarketCap:        r.SummaryDetail.MarketCap.Raw,
+		Beta:             r.DefaultKeyStatistics.Beta.Raw,
+	}
+
+	// Use enterpriseValue as fallback for marketCap if summaryDetail didn't have it
+	if ind.MarketCap == 0 {
+		ind.MarketCap = r.DefaultKeyStatistics.MarketCap.Raw
+	}
+
+	return ind, nil
+}
+
+// ComputePerformance returns price performance (%) at 1W, 1M, 3M, 6M, 1Y horizons.
+// It fetches 1-year history and finds the closest data point to each target date.
+func ComputePerformance(symbol string, currentPrice float64) (p1w, p1m, p3m, p6m, p1y float64, err error) {
+	points, err := FetchStockHistory(symbol, "1y")
+	if err != nil {
+		return 0, 0, 0, 0, 0, err
+	}
+	if len(points) == 0 {
+		return 0, 0, 0, 0, 0, fmt.Errorf("no history for %s", symbol)
+	}
+
+	now := time.Now()
+	horizons := []time.Duration{
+		7 * 24 * time.Hour,
+		30 * 24 * time.Hour,
+		90 * 24 * time.Hour,
+		180 * 24 * time.Hour,
+		365 * 24 * time.Hour,
+	}
+
+	results := make([]float64, len(horizons))
+	for i, h := range horizons {
+		targetMs := now.Add(-h).UnixMilli()
+		// Find closest point
+		bestIdx := 0
+		bestDist := int64(1<<62 - 1)
+		for j, pt := range points {
+			dist := pt.Timestamp - targetMs
+			if dist < 0 {
+				dist = -dist
+			}
+			if dist < bestDist {
+				bestDist = dist
+				bestIdx = j
+			}
+		}
+		oldPrice := points[bestIdx].Price
+		if oldPrice > 0 {
+			results[i] = (currentPrice - oldPrice) / oldPrice * 100
+		}
+	}
+
+	return results[0], results[1], results[2], results[3], results[4], nil
 }
 
 // fetchPrice gets the current price and currency for a Yahoo Finance symbol.

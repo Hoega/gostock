@@ -164,6 +164,128 @@
     </script>
     {{end}}
 
+    {{if gt (len .InflationYears) 0}}
+    <!-- Inflation chart -->
+    <div class="mt-6">
+        <div class="bg-white border border-gray-200 rounded-lg p-4">
+            <h3 class="text-sm font-semibold text-gray-600 mb-2">Impact de l'inflation sur votre &eacute;pargne cash</h3>
+            <canvas id="cashInflationChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var years = {{toJSON .InflationYears}};
+        var rates = {{toJSON .InflationRates}};
+        var nominal = {{toJSON .CashNominalValues}};
+        var real = {{toJSON .CashRealValues}};
+
+        var ctx = document.getElementById('cashInflationChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: years,
+                    datasets: [
+                        {
+                            label: 'Cash nominal',
+                            data: nominal,
+                            backgroundColor: 'rgba(209, 213, 219, 0.7)',
+                            borderColor: 'rgba(156, 163, 175, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 2
+                        },
+                        {
+                            label: 'Cash r\u00e9el (ajust\u00e9 inflation)',
+                            data: real,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgba(5, 150, 105, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y',
+                            order: 1
+                        },
+                        {
+                            label: 'Inflation annuelle (%)',
+                            data: rates,
+                            type: 'line',
+                            borderColor: 'rgba(239, 68, 68, 1)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+                            fill: false,
+                            yAxisID: 'y1',
+                            order: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Montant (\u20ac)'
+                            },
+                            ticks: {
+                                callback: function(val) {
+                                    return val.toLocaleString('fr-FR') + ' \u20ac';
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Inflation (%)'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            ticks: {
+                                callback: function(val) {
+                                    return val.toFixed(1) + ' %';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(ctx) {
+                                    if (ctx.dataset.yAxisID === 'y1') {
+                                        return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + ' %';
+                                    }
+                                    return ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac';
+                                },
+                                afterBody: function(items) {
+                                    var idx = items[0].dataIndex;
+                                    var cumLoss = nominal[idx] - real[idx];
+                                    var yearLoss = idx > 0 ? (real[idx - 1] - real[idx]) : cumLoss;
+                                    var fmt = {minimumFractionDigits: 2, maximumFractionDigits: 2};
+                                    return [
+                                        'Perte sur l\'ann\u00e9e : -' + yearLoss.toLocaleString('fr-FR', fmt) + ' \u20ac',
+                                        'Perte cumul\u00e9e : -' + cumLoss.toLocaleString('fr-FR', fmt) + ' \u20ac'
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    })();
+    </script>
+    {{end}}
+
     {{end}}
 </div>
 {{end}}

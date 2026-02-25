@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"log"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -27,6 +28,7 @@ type PortfolioPageData struct {
 	CashSummary        model.CashSummary
 	GlobalSummary      model.GlobalSummary
 	RealEstateSummary  model.RealEstateSummary
+	WatchlistSummary   model.WatchlistSummary
 }
 
 type PortfolioHandler struct {
@@ -41,7 +43,7 @@ func NewPortfolioHandler(templates *template.Template, store persistence.Store) 
 // ShowPortfolio renders the portfolio page with all positions.
 func (h *PortfolioHandler) ShowPortfolio(w http.ResponseWriter, r *http.Request) {
 	activeTab := r.URL.Query().Get("tab")
-	if activeTab != "stocks" && activeTab != "crypto" && activeTab != "cash" && activeTab != "immobilier" {
+	if activeTab != "stocks" && activeTab != "crypto" && activeTab != "cash" && activeTab != "immobilier" && activeTab != "watchlist" {
 		activeTab = "overview"
 	}
 
@@ -50,6 +52,21 @@ func (h *PortfolioHandler) ShowPortfolio(w http.ResponseWriter, r *http.Request)
 	switch activeTab {
 	case "overview":
 		data.GlobalSummary = h.loadGlobalSummary()
+		// Fire-and-forget: save today's snapshot
+		go func() {
+			today := time.Now().Format("2006-01-02")
+			snap := &persistence.PortfolioSnapshot{
+				Date:            today,
+				StockTotal:      data.GlobalSummary.StockTotal,
+				CryptoTotal:     data.GlobalSummary.CryptoTotal,
+				CashTotal:       data.GlobalSummary.CashTotal,
+				RealEstateTotal: data.GlobalSummary.RealEstateTotal,
+				GrandTotal:      data.GlobalSummary.GrandTotal,
+			}
+			if err := h.store.SavePortfolioSnapshot(snap); err != nil {
+				log.Printf("Failed to save portfolio snapshot: %v", err)
+			}
+		}()
 	case "crypto":
 		summary, err := h.loadCryptoSummary()
 		if err != nil {
@@ -64,6 +81,12 @@ func (h *PortfolioHandler) ShowPortfolio(w http.ResponseWriter, r *http.Request)
 			summary = model.ComputeCashSummary(nil)
 		}
 		data.CashSummary = summary
+	case "watchlist":
+		summary, err := h.loadWatchlistSummary()
+		if err != nil {
+			log.Printf("Failed to load watchlist: %v", err)
+		}
+		data.WatchlistSummary = summary
 	case "immobilier":
 		// Parse optional year/month for date slider
 		atYear := 0
@@ -312,6 +335,81 @@ func (h *PortfolioHandler) CryptoHistory(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(points)
+}
+
+// EURUSDHistory handles GET /portfolio/history/eurusd?range={1m|3m|1y|5y|max}.
+func (h *PortfolioHandler) EURUSDHistory(w http.ResponseWriter, r *http.Request) {
+	rangeKey := r.URL.Query().Get("range")
+	if rangeKey == "" {
+		rangeKey = "1y"
+	}
+
+	points, err := quote.FetchStockHistory("EURUSD=X", rangeKey)
+	if err != nil {
+		log.Printf("EUR/USD history failed (%s): %v", rangeKey, err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Impossible de charger l'historique EUR/USD"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(points)
+}
+
+// NetworthHistory handles GET /portfolio/history/networth?range={1m|3m|6m|1y|all}.
+func (h *PortfolioHandler) NetworthHistory(w http.ResponseWriter, r *http.Request) {
+	rangeKey := r.URL.Query().Get("range")
+	if rangeKey == "" {
+		rangeKey = "1y"
+	}
+
+	var since time.Time
+	now := time.Now()
+	switch rangeKey {
+	case "1m":
+		since = now.AddDate(0, -1, 0)
+	case "3m":
+		since = now.AddDate(0, -3, 0)
+	case "6m":
+		since = now.AddDate(0, -6, 0)
+	case "1y":
+		since = now.AddDate(-1, 0, 0)
+	default: // "all"
+		since = time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	}
+
+	snapshots, err := h.store.LoadPortfolioSnapshots(since)
+	if err != nil {
+		log.Printf("Failed to load portfolio snapshots: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]struct{}{})
+		return
+	}
+
+	type snapshotJSON struct {
+		Date       string  `json:"date"`
+		Stocks     float64 `json:"stocks"`
+		Crypto     float64 `json:"crypto"`
+		Cash       float64 `json:"cash"`
+		RealEstate float64 `json:"real_estate"`
+		Total      float64 `json:"total"`
+	}
+
+	result := make([]snapshotJSON, len(snapshots))
+	for i, s := range snapshots {
+		result[i] = snapshotJSON{
+			Date:       s.Date,
+			Stocks:     s.StockTotal,
+			Crypto:     s.CryptoTotal,
+			Cash:       s.CashTotal,
+			RealEstate: s.RealEstateTotal,
+			Total:      s.GrandTotal,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
 }
 
 // TotalHistory handles GET /portfolio/history/total?tab={stocks|crypto}&range={range}.
@@ -694,7 +792,23 @@ func (h *PortfolioHandler) loadCashSummary() (model.CashSummary, error) {
 		}
 	}
 
-	return model.ComputeCashSummary(positions), nil
+	summary := model.ComputeCashSummary(positions)
+
+	// Fetch inflation data (5 years) and enrich the summary
+	currentYear := time.Now().Year()
+	inflationData, err := quote.FetchInflationData(currentYear-4, currentYear)
+	if err != nil {
+		log.Printf("Failed to fetch inflation data: %v", err)
+	} else if len(inflationData) > 0 && summary.TotalAmount > 0 {
+		for _, iy := range inflationData {
+			summary.InflationYears = append(summary.InflationYears, strconv.Itoa(iy.Year))
+			summary.InflationRates = append(summary.InflationRates, iy.Rate)
+			summary.CashNominalValues = append(summary.CashNominalValues, summary.TotalAmount)
+			summary.CashRealValues = append(summary.CashRealValues, math.Round(summary.TotalAmount/iy.CumulativeRate*100)/100)
+		}
+	}
+
+	return summary, nil
 }
 
 func (h *PortfolioHandler) loadGlobalSummary() model.GlobalSummary {
@@ -1043,6 +1157,124 @@ func scheduleToPaymentSchedule(schedule []model.MonthlySchedule, startYear, star
 	}
 
 	return result
+}
+
+// AddWatchlistItem handles POST /portfolio/watchlist.
+func (h *PortfolioHandler) AddWatchlistItem(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Formulaire invalide", http.StatusBadRequest)
+		return
+	}
+
+	isin := r.FormValue("isin")
+	name := r.FormValue("name")
+
+	item := &persistence.WatchlistItem{ISIN: isin, Name: name}
+	if err := h.store.SaveWatchlistItem(item); err != nil {
+		log.Printf("Failed to save watchlist item: %v", err)
+		http.Error(w, "Erreur lors de la sauvegarde", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderWatchlistPartials(w)
+}
+
+// DeleteWatchlistItem handles DELETE /portfolio/watchlist/{id}.
+func (h *PortfolioHandler) DeleteWatchlistItem(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "ID invalide", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.DeleteWatchlistItem(id); err != nil {
+		log.Printf("Failed to delete watchlist item: %v", err)
+		http.Error(w, "Erreur lors de la suppression", http.StatusInternalServerError)
+		return
+	}
+
+	h.renderWatchlistPartials(w)
+}
+
+func (h *PortfolioHandler) loadWatchlistSummary() (model.WatchlistSummary, error) {
+	dbItems, err := h.store.LoadWatchlistItems()
+	if err != nil {
+		return model.WatchlistSummary{}, err
+	}
+
+	items := make([]model.WatchlistItem, len(dbItems))
+	var wg sync.WaitGroup
+	for i, item := range dbItems {
+		items[i] = model.WatchlistItem{
+			ID:   item.ID,
+			ISIN: item.ISIN,
+			Name: item.Name,
+		}
+		wg.Add(1)
+		go func(idx int, isin string) {
+			defer wg.Done()
+			result, err := quote.LookupISIN(isin)
+			if err != nil {
+				log.Printf("Watchlist lookup failed for %s: %v", isin, err)
+				return
+			}
+			items[idx].CurrentPrice = result.Price
+			items[idx].Currency = result.Currency
+			items[idx].Sector = result.Sector
+			if items[idx].Name == "" {
+				items[idx].Name = result.Name
+			}
+
+			// Fetch fundamental indicators
+			symbol, err := quote.ResolveISINToSymbol(isin)
+			if err != nil {
+				log.Printf("Watchlist resolve symbol for %s: %v", isin, err)
+				return
+			}
+			indicators, err := quote.FetchQuoteSummaryFull(symbol)
+			if err != nil {
+				log.Printf("Watchlist indicators for %s: %v", isin, err)
+				return
+			}
+			items[idx].PER = indicators.PER
+			items[idx].ForwardPER = indicators.ForwardPER
+			items[idx].PEG = indicators.PEG
+			items[idx].EPS = indicators.EPS
+			items[idx].DividendYield = indicators.DividendYield
+			items[idx].FiftyTwoWeekHigh = indicators.FiftyTwoWeekHigh
+			items[idx].FiftyTwoWeekLow = indicators.FiftyTwoWeekLow
+			items[idx].MarketCap = indicators.MarketCap
+			items[idx].Beta = indicators.Beta
+
+			// Fetch historical performance
+			p1w, p1m, p3m, p6m, p1y, err := quote.ComputePerformance(symbol, items[idx].CurrentPrice)
+			if err != nil {
+				log.Printf("Watchlist perf for %s: %v", isin, err)
+			} else {
+				items[idx].Perf1W = p1w
+				items[idx].Perf1M = p1m
+				items[idx].Perf3M = p3m
+				items[idx].Perf6M = p6m
+				items[idx].Perf1Y = p1y
+				items[idx].HasPerf = true
+			}
+		}(i, item.ISIN)
+	}
+	wg.Wait()
+
+	return model.WatchlistSummary{Items: items}, nil
+}
+
+func (h *PortfolioHandler) renderWatchlistPartials(w http.ResponseWriter) {
+	summary, err := h.loadWatchlistSummary()
+	if err != nil {
+		log.Printf("Failed to load watchlist: %v", err)
+	}
+
+	if err := h.templates.ExecuteTemplate(w, "watchlist-table.html", summary); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func pParseFloat(s string, fallback float64) float64 {

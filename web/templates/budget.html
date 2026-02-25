@@ -1,0 +1,14 @@
+{{define "content"}}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold text-gray-900">Budget &mdash; Flux de revenus</h1>
+
+    <div id="budget-content">
+        {{template "budget-content.html" .}}
+    </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://unpkg.com/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+{{end}}
+
+{{template "layout" .}}

@@ -22,6 +22,10 @@
             class="{{if eq .ActiveTab "immobilier"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
             Immobilier
         </button>
+        <button hx-get="/portfolio?tab=watchlist" hx-target="#portfolio-container" hx-swap="innerHTML"
+            class="{{if eq .ActiveTab "watchlist"}}border-indigo-500 text-indigo-600{{else}}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{{end}} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+            Watchlist
+        </button>
     </nav>
 </div>
     {{if eq .ActiveTab "overview"}}
@@ -762,6 +766,101 @@
     </div>
     {{end}}
     {{end}}
+
+    {{else if eq .ActiveTab "watchlist"}}
+    <!-- Watchlist form -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Ajouter à la watchlist</h2>
+        <form id="watchlist-form"
+              hx-post="/portfolio/watchlist"
+              hx-target="#watchlist-results"
+              hx-swap="innerHTML"
+              class="space-y-4">
+            <input type="hidden" name="name" id="watchlist_name" value="">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- ISIN -->
+                <div class="relative">
+                    <label for="watchlist_isin" class="block text-sm font-medium text-gray-700">ISIN</label>
+                    <div class="relative">
+                        <input type="text" name="isin" id="watchlist_isin" required
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2"
+                            placeholder="Ex: FR0000121014">
+                        <span id="watchlist-spinner" class="absolute right-2 top-1/2 -translate-y-1/2 hidden">
+                            <svg class="animate-spin h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                        </span>
+                    </div>
+                    <p id="watchlist-error" class="mt-1 text-sm text-red-600 hidden"></p>
+                    <p id="watchlist-info" class="mt-1 text-sm text-green-600 hidden"></p>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" id="watchlist_submit_btn"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Ajouter
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Watchlist results area -->
+    <div id="watchlist-results">
+        {{template "watchlist-table.html" .WatchlistSummary}}
+    </div>
+
+    <script>
+    // Auto-lookup when ISIN is entered
+    document.getElementById('watchlist_isin').addEventListener('blur', function() {
+        var isin = this.value.trim().toUpperCase();
+        var spinner = document.getElementById('watchlist-spinner');
+        var errorEl = document.getElementById('watchlist-error');
+        var infoEl = document.getElementById('watchlist-info');
+        errorEl.classList.add('hidden');
+        infoEl.classList.add('hidden');
+
+        if (isin.length !== 12) return;
+        this.value = isin;
+
+        spinner.classList.remove('hidden');
+
+        fetch('/portfolio/quote?isin=' + encodeURIComponent(isin))
+            .then(function(resp) { return resp.json().then(function(data) { return {ok: resp.ok, data: data}; }); })
+            .then(function(result) {
+                spinner.classList.add('hidden');
+                if (!result.ok) {
+                    errorEl.textContent = result.data.error || 'Erreur lors de la recherche';
+                    errorEl.classList.remove('hidden');
+                    setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+                    return;
+                }
+                var d = result.data;
+                if (d.name) {
+                    document.getElementById('watchlist_name').value = d.name;
+                    infoEl.textContent = d.name + (d.price ? ' — ' + d.price.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' ' + (d.currency || 'EUR') : '');
+                    infoEl.classList.remove('hidden');
+                }
+            })
+            .catch(function() {
+                spinner.classList.add('hidden');
+                errorEl.textContent = 'Erreur réseau';
+                errorEl.classList.remove('hidden');
+                setTimeout(function() { errorEl.classList.add('hidden'); }, 4000);
+            });
+    });
+
+    // Reset form after successful submission
+    document.body.addEventListener('htmx:afterSwap', function(event) {
+        if (event.detail.target.id === 'watchlist-results') {
+            document.getElementById('watchlist-form').reset();
+            document.getElementById('watchlist_name').value = '';
+            document.getElementById('watchlist-info').classList.add('hidden');
+        }
+    });
+    </script>
 
     {{else if eq .ActiveTab "crypto"}}
     <!-- Crypto form -->
