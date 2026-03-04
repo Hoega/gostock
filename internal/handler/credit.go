@@ -202,6 +202,17 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 	energy3DPE := parseFloat(r.FormValue("energy_3_dpe"), 0)
 	energyPriceIncrease := parseFloat(r.FormValue("energy_price_increase"), 4.0)
 
+	// Parse bridge loan fields
+	bridgeLoanEnabled := r.FormValue("bridge_loan_enabled") == "on" || r.FormValue("bridge_loan_enabled") == "true"
+	bridgeLoanQuotity := parseFloat(r.FormValue("bridge_loan_quotity"), 70)
+	bridgeLoanRate := parseFloat(r.FormValue("bridge_loan_rate"), 3.5)
+	bridgeLoanDuration := parseInt(r.FormValue("bridge_loan_duration"), 12)
+	bridgeLoanInsurance := parseFloat(r.FormValue("bridge_loan_insurance"), 0.34)
+	bridgeLoanFranchise := r.FormValue("bridge_loan_franchise")
+	if bridgeLoanFranchise == "" {
+		bridgeLoanFranchise = "partielle"
+	}
+
 	// Save inputs to persistence
 	formInputs := &persistence.FormInputs{
 		PropertyPrice:         propertyPrice,
@@ -282,6 +293,12 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		Energy3Surface:          energy3Surface,
 		Energy3DPE:              energy3DPE,
 		EnergyPriceIncrease:     energyPriceIncrease,
+		BridgeLoanEnabled:       bridgeLoanEnabled,
+		BridgeLoanQuotity:       bridgeLoanQuotity,
+		BridgeLoanRate:           bridgeLoanRate,
+		BridgeLoanDuration:      bridgeLoanDuration,
+		BridgeLoanInsurance:     bridgeLoanInsurance,
+		BridgeLoanFranchise:     bridgeLoanFranchise,
 	}
 	if err := h.store.Save(formInputs); err != nil {
 		log.Printf("Failed to save inputs: %v", err)
@@ -363,6 +380,12 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		Energy3Surface:         energy3Surface,
 		Energy3DPE:             energy3DPE,
 		EnergyPriceIncrease:    energyPriceIncrease,
+		BridgeLoanEnabled:      bridgeLoanEnabled,
+		BridgeLoanQuotity:      bridgeLoanQuotity,
+		BridgeLoanRate:         bridgeLoanRate,
+		BridgeLoanDuration:     bridgeLoanDuration,
+		BridgeLoanInsurance:    bridgeLoanInsurance,
+		BridgeLoanFranchise:    bridgeLoanFranchise,
 	}
 
 	result := calculator.Calculate(input)

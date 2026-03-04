@@ -88,6 +88,13 @@ type FormInputs struct {
 	// Resale projection fields
 	ResaleRates     string  `db:"resale_rates"`      // JSON array
 	ResaleSellCosts float64 `db:"resale_sell_costs"`
+	// Bridge loan fields
+	BridgeLoanEnabled   bool    `db:"bridge_loan_enabled"`
+	BridgeLoanQuotity   float64 `db:"bridge_loan_quotity"`
+	BridgeLoanRate      float64 `db:"bridge_loan_rate"`
+	BridgeLoanDuration  int     `db:"bridge_loan_duration"`
+	BridgeLoanInsurance float64 `db:"bridge_loan_insurance"`
+	BridgeLoanFranchise string  `db:"bridge_loan_franchise"`
 }
 
 // Store defines the interface for persisting form inputs.
@@ -306,5 +313,10 @@ func DefaultInputs() *FormInputs {
 		EnergyPriceIncrease:    4.0,
 		ResaleRates:            "[]",
 		ResaleSellCosts:        0,
+		BridgeLoanQuotity:     70,
+		BridgeLoanRate:        3.5,
+		BridgeLoanDuration:    12,
+		BridgeLoanInsurance:   0.34,
+		BridgeLoanFranchise:   "partielle",
 	}
 }

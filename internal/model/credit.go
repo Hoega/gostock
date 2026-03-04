@@ -81,6 +81,13 @@ type CreditInput struct {
 	// Resale projection parameters
 	ResaleRates     []float64 // Taux de revalorisation annuelle personnalisés (ex: [-0.02, 0, 0.03])
 	ResaleSellCosts float64   // Frais de vente à la revente (%)
+	// Prêt relais
+	BridgeLoanEnabled   bool    // Activer le prêt relais
+	BridgeLoanQuotity   float64 // Quotité bancaire (50-80%)
+	BridgeLoanRate      float64 // Taux d'intérêt du prêt relais (%)
+	BridgeLoanDuration  int     // Durée en mois (12-24)
+	BridgeLoanInsurance float64 // Taux assurance (%)
+	BridgeLoanFranchise string  // "partielle" (intérêts mensuels) ou "totale" (intérêts capitalisés)
 }
 
 // EnergyComparisonYear holds the energy cost comparison data for one year.
@@ -148,6 +155,22 @@ type CreditResult struct {
 	CurrentLoanSchedule     []MonthlySchedule         // Planning mensuel des prêts en cours (bien actuel)
 	CurrentBorrowerPayments []CurrentBorrowerPayment  // Versements cumulés par emprunteur (bien actuel)
 	EnergyComparisonData    []EnergyComparisonYear    // Données comparaison coûts énergétiques
+	BridgeLoan              BridgeLoanResult          // Résultat du prêt relais
+}
+
+// BridgeLoanResult holds the computed results for a bridge loan (prêt relais).
+type BridgeLoanResult struct {
+	Enabled           bool    // Prêt relais activé
+	Amount            float64 // Montant du prêt relais (quotité × prix vente)
+	NetAmount         float64 // Montant net disponible (Amount − CRD)
+	Rate              float64 // Taux appliqué
+	Duration          int     // Durée en mois
+	Franchise         string  // Type de franchise
+	MonthlyPayment    float64 // Mensualité pendant la période relais (0 si franchise totale)
+	TotalInterest     float64 // Coût total des intérêts
+	TotalInsurance    float64 // Coût total assurance
+	TotalCost         float64 // Coût total du prêt relais
+	CapitalizedAmount float64 // Montant à rembourser à la vente (capital + intérêts capitalisés si franchise totale)
 }
 
 // AidEligibility holds the eligibility results for housing assistance programs.

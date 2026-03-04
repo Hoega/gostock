@@ -572,6 +572,54 @@
 
     {{template "currentloancomposition.html" .}}
 
+    {{if .Result.BridgeLoan.Enabled}}
+    <!-- Prêt relais -->
+    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6 mt-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Pr&ecirc;t relais</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">Montant brut</p>
+                <p class="text-lg font-bold text-amber-900">{{formatMoney .Result.BridgeLoan.Amount}} &euro;</p>
+                <p class="text-xs text-amber-500">quotit&eacute; &times; prix de vente</p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">Net disponible</p>
+                <p class="text-lg font-bold text-amber-900">{{formatMoney .Result.BridgeLoan.NetAmount}} &euro;</p>
+                <p class="text-xs text-amber-500">apr&egrave;s remboursement du CRD</p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">Mensualit&eacute;</p>
+                {{if eq .Result.BridgeLoan.Franchise "totale"}}
+                <p class="text-lg font-bold text-amber-900">Aucune</p>
+                <p class="text-xs text-amber-500">Franchise totale</p>
+                {{else}}
+                <p class="text-lg font-bold text-amber-900">{{formatMoney .Result.BridgeLoan.MonthlyPayment}} &euro;</p>
+                <p class="text-xs text-amber-500">Int&eacute;r&ecirc;ts + assurance</p>
+                {{end}}
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">Co&ucirc;t total</p>
+                <p class="text-lg font-bold text-amber-900">{{formatMoney .Result.BridgeLoan.TotalCost}} &euro;</p>
+                <p class="text-xs text-amber-500">Int&eacute;r&ecirc;ts : {{formatMoney .Result.BridgeLoan.TotalInterest}} &euro; + Ass. : {{formatMoney .Result.BridgeLoan.TotalInsurance}} &euro;</p>
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">&Agrave; rembourser &agrave; la vente</p>
+                <p class="text-lg font-bold text-amber-900">{{formatMoney .Result.BridgeLoan.CapitalizedAmount}} &euro;</p>
+                {{if eq .Result.BridgeLoan.Franchise "totale"}}
+                <p class="text-xs text-amber-500">Capital + int&eacute;r&ecirc;ts capitalis&eacute;s + assurance</p>
+                {{else}}
+                <p class="text-xs text-amber-500">Capital uniquement</p>
+                {{end}}
+            </div>
+            <div class="bg-white rounded-lg p-3 border border-amber-100">
+                <p class="text-xs font-medium text-amber-600">Dur&eacute;e &amp; taux</p>
+                <p class="text-lg font-bold text-amber-900">{{.Result.BridgeLoan.Duration}} mois</p>
+                <p class="text-xs text-amber-500">Taux : {{formatMoney .Result.BridgeLoan.Rate}} %</p>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
     <!-- Section: Nouveau projet immobilier -->
     <div class="relative mt-8 mb-4">
         <div class="absolute inset-0 flex items-center" aria-hidden="true">

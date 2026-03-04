@@ -354,6 +354,14 @@ func runMigrations(db *sqlx.DB) {
 		`ALTER TABLE simulation_inputs ADD COLUMN resale_rates TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE simulation_inputs ADD COLUMN resale_sell_costs REAL NOT NULL DEFAULT 0`,
 		// Budget migrations
+		// Bridge loan fields
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_enabled INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_quotity REAL NOT NULL DEFAULT 70`,
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_rate REAL NOT NULL DEFAULT 3.5`,
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_duration INTEGER NOT NULL DEFAULT 12`,
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_insurance REAL NOT NULL DEFAULT 0.34`,
+		`ALTER TABLE simulation_inputs ADD COLUMN bridge_loan_franchise TEXT NOT NULL DEFAULT 'partielle'`,
+		// Budget migrations
 		`ALTER TABLE budget_inputs ADD COLUMN childcare REAL NOT NULL DEFAULT 0`,
 		`ALTER TABLE budget_inputs ADD COLUMN subscriptions_json TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE budget_inputs ADD COLUMN meal_vouchers REAL NOT NULL DEFAULT 0`,
@@ -403,7 +411,9 @@ func (s *SQLiteStore) Load() (*FormInputs, error) {
 		energy_2_other, energy_2_other_label, energy_2_label, energy_2_surface, energy_2_dpe,
 		energy_3_gas, energy_3_electricity, energy_3_gas_kwh, energy_3_electricity_kwh,
 		energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase,
-		resale_rates, resale_sell_costs
+		resale_rates, resale_sell_costs,
+		bridge_loan_enabled, bridge_loan_quotity, bridge_loan_rate,
+		bridge_loan_duration, bridge_loan_insurance, bridge_loan_franchise
 		FROM simulation_inputs WHERE id = 1`)
 
 	if err == sql.ErrNoRows {
@@ -450,7 +460,9 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			energy_2_other, energy_2_other_label, energy_2_label, energy_2_surface, energy_2_dpe,
 			energy_3_gas, energy_3_electricity, energy_3_gas_kwh, energy_3_electricity_kwh,
 			energy_3_other, energy_3_other_label, energy_3_label, energy_3_surface, energy_3_dpe, energy_price_increase,
-			resale_rates, resale_sell_costs
+			resale_rates, resale_sell_costs,
+			bridge_loan_enabled, bridge_loan_quotity, bridge_loan_rate,
+			bridge_loan_duration, bridge_loan_insurance, bridge_loan_franchise
 		) VALUES (
 			:id, :property_price, :down_payment, :interest_rate, :duration_years,
 			:insurance_rate, :notary_rate, :agency_rate, :agency_fixed,
@@ -473,7 +485,9 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			:energy_2_other, :energy_2_other_label, :energy_2_label, :energy_2_surface, :energy_2_dpe,
 			:energy_3_gas, :energy_3_electricity, :energy_3_gas_kwh, :energy_3_electricity_kwh,
 			:energy_3_other, :energy_3_other_label, :energy_3_label, :energy_3_surface, :energy_3_dpe, :energy_price_increase,
-			:resale_rates, :resale_sell_costs
+			:resale_rates, :resale_sell_costs,
+			:bridge_loan_enabled, :bridge_loan_quotity, :bridge_loan_rate,
+			:bridge_loan_duration, :bridge_loan_insurance, :bridge_loan_franchise
 		)
 		ON CONFLICT(id) DO UPDATE SET
 			property_price = :property_price,
@@ -556,7 +570,13 @@ func (s *SQLiteStore) Save(inputs *FormInputs) error {
 			energy_3_dpe = :energy_3_dpe,
 			energy_price_increase = :energy_price_increase,
 			resale_rates = :resale_rates,
-			resale_sell_costs = :resale_sell_costs
+			resale_sell_costs = :resale_sell_costs,
+			bridge_loan_enabled = :bridge_loan_enabled,
+			bridge_loan_quotity = :bridge_loan_quotity,
+			bridge_loan_rate = :bridge_loan_rate,
+			bridge_loan_duration = :bridge_loan_duration,
+			bridge_loan_insurance = :bridge_loan_insurance,
+			bridge_loan_franchise = :bridge_loan_franchise
 	`, inputs)
 
 	if err != nil {

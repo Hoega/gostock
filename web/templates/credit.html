@@ -456,6 +456,93 @@
             </div>
         </div>
 
+        <!-- Section: Prêt relais -->
+        <div>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Pr&ecirc;t relais</h2>
+            <div class="mb-4">
+                <label class="inline-flex items-center cursor-pointer">
+                    <input type="checkbox" name="bridge_loan_enabled" id="bridge_loan_enabled"
+                        {{if .BridgeLoanEnabled}}checked{{end}}
+                        onchange="toggleBridgeLoan()"
+                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <span class="ml-2 text-sm font-medium text-gray-700">Activer le pr&ecirc;t relais</span>
+                </label>
+                <p class="text-sm text-gray-500 mt-1">Financement temporaire en attendant la vente de votre bien actuel. Le montant est calcul&eacute; &agrave; partir du prix de vente estim&eacute; ci-dessus.</p>
+            </div>
+            <div id="bridge_loan_fields" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 {{if not .BridgeLoanEnabled}}hidden{{end}}">
+                <!-- Quotité -->
+                <div>
+                    <label for="bridge_loan_quotity" class="block text-sm font-medium text-gray-700">Quotit&eacute; (%)</label>
+                    <input type="range" name="bridge_loan_quotity" id="bridge_loan_quotity"
+                        value="{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}"
+                        min="50" max="80" step="5"
+                        oninput="updateBridgeLoanAmount()"
+                        class="mt-1 block w-full">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>50%</span>
+                        <span id="bridge_loan_quotity_display" class="font-medium text-indigo-600">{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}%</span>
+                        <span>80%</span>
+                    </div>
+                </div>
+                <!-- Montant calculé (lecture seule) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Montant brut</label>
+                    <p id="bridge_loan_amount_display" class="mt-1 text-lg font-semibold text-indigo-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
+                    <p class="mt-1 text-xs text-gray-500">= quotit&eacute; &times; prix de vente</p>
+                </div>
+                <!-- Montant net après CRD -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Net apr&egrave;s CRD</label>
+                    <p id="bridge_loan_net_display" class="mt-1 text-lg font-semibold text-emerald-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
+                    <p class="mt-1 text-xs text-gray-500">= montant brut &minus; capital restant d&ucirc;</p>
+                </div>
+                <!-- Taux d'intérêt -->
+                <div>
+                    <label for="bridge_loan_rate" class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
+                    <input type="number" name="bridge_loan_rate" id="bridge_loan_rate"
+                        value="{{if .BridgeLoanRate}}{{.BridgeLoanRate}}{{else}}3.5{{end}}"
+                        step="0.1" min="0" max="10"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <!-- Durée -->
+                <div>
+                    <label for="bridge_loan_duration" class="block text-sm font-medium text-gray-700">Dur&eacute;e (mois)</label>
+                    <select name="bridge_loan_duration" id="bridge_loan_duration"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <option value="12" {{if eq .BridgeLoanDuration 12}}selected{{end}}>12 mois</option>
+                        <option value="24" {{if eq .BridgeLoanDuration 24}}selected{{end}}>24 mois</option>
+                    </select>
+                </div>
+                <!-- Taux assurance -->
+                <div>
+                    <label for="bridge_loan_insurance" class="block text-sm font-medium text-gray-700">Taux assurance (%)</label>
+                    <input type="number" name="bridge_loan_insurance" id="bridge_loan_insurance"
+                        value="{{if .BridgeLoanInsurance}}{{.BridgeLoanInsurance}}{{else}}0.34{{end}}"
+                        step="0.01" min="0" max="5"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <!-- Type de franchise -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Type de franchise</label>
+                    <div class="flex gap-4">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="bridge_loan_franchise" value="partielle"
+                                {{if or (eq .BridgeLoanFranchise "partielle") (eq .BridgeLoanFranchise "")}}checked{{end}}
+                                class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Partielle</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="bridge_loan_franchise" value="totale"
+                                {{if eq .BridgeLoanFranchise "totale"}}checked{{end}}
+                                class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Totale</span>
+                        </label>
+                    </div>
+                    <p class="mt-1 text-xs text-gray-500">Partielle : int&eacute;r&ecirc;ts mensuels. Totale : int&eacute;r&ecirc;ts capitalis&eacute;s.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Section: Revenus et répartition -->
         <div>
             <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Revenus et r&eacute;partition</h2>
@@ -1409,6 +1496,11 @@
         // Update hidden field
         document.getElementById('current_loan_lines').value = JSON.stringify(loanLines);
 
+        // Update bridge loan net amount when CRD changes
+        if (document.getElementById('bridge_loan_enabled') && document.getElementById('bridge_loan_enabled').checked) {
+            updateBridgeLoanAmount();
+        }
+
         // Update fair share calculation
         calculateFairShare();
     }
@@ -1979,6 +2071,45 @@
         }
         renderNewLoanLines();
     });
+    // Bridge loan functions
+    function toggleBridgeLoan() {
+        const enabled = document.getElementById('bridge_loan_enabled').checked;
+        const fields = document.getElementById('bridge_loan_fields');
+        if (enabled) {
+            fields.classList.remove('hidden');
+            updateBridgeLoanAmount();
+        } else {
+            fields.classList.add('hidden');
+        }
+    }
+
+    function updateBridgeLoanAmount() {
+        const salePrice = parseFloat(document.getElementById('current_sale_price').value) || 0;
+        const quotity = parseFloat(document.getElementById('bridge_loan_quotity').value) || 70;
+        const amount = Math.round(salePrice * quotity / 100);
+        // Calculate total CRD from loan lines
+        let totalBalance = 0;
+        if (typeof loanLines !== 'undefined') {
+            loanLines.forEach(line => { totalBalance += line.balance || 0; });
+        }
+        const netAmount = Math.max(0, amount - totalBalance);
+        document.getElementById('bridge_loan_quotity_display').textContent = quotity + '%';
+        document.getElementById('bridge_loan_amount_display').textContent =
+            amount.toLocaleString('fr-FR') + ' €';
+        document.getElementById('bridge_loan_net_display').textContent =
+            netAmount.toLocaleString('fr-FR') + ' €';
+    }
+
+    // Update bridge loan amount when sale price changes
+    const salePriceInput = document.getElementById('current_sale_price');
+    if (salePriceInput) {
+        salePriceInput.addEventListener('input', updateBridgeLoanAmount);
+    }
+
+    // Initialize bridge loan amount on page load
+    if (document.getElementById('bridge_loan_enabled') && document.getElementById('bridge_loan_enabled').checked) {
+        updateBridgeLoanAmount();
+    }
     </script>
 
     <div id="results"></div>

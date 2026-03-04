@@ -1117,6 +1117,26 @@ func Calculate(input model.CreditInput) model.CreditResult {
 	// Calculate energy comparison
 	energyComparisonData := CalculateEnergyComparison(input, durationYears)
 
+	// Calculate bridge loan if enabled
+	var bridgeLoan model.BridgeLoanResult
+	if input.BridgeLoanEnabled && input.CurrentSalePrice > 0 {
+		bridgeLoan = CalculateBridgeLoan(
+			input.CurrentSalePrice,
+			input.BridgeLoanQuotity,
+			input.BridgeLoanRate,
+			input.BridgeLoanDuration,
+			input.BridgeLoanInsurance,
+			input.BridgeLoanFranchise,
+			input.CurrentLoanBalance,
+		)
+		// Bridge loan cost adds to total project cost
+		totalProjectCost += bridgeLoan.TotalCost
+		// Bridge loan monthly payment impacts effort rate during relay period
+		if incomeMonthly > 0 && bridgeLoan.MonthlyPayment > 0 {
+			effortRate = (monthlyPayment + monthlyInsurance + bridgeLoan.MonthlyPayment) / incomeMonthly * 100
+		}
+	}
+
 	return model.CreditResult{
 		MonthlyPayment:   round2(monthlyPayment),
 		MonthlyInsurance: round2(monthlyInsurance),
@@ -1156,6 +1176,62 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		CurrentLoanSchedule:      currentLoanSchedule,
 		CurrentBorrowerPayments:  currentBorrowerPayments,
 		EnergyComparisonData:     energyComparisonData,
+		BridgeLoan:               bridgeLoan,
+	}
+}
+
+// CalculateBridgeLoan computes the results for a bridge loan (prêt relais).
+// Franchise partielle: monthly interest payments, capital repaid in fine at sale.
+// Franchise totale: no monthly payments, interest capitalized, everything repaid at sale.
+func CalculateBridgeLoan(salePrice, quotity, rate float64, durationMonths int, insuranceRate float64, franchise string, loanBalance float64) model.BridgeLoanResult {
+	amount := round2(salePrice * quotity / 100)
+	if amount <= 0 || durationMonths <= 0 {
+		return model.BridgeLoanResult{}
+	}
+
+	monthlyRate := rate / 100 / 12
+	monthlyInsuranceRate := insuranceRate / 100 / 12
+
+	var monthlyPayment, totalInterest, totalInsurance, capitalizedAmount float64
+
+	if franchise == "totale" {
+		// Franchise totale: no monthly payment, interest capitalized
+		monthlyPayment = 0
+		capitalizedAmount = amount * math.Pow(1+monthlyRate, float64(durationMonths))
+		totalInterest = capitalizedAmount - amount
+		// Insurance still accrues monthly on original amount
+		totalInsurance = monthlyInsuranceRate * amount * float64(durationMonths)
+		// Capitalized amount includes insurance
+		capitalizedAmount += totalInsurance
+	} else {
+		// Franchise partielle: monthly interest + insurance, capital repaid in fine
+		monthlyInterest := amount * monthlyRate
+		monthlyIns := amount * monthlyInsuranceRate
+		monthlyPayment = round2(monthlyInterest + monthlyIns)
+		totalInterest = monthlyInterest * float64(durationMonths)
+		totalInsurance = monthlyIns * float64(durationMonths)
+		capitalizedAmount = amount // Only capital to repay at sale
+	}
+
+	totalCost := totalInterest + totalInsurance
+
+	netAmount := amount - loanBalance
+	if netAmount < 0 {
+		netAmount = 0
+	}
+
+	return model.BridgeLoanResult{
+		Enabled:           true,
+		Amount:            amount,
+		NetAmount:         round2(netAmount),
+		Rate:              rate,
+		Duration:          durationMonths,
+		Franchise:         franchise,
+		MonthlyPayment:    round2(monthlyPayment),
+		TotalInterest:     round2(totalInterest),
+		TotalInsurance:    round2(totalInsurance),
+		TotalCost:         round2(totalCost),
+		CapitalizedAmount: round2(capitalizedAmount),
 	}
 }
 
