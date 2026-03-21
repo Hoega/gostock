@@ -51,8 +51,11 @@ type PerformanceDashboardData struct {
 	SortDesc       bool    // Sort descending
 	BestPerformer  string  // Name of best performer (by YTD)
 	WorstPerformer string  // Name of worst performer (by YTD)
-	AverageReturn  float64 // Average YTD return across all assets
-	TotalValue     float64 // Total portfolio value
+	AverageReturn        float64 // Average YTD return across all assets
+	AverageDailyReturn   float64 // Average daily return across all assets
+	AverageWeeklyReturn  float64 // Average weekly return across all assets
+	AverageMonthlyReturn float64 // Average monthly return across all assets
+	TotalValue           float64 // Total portfolio value
 	StockCount     int     // Number of stock positions
 	CryptoCount    int     // Number of crypto positions
 	UpdatedAt      string  // Last data fetch timestamp (formatted)

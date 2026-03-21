@@ -415,8 +415,8 @@ func buildDashboardData(assets []model.AssetPerformance, filter, sortBy string, 
 		return data
 	}
 
-	// Find best/worst performers and average return
-	var totalReturn float64
+	// Find best/worst performers and average returns
+	var totalReturn, totalDaily, totalWeekly, totalMonthly float64
 	bestYTD := assets[0].YTDChange
 	worstYTD := assets[0].YTDChange
 	data.BestPerformer = assets[0].Name
@@ -424,6 +424,9 @@ func buildDashboardData(assets []model.AssetPerformance, filter, sortBy string, 
 
 	for _, a := range assets {
 		totalReturn += a.YTDChange
+		totalDaily += a.DailyChange
+		totalWeekly += a.WeeklyChange
+		totalMonthly += a.MonthlyChange
 		if a.YTDChange > bestYTD {
 			bestYTD = a.YTDChange
 			data.BestPerformer = a.Name
@@ -434,7 +437,11 @@ func buildDashboardData(assets []model.AssetPerformance, filter, sortBy string, 
 		}
 	}
 
-	data.AverageReturn = totalReturn / float64(len(assets))
+	n := float64(len(assets))
+	data.AverageReturn = totalReturn / n
+	data.AverageDailyReturn = totalDaily / n
+	data.AverageWeeklyReturn = totalWeekly / n
+	data.AverageMonthlyReturn = totalMonthly / n
 
 	return data
 }

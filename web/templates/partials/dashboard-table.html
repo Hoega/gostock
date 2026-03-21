@@ -1,9 +1,33 @@
 {{define "dashboard-table.html"}}
 <!-- Summary Cards -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
     <div class="bg-white rounded-lg shadow p-4">
         <div class="text-sm font-medium text-gray-500">Valeur totale</div>
         <div class="mt-1 text-2xl font-semibold text-gray-900">{{formatMoney .TotalValue}} &euro;</div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Perf 1J</div>
+        <div class="mt-1 text-2xl font-semibold {{if ge .AverageDailyReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
+            {{if ge .AverageDailyReturn 0.0}}+{{end}}{{printf "%.2f" .AverageDailyReturn}}%
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Perf 1S</div>
+        <div class="mt-1 text-2xl font-semibold {{if ge .AverageWeeklyReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
+            {{if ge .AverageWeeklyReturn 0.0}}+{{end}}{{printf "%.2f" .AverageWeeklyReturn}}%
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Perf 1M</div>
+        <div class="mt-1 text-2xl font-semibold {{if ge .AverageMonthlyReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
+            {{if ge .AverageMonthlyReturn 0.0}}+{{end}}{{printf "%.2f" .AverageMonthlyReturn}}%
+        </div>
+    </div>
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="text-sm font-medium text-gray-500">Perf YTD</div>
+        <div class="mt-1 text-2xl font-semibold {{if ge .AverageReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
+            {{if ge .AverageReturn 0.0}}+{{end}}{{printf "%.2f" .AverageReturn}}%
+        </div>
     </div>
     <div class="bg-white rounded-lg shadow p-4">
         <div class="text-sm font-medium text-gray-500">Meilleur YTD</div>
@@ -12,12 +36,6 @@
     <div class="bg-white rounded-lg shadow p-4">
         <div class="text-sm font-medium text-gray-500">Pire YTD</div>
         <div class="mt-1 text-lg font-semibold text-red-600">{{.WorstPerformer}}</div>
-    </div>
-    <div class="bg-white rounded-lg shadow p-4">
-        <div class="text-sm font-medium text-gray-500">Rendement moyen YTD</div>
-        <div class="mt-1 text-2xl font-semibold {{if ge .AverageReturn 0.0}}text-green-600{{else}}text-red-600{{end}}">
-            {{if ge .AverageReturn 0.0}}+{{end}}{{printf "%.2f" .AverageReturn}}%
-        </div>
     </div>
 </div>
 
