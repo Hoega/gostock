@@ -1,0 +1,74 @@
+version: "3"
+
+vars:
+  BINARY: gostock
+  CMD: ./cmd/gostock/
+  DB_PATH: "{{.HOME}}/.local/share/gostock/gostock.db"
+
+tasks:
+  default:
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the gostock binary
+    cmds:
+      - go build -o {{.BINARY}} {{.CMD}}
+    sources:
+      - "**/*.go"
+    generates:
+      - "{{.BINARY}}"
+
+  run:
+    desc: Build and run the server
+    deps: [build]
+    cmds:
+      - ./{{.BINARY}}
+
+  dev:
+    desc: Build and run with file watching (auto-restart on changes)
+    cmds:
+      - task: run
+    watch: true
+    sources:
+      - "**/*.go"
+      - "web/templates/**/*.html"
+
+  stop:
+    desc: Stop the running server
+    cmds:
+      - pkill -f './{{.BINARY}}' || true
+
+  clean:
+    desc: Remove the built binary
+    cmds:
+      - rm -f {{.BINARY}}
+
+  fmt:
+    desc: Format Go source code
+    cmds:
+      - gofmt -w .
+
+  vet:
+    desc: Run Go static analysis
+    cmds:
+      - go vet ./...
+
+  check:
+    desc: Run fmt, vet, and build (pre-commit quality check)
+    cmds:
+      - task: fmt
+      - task: vet
+      - task: build
+
+  db:path:
+    desc: Print the SQLite database path
+    cmds:
+      - echo "{{.DB_PATH}}"
+
+  db:backup:
+    desc: Backup the SQLite database with a timestamp
+    cmds:
+      - cp "{{.DB_PATH}}" "{{.DB_PATH}}.backup.$(date +%Y%m%d_%H%M%S)"
+    preconditions:
+      - test -f "{{.DB_PATH}}"

@@ -1,0 +1,821 @@
+{{define "content"}}
+<div class="space-y-6">
+    <h1 class="text-3xl font-bold text-gray-900">Comparateur d'offres de pr&ecirc;t immobilier</h1>
+
+    <form hx-post="/credit/compare/calculate" hx-target="#results" hx-swap="innerHTML"
+          hx-trigger="submit, keyup changed delay:500ms from:find input, change delay:500ms from:find select"
+          hx-indicator="#calc-indicator"
+          class="bg-white shadow rounded-lg p-6 space-y-8">
+
+        <!-- Section: Le bien (shared) -->
+        <div>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Le bien</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div>
+                    <label for="property_price" class="block text-sm font-medium text-gray-700">Prix du bien (&euro;)</label>
+                    <input type="number" name="property_price" id="property_price" value="{{.PropertyPrice}}" step="any" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <div>
+                    <label for="notary_rate" class="block text-sm font-medium text-gray-700">Frais de notaire (%)</label>
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="number" name="notary_rate" id="notary_rate" value="{{.NotaryRate}}" step="0.1" min="0"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <div class="flex gap-1 text-xs shrink-0">
+                            <button type="button" onclick="document.getElementById('notary_rate').value='7.50'; document.getElementById('notary_fixed').value='0'; htmx.trigger(this.closest('form'), 'submit')"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700">Ancien</button>
+                            <button type="button" onclick="document.getElementById('notary_rate').value='2.50'; document.getElementById('notary_fixed').value='0'; htmx.trigger(this.closest('form'), 'submit')"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700">Neuf</button>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <label for="notary_fixed" class="block text-sm font-medium text-gray-700">Frais de notaire montant fixe (&euro;)</label>
+                    <input type="number" name="notary_fixed" id="notary_fixed" value="{{.NotaryFixed}}" step="100" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <p class="mt-1 text-xs text-gray-500">Si renseign&eacute;, remplace le pourcentage</p>
+                </div>
+                <div>
+                    <label for="agency_rate" class="block text-sm font-medium text-gray-700">Frais d'agence (%)</label>
+                    <input type="number" name="agency_rate" id="agency_rate" value="{{.AgencyRate}}" step="0.01" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <div>
+                    <label for="agency_fixed" class="block text-sm font-medium text-gray-700">Frais d'agence montant fixe (&euro;)</label>
+                    <input type="number" name="agency_fixed" id="agency_fixed" value="{{.AgencyFixed}}" step="100" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    <p class="mt-1 text-xs text-gray-500">Si renseign&eacute;, remplace le pourcentage</p>
+                </div>
+                <div>
+                    <label for="renovation_cost" class="block text-sm font-medium text-gray-700">Travaux (&euro;)</label>
+                    <input type="number" name="renovation_cost" id="renovation_cost" value="{{.RenovationCost}}" step="1000" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: Financement (shared) -->
+        <div>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Financement</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                    <label for="down_payment_1" class="block text-sm font-medium text-gray-700">Apport - Emprunteur 1 (&euro;)</label>
+                    <input type="number" name="down_payment_1" id="down_payment_1" value="{{.DownPayment1}}" step="1000" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <div>
+                    <label for="down_payment_2" class="block text-sm font-medium text-gray-700">Apport - Emprunteur 2 (&euro;)</label>
+                    <input type="number" name="down_payment_2" id="down_payment_2" value="{{.DownPayment2}}" step="1000" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <div>
+                    <label for="net_income_1" class="block text-sm font-medium text-gray-700">Revenu net mensuel E1 (&euro;)</label>
+                    <input type="number" name="net_income_1" id="net_income_1" value="{{.NetIncome1}}" step="100" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+                <div>
+                    <label for="net_income_2" class="block text-sm font-medium text-gray-700">Revenu net mensuel E2 (&euro;)</label>
+                    <input type="number" name="net_income_2" id="net_income_2" value="{{.NetIncome2}}" step="100" min="0"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Two-column grid for offers -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Offer A -->
+            <div class="border-2 border-indigo-300 rounded-lg p-6 bg-indigo-50/30 space-y-6">
+                <h2 class="text-lg font-semibold text-indigo-800 border-b border-indigo-200 pb-2">Offre A</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
+                        <input type="number" name="a_interest_rate" id="a_interest_rate" value="{{.InterestRateA}}" step="0.01" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Dur&eacute;e (ans)</label>
+                        <input type="number" name="a_duration_years" id="a_duration_years" value="{{.DurationYearsA}}" step="1" min="1" max="30"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assurance (%)</label>
+                        <input type="number" name="a_insurance_rate" id="a_insurance_rate" value="{{.InsuranceRateA}}" step="0.01" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de dossier (&euro;)</label>
+                        <input type="number" name="a_bank_fees" id="a_bank_fees" value="{{.BankFeesA}}" step="any"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de garantie (&euro;)</label>
+                        <input type="number" name="a_guarantee_fees" id="a_guarantee_fees" value="{{.GuaranteeFeesA}}" step="any" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de courtage (&euro;)</label>
+                        <input type="number" name="a_broker_fees" id="a_broker_fees" value="{{.BrokerFeesA}}" step="100" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">D&eacute;but remboursement</label>
+                        <div class="flex gap-2 mt-1">
+                            <select name="a_start_month" id="a_start_month"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                                <option value="1"{{if eq .StartMonthA 1}} selected{{end}}>Jan</option>
+                                <option value="2"{{if eq .StartMonthA 2}} selected{{end}}>F&eacute;v</option>
+                                <option value="3"{{if eq .StartMonthA 3}} selected{{end}}>Mar</option>
+                                <option value="4"{{if eq .StartMonthA 4}} selected{{end}}>Avr</option>
+                                <option value="5"{{if eq .StartMonthA 5}} selected{{end}}>Mai</option>
+                                <option value="6"{{if eq .StartMonthA 6}} selected{{end}}>Juin</option>
+                                <option value="7"{{if eq .StartMonthA 7}} selected{{end}}>Juil</option>
+                                <option value="8"{{if eq .StartMonthA 8}} selected{{end}}>Ao&ucirc;t</option>
+                                <option value="9"{{if eq .StartMonthA 9}} selected{{end}}>Sep</option>
+                                <option value="10"{{if eq .StartMonthA 10}} selected{{end}}>Oct</option>
+                                <option value="11"{{if eq .StartMonthA 11}} selected{{end}}>Nov</option>
+                                <option value="12"{{if eq .StartMonthA 12}} selected{{end}}>D&eacute;c</option>
+                            </select>
+                            <input type="number" name="a_start_year" id="a_start_year" value="{{.StartYearA}}" step="1" min="2020" max="2040"
+                                class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loan lines A -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Lignes de cr&eacute;dit</label>
+                    <input type="hidden" name="a_new_loan_lines" id="a_new_loan_lines" value="{{.NewLoanLinesA}}">
+                    <div id="a_loan_lines_container" class="space-y-3"></div>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <button type="button" onclick="addOfferLoanLine('a', 'Pr\u00eat principal', 0, parseFloat(document.getElementById('a_interest_rate').value) || 3.5, parseInt(document.getElementById('a_duration_years').value) || 20, parseFloat(document.getElementById('a_insurance_rate').value) || 0.34)"
+                            class="px-3 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-medium rounded border border-indigo-300">+ Pr&ecirc;t principal</button>
+                        <button type="button" onclick="addOfferLoanLine('a', 'PTZ', 0, 0, 25, 0)"
+                            class="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-sm font-medium rounded border border-green-300">+ PTZ</button>
+                        <button type="button" onclick="addOfferLoanLine('a', 'PAL', 0, 1, 25, 0)"
+                            class="px-3 py-1 bg-cyan-100 hover:bg-cyan-200 text-cyan-700 text-sm font-medium rounded border border-cyan-300">+ PAL</button>
+                        <button type="button" onclick="addOfferLoanLine('a', 'Autre', 0, 0, 20, 0)"
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded border border-gray-300">+ Autre</button>
+                    </div>
+                </div>
+
+                <!-- Bridge loan A -->
+                <div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <input type="checkbox" name="a_bridge_loan_enabled" id="a_bridge_loan_enabled"
+                            {{if .BridgeLoanEnabledA}}checked{{end}}
+                            onchange="toggleBridgeLoan('a')"
+                            class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <label for="a_bridge_loan_enabled" class="text-sm font-medium text-gray-700">Pr&ecirc;t relais</label>
+                    </div>
+                    <div id="a_bridge_loan_fields" class="space-y-3 {{if not .BridgeLoanEnabledA}}hidden{{end}}">
+                        <div>
+                            <label class="block text-xs text-gray-500">Prix de vente estim&eacute; (&euro;)</label>
+                            <input type="number" name="a_bridge_loan_sale_price" id="a_bridge_loan_sale_price" value="{{.BridgeLoanSalePriceA}}" step="1000" min="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm"
+                                oninput="updateBridgeLoanSlider('a')">
+                            <input type="range" id="a_bridge_loan_sale_slider"
+                                min="0" max="{{if gt .BridgeLoanSalePriceA 0.0}}{{printf "%.0f" (mul .BridgeLoanSalePriceA 2)}}{{else}}500000{{end}}"
+                                value="{{printf "%.0f" .BridgeLoanSalePriceA}}" step="5000"
+                                oninput="document.getElementById('a_bridge_loan_sale_price').value = this.value; updateBridgeLoanDisplay('a')"
+                                class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                            <div class="flex justify-between text-xs text-gray-400 mt-0.5">
+                                <span>0 &euro;</span>
+                                <span id="a_bridge_loan_sale_max">{{if gt .BridgeLoanSalePriceA 0.0}}{{formatMoney (mul .BridgeLoanSalePriceA 2)}}{{else}}500 000{{end}} &euro;</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">Rachat de pr&ecirc;t - CRD (&euro;)</label>
+                            <input type="number" name="a_bridge_loan_loan_balance" id="a_bridge_loan_loan_balance" value="{{.BridgeLoanLoanBalanceA}}" step="any" min="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm"
+                                oninput="updateBridgeLoanDisplay('a')">
+                            <p class="mt-0.5 text-xs text-gray-400">Capital restant d&ucirc; du pr&ecirc;t en cours</p>
+                        </div>
+                        <div class="p-2 bg-indigo-50 rounded text-xs">
+                            <span class="text-gray-600">Montant relais :</span>
+                            <span id="a_bridge_loan_amount_display" class="font-semibold text-indigo-700">0 &euro;</span>
+                            <span class="text-gray-400 mx-1">|</span>
+                            <span class="text-gray-600">Net disponible :</span>
+                            <span id="a_bridge_loan_net_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-500">Quotit&eacute; (%)</label>
+                                <input type="number" name="a_bridge_loan_quotity" id="a_bridge_loan_quotity" value="{{.BridgeLoanQuotityA}}" step="5" min="50" max="80"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm"
+                                    oninput="updateBridgeLoanDisplay('a')">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Taux (%)</label>
+                                <input type="number" name="a_bridge_loan_rate" id="a_bridge_loan_rate" value="{{.BridgeLoanRateA}}" step="0.01" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Dur&eacute;e (mois)</label>
+                                <select name="a_bridge_loan_duration" id="a_bridge_loan_duration"
+                                    onchange="updateSaleMonthMax('a')"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                                    <option value="12"{{if eq .BridgeLoanDurationA 12}} selected{{end}}>12</option>
+                                    <option value="24"{{if eq .BridgeLoanDurationA 24}} selected{{end}}>24</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Assurance (%)</label>
+                                <input type="number" name="a_bridge_loan_insurance" id="a_bridge_loan_insurance" value="{{.BridgeLoanInsuranceA}}" step="0.01" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs text-gray-500 mb-1">Franchise</label>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center gap-1 text-sm">
+                                        <input type="radio" name="a_bridge_loan_franchise" value="partielle"
+                                            {{if eq .BridgeLoanFranchiseA "partielle"}}checked{{end}}
+                                            onchange="updateBridgeLoanRepayDisplay('a')">
+                                        Partielle
+                                    </label>
+                                    <label class="flex items-center gap-1 text-sm">
+                                        <input type="radio" name="a_bridge_loan_franchise" value="totale"
+                                            {{if eq .BridgeLoanFranchiseA "totale"}}checked{{end}}
+                                            onchange="updateBridgeLoanRepayDisplay('a')">
+                                        Totale
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="border-indigo-200">
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Produit de la vente</h4>
+                            <div>
+                                <label class="block text-xs text-gray-500">Date de vente estim&eacute;e (mois <span id="a_sale_month_label">{{.BridgeLoanSaleMonthA}}</span> / <span id="a_sale_month_max_label">{{.BridgeLoanDurationA}}</span>)</label>
+                                <input type="range" name="a_bridge_loan_sale_month" id="a_bridge_loan_sale_month"
+                                    min="1" max="{{.BridgeLoanDurationA}}" value="{{.BridgeLoanSaleMonthA}}" step="1"
+                                    oninput="document.getElementById('a_sale_month_label').textContent = this.value; updateBridgeLoanRepayDisplay('a')"
+                                    class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                            </div>
+                            <div class="p-2 bg-indigo-50 rounded text-xs">
+                                <span class="text-gray-600">Produit restant apr&egrave;s vente :</span>
+                                <span id="a_remaining_proceeds_display" class="font-semibold text-indigo-700">0 &euro;</span>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Part affect&eacute;e au remboursement anticip&eacute; (<span id="a_repay_pct_label">{{printf "%.0f" .BridgeLoanRepayPctA}}</span>%)</label>
+                                <input type="range" name="a_bridge_loan_repay_pct" id="a_bridge_loan_repay_pct"
+                                    min="0" max="100" value="{{printf "%.0f" .BridgeLoanRepayPctA}}" step="5"
+                                    oninput="document.getElementById('a_repay_pct_label').textContent = this.value; updateBridgeLoanRepayDisplay('a')"
+                                    class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-500">
+                            </div>
+                            <div class="p-2 bg-indigo-50 rounded text-xs">
+                                <span class="text-gray-600">Remboursement anticip&eacute; :</span>
+                                <span id="a_early_repay_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Ligne de pr&ecirc;t prioritaire</label>
+                                <select name="a_bridge_loan_repay_line" id="a_bridge_loan_repay_line"
+                                    onchange="updateBridgeLoanRepayDisplay('a')"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-2 py-1 text-sm">
+                                    <option value="0">Ligne 1</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Offer B -->
+            <div class="border-2 border-emerald-300 rounded-lg p-6 bg-emerald-50/30 space-y-6">
+                <h2 class="text-lg font-semibold text-emerald-800 border-b border-emerald-200 pb-2">Offre B</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
+                        <input type="number" name="b_interest_rate" id="b_interest_rate" value="{{.InterestRateB}}" step="0.01" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Dur&eacute;e (ans)</label>
+                        <input type="number" name="b_duration_years" id="b_duration_years" value="{{.DurationYearsB}}" step="1" min="1" max="30"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Assurance (%)</label>
+                        <input type="number" name="b_insurance_rate" id="b_insurance_rate" value="{{.InsuranceRateB}}" step="0.01" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de dossier (&euro;)</label>
+                        <input type="number" name="b_bank_fees" id="b_bank_fees" value="{{.BankFeesB}}" step="any"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de garantie (&euro;)</label>
+                        <input type="number" name="b_guarantee_fees" id="b_guarantee_fees" value="{{.GuaranteeFeesB}}" step="any" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Frais de courtage (&euro;)</label>
+                        <input type="number" name="b_broker_fees" id="b_broker_fees" value="{{.BrokerFeesB}}" step="100" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">D&eacute;but remboursement</label>
+                        <div class="flex gap-2 mt-1">
+                            <select name="b_start_month" id="b_start_month"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                                <option value="1"{{if eq .StartMonthB 1}} selected{{end}}>Jan</option>
+                                <option value="2"{{if eq .StartMonthB 2}} selected{{end}}>F&eacute;v</option>
+                                <option value="3"{{if eq .StartMonthB 3}} selected{{end}}>Mar</option>
+                                <option value="4"{{if eq .StartMonthB 4}} selected{{end}}>Avr</option>
+                                <option value="5"{{if eq .StartMonthB 5}} selected{{end}}>Mai</option>
+                                <option value="6"{{if eq .StartMonthB 6}} selected{{end}}>Juin</option>
+                                <option value="7"{{if eq .StartMonthB 7}} selected{{end}}>Juil</option>
+                                <option value="8"{{if eq .StartMonthB 8}} selected{{end}}>Ao&ucirc;t</option>
+                                <option value="9"{{if eq .StartMonthB 9}} selected{{end}}>Sep</option>
+                                <option value="10"{{if eq .StartMonthB 10}} selected{{end}}>Oct</option>
+                                <option value="11"{{if eq .StartMonthB 11}} selected{{end}}>Nov</option>
+                                <option value="12"{{if eq .StartMonthB 12}} selected{{end}}>D&eacute;c</option>
+                            </select>
+                            <input type="number" name="b_start_year" id="b_start_year" value="{{.StartYearB}}" step="1" min="2020" max="2040"
+                                class="block w-24 rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 text-sm">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loan lines B -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Lignes de cr&eacute;dit</label>
+                    <input type="hidden" name="b_new_loan_lines" id="b_new_loan_lines" value="{{.NewLoanLinesB}}">
+                    <div id="b_loan_lines_container" class="space-y-3"></div>
+                    <div class="flex flex-wrap gap-2 mt-3">
+                        <button type="button" onclick="addOfferLoanLine('b', 'Pr\u00eat principal', 0, parseFloat(document.getElementById('b_interest_rate').value) || 3.5, parseInt(document.getElementById('b_duration_years').value) || 20, parseFloat(document.getElementById('b_insurance_rate').value) || 0.34)"
+                            class="px-3 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-sm font-medium rounded border border-emerald-300">+ Pr&ecirc;t principal</button>
+                        <button type="button" onclick="addOfferLoanLine('b', 'PTZ', 0, 0, 25, 0)"
+                            class="px-3 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-sm font-medium rounded border border-green-300">+ PTZ</button>
+                        <button type="button" onclick="addOfferLoanLine('b', 'PAL', 0, 1, 25, 0)"
+                            class="px-3 py-1 bg-cyan-100 hover:bg-cyan-200 text-cyan-700 text-sm font-medium rounded border border-cyan-300">+ PAL</button>
+                        <button type="button" onclick="addOfferLoanLine('b', 'Autre', 0, 0, 20, 0)"
+                            class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded border border-gray-300">+ Autre</button>
+                    </div>
+                </div>
+
+                <!-- Bridge loan B -->
+                <div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <input type="checkbox" name="b_bridge_loan_enabled" id="b_bridge_loan_enabled"
+                            {{if .BridgeLoanEnabledB}}checked{{end}}
+                            onchange="toggleBridgeLoan('b')"
+                            class="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500">
+                        <label for="b_bridge_loan_enabled" class="text-sm font-medium text-gray-700">Pr&ecirc;t relais</label>
+                    </div>
+                    <div id="b_bridge_loan_fields" class="space-y-3 {{if not .BridgeLoanEnabledB}}hidden{{end}}">
+                        <div>
+                            <label class="block text-xs text-gray-500">Prix de vente estim&eacute; (&euro;)</label>
+                            <input type="number" name="b_bridge_loan_sale_price" id="b_bridge_loan_sale_price" value="{{.BridgeLoanSalePriceB}}" step="1000" min="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm"
+                                oninput="updateBridgeLoanSlider('b')">
+                            <input type="range" id="b_bridge_loan_sale_slider"
+                                min="0" max="{{if gt .BridgeLoanSalePriceB 0.0}}{{printf "%.0f" (mul .BridgeLoanSalePriceB 2)}}{{else}}500000{{end}}"
+                                value="{{printf "%.0f" .BridgeLoanSalePriceB}}" step="5000"
+                                oninput="document.getElementById('b_bridge_loan_sale_price').value = this.value; updateBridgeLoanDisplay('b')"
+                                class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                            <div class="flex justify-between text-xs text-gray-400 mt-0.5">
+                                <span>0 &euro;</span>
+                                <span id="b_bridge_loan_sale_max">{{if gt .BridgeLoanSalePriceB 0.0}}{{formatMoney (mul .BridgeLoanSalePriceB 2)}}{{else}}500 000{{end}} &euro;</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-500">Rachat de pr&ecirc;t - CRD (&euro;)</label>
+                            <input type="number" name="b_bridge_loan_loan_balance" id="b_bridge_loan_loan_balance" value="{{.BridgeLoanLoanBalanceB}}" step="any" min="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm"
+                                oninput="updateBridgeLoanDisplay('b')">
+                            <p class="mt-0.5 text-xs text-gray-400">Capital restant d&ucirc; du pr&ecirc;t en cours</p>
+                        </div>
+                        <div class="p-2 bg-emerald-50 rounded text-xs">
+                            <span class="text-gray-600">Montant relais :</span>
+                            <span id="b_bridge_loan_amount_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                            <span class="text-gray-400 mx-1">|</span>
+                            <span class="text-gray-600">Net disponible :</span>
+                            <span id="b_bridge_loan_net_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-gray-500">Quotit&eacute; (%)</label>
+                                <input type="number" name="b_bridge_loan_quotity" id="b_bridge_loan_quotity" value="{{.BridgeLoanQuotityB}}" step="5" min="50" max="80"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm"
+                                    oninput="updateBridgeLoanDisplay('b')">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Taux (%)</label>
+                                <input type="number" name="b_bridge_loan_rate" id="b_bridge_loan_rate" value="{{.BridgeLoanRateB}}" step="0.01" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Dur&eacute;e (mois)</label>
+                                <select name="b_bridge_loan_duration" id="b_bridge_loan_duration"
+                                    onchange="updateSaleMonthMax('b')"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm">
+                                    <option value="12"{{if eq .BridgeLoanDurationB 12}} selected{{end}}>12</option>
+                                    <option value="24"{{if eq .BridgeLoanDurationB 24}} selected{{end}}>24</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Assurance (%)</label>
+                                <input type="number" name="b_bridge_loan_insurance" id="b_bridge_loan_insurance" value="{{.BridgeLoanInsuranceB}}" step="0.01" min="0"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm">
+                            </div>
+                            <div class="col-span-2">
+                                <label class="block text-xs text-gray-500 mb-1">Franchise</label>
+                                <div class="flex gap-4">
+                                    <label class="flex items-center gap-1 text-sm">
+                                        <input type="radio" name="b_bridge_loan_franchise" value="partielle"
+                                            {{if eq .BridgeLoanFranchiseB "partielle"}}checked{{end}}
+                                            onchange="updateBridgeLoanRepayDisplay('b')">
+                                        Partielle
+                                    </label>
+                                    <label class="flex items-center gap-1 text-sm">
+                                        <input type="radio" name="b_bridge_loan_franchise" value="totale"
+                                            {{if eq .BridgeLoanFranchiseB "totale"}}checked{{end}}
+                                            onchange="updateBridgeLoanRepayDisplay('b')">
+                                        Totale
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="border-emerald-200">
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Produit de la vente</h4>
+                            <div>
+                                <label class="block text-xs text-gray-500">Date de vente estim&eacute;e (mois <span id="b_sale_month_label">{{.BridgeLoanSaleMonthB}}</span> / <span id="b_sale_month_max_label">{{.BridgeLoanDurationB}}</span>)</label>
+                                <input type="range" name="b_bridge_loan_sale_month" id="b_bridge_loan_sale_month"
+                                    min="1" max="{{.BridgeLoanDurationB}}" value="{{.BridgeLoanSaleMonthB}}" step="1"
+                                    oninput="document.getElementById('b_sale_month_label').textContent = this.value; updateBridgeLoanRepayDisplay('b')"
+                                    class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                            </div>
+                            <div class="p-2 bg-emerald-50 rounded text-xs">
+                                <span class="text-gray-600">Produit restant apr&egrave;s vente :</span>
+                                <span id="b_remaining_proceeds_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Part affect&eacute;e au remboursement anticip&eacute; (<span id="b_repay_pct_label">{{printf "%.0f" .BridgeLoanRepayPctB}}</span>%)</label>
+                                <input type="range" name="b_bridge_loan_repay_pct" id="b_bridge_loan_repay_pct"
+                                    min="0" max="100" value="{{printf "%.0f" .BridgeLoanRepayPctB}}" step="5"
+                                    oninput="document.getElementById('b_repay_pct_label').textContent = this.value; updateBridgeLoanRepayDisplay('b')"
+                                    class="mt-1 w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                            </div>
+                            <div class="p-2 bg-emerald-50 rounded text-xs">
+                                <span class="text-gray-600">Remboursement anticip&eacute; :</span>
+                                <span id="b_early_repay_display" class="font-semibold text-emerald-700">0 &euro;</span>
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500">Ligne de pr&ecirc;t prioritaire</label>
+                                <select name="b_bridge_loan_repay_line" id="b_bridge_loan_repay_line"
+                                    onchange="updateBridgeLoanRepayDisplay('b')"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-2 py-1 text-sm">
+                                    <option value="0">Ligne 1</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit -->
+        <div class="flex items-center gap-4">
+            <button type="submit" class="px-6 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                Comparer
+            </button>
+            <span id="calc-indicator" class="htmx-indicator text-sm text-gray-500">Calcul en cours...</span>
+        </div>
+    </form>
+
+    <div id="results"></div>
+</div>
+
+<script>
+    // Loan lines storage per offer
+    const offerLoanLines = { a: [], b: [] };
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function renderOfferLoanLines(offer) {
+        const container = document.getElementById(offer + '_loan_lines_container');
+        const lines = offerLoanLines[offer];
+        container.innerHTML = '';
+
+        lines.forEach((line, index) => {
+            const tiers = line.tiers || [];
+            const borderColor = offer === 'a' ? 'border-indigo-200' : 'border-emerald-200';
+            const bgColor = offer === 'a' ? 'bg-indigo-50' : 'bg-emerald-50';
+
+            let tiersHtml = '';
+            tiers.forEach((tier, tierIndex) => {
+                tiersHtml += `
+                    <tr>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.startMonth}" step="1" min="1"
+                                oninput="updateOfferLoanTier('${offer}', ${index}, ${tierIndex}, 'startMonth', parseInt(this.value) || 1)"
+                                class="w-16 rounded border-gray-300 text-xs px-1 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.endMonth}" step="1" min="1"
+                                oninput="updateOfferLoanTier('${offer}', ${index}, ${tierIndex}, 'endMonth', parseInt(this.value) || 1)"
+                                class="w-16 rounded border-gray-300 text-xs px-1 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <input type="number" value="${tier.monthlyPayment}" step="0.01" min="0"
+                                oninput="updateOfferLoanTier('${offer}', ${index}, ${tierIndex}, 'monthlyPayment', parseFloat(this.value) || 0)"
+                                class="w-20 rounded border-gray-300 text-xs px-1 py-1">
+                        </td>
+                        <td class="px-2 py-1">
+                            <button type="button" onclick="removeOfferLoanTier('${offer}', ${index}, ${tierIndex})"
+                                class="text-red-500 hover:text-red-700 text-xs">&times;</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            const deferralMonths = line.deferralMonths || 0;
+            const deferralRate = line.deferralRate || line.rate || 0;
+
+            const div = document.createElement('div');
+            div.className = 'border rounded-lg p-3 ' + borderColor + ' ' + bgColor;
+            div.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <input type="text" value="${escapeHtml(line.label)}"
+                        onchange="updateOfferLoanLineValue('${offer}', ${index}, 'label', this.value)"
+                        class="font-medium text-gray-900 border-gray-300 rounded px-2 py-1 text-sm w-40">
+                    <button type="button" onclick="removeOfferLoanLine('${offer}', ${index})"
+                        class="text-red-600 hover:text-red-800 text-xs">Supprimer</button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+                    <div>
+                        <label class="block text-xs text-gray-500">Montant (&euro;)</label>
+                        <div class="flex items-center gap-1">
+                            <input type="number" value="${line.amount}" step="any" min="0"
+                                oninput="updateOfferLoanLineValue('${offer}', ${index}, 'amount', parseFloat(this.value) || 0)"
+                                class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                            <button type="button" onclick="fillOfferRemainingAmount('${offer}', ${index})"
+                                class="px-1 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-600 text-xs" title="Auto">A</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux (%)</label>
+                        <input type="number" value="${line.rate}" step="0.01" min="0"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'rate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Dur&eacute;e (ans)</label>
+                        <input type="number" value="${line.durationYears}" step="1" min="1" max="30"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'durationYears', parseInt(this.value) || 20)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Diff&eacute;r&eacute; (mois)</label>
+                        <input type="number" value="${deferralMonths}" step="1" min="0" max="60"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'deferralMonths', parseInt(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Taux intercalaire (%)</label>
+                        <input type="number" value="${deferralRate}" step="0.01" min="0"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'deferralRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Assurance (%)</label>
+                        <input type="number" value="${line.insuranceRate}" step="0.01" min="0"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'insuranceRate', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-medium text-gray-700">Paliers</span>
+                        <button type="button" onclick="addOfferLoanTier('${offer}', ${index})"
+                            class="text-xs px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded">+ Palier</button>
+                    </div>
+                    <table class="min-w-full text-xs">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">D&eacute;but</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Fin</th>
+                                <th class="px-2 py-1 text-left text-xs text-gray-500">Mensualit&eacute;</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>${tiersHtml}</tbody>
+                    </table>
+                    ${tiers.length === 0 ? '<p class="text-xs text-gray-400 mt-1 italic">Aucun palier</p>' : ''}
+                </div>
+            `;
+            container.appendChild(div);
+        });
+
+        // Update hidden field
+        document.getElementById(offer + '_new_loan_lines').value = JSON.stringify(lines);
+        // Refresh repay line dropdown
+        updateRepayLineDropdown(offer);
+    }
+
+    function addOfferLoanLine(offer, label, amount, rate, durationYears, insuranceRate, deferralMonths, deferralRate) {
+        const lines = offerLoanLines[offer];
+        const durationMonthsTotal = durationYears * 12;
+        const calculatedAmount = (amount === 0 && lines.length === 0) ? calculateOfferRemainingAmount(offer) : amount;
+        lines.push({
+            label: label,
+            amount: calculatedAmount,
+            rate: rate,
+            durationYears: durationYears,
+            insuranceRate: insuranceRate,
+            deferralMonths: deferralMonths || 0,
+            deferralRate: deferralRate || rate,
+            tiers: [{startMonth: 1, endMonth: durationMonthsTotal, monthlyPayment: 0}]
+        });
+        renderOfferLoanLines(offer);
+    }
+
+    function removeOfferLoanLine(offer, index) {
+        offerLoanLines[offer].splice(index, 1);
+        renderOfferLoanLines(offer);
+        htmx.trigger(document.querySelector('form'), 'submit');
+    }
+
+    function updateOfferLoanLineValue(offer, index, field, value) {
+        offerLoanLines[offer][index][field] = value;
+        document.getElementById(offer + '_new_loan_lines').value = JSON.stringify(offerLoanLines[offer]);
+    }
+
+    function addOfferLoanTier(offer, loanIndex) {
+        const line = offerLoanLines[offer][loanIndex];
+        if (!line.tiers) line.tiers = [];
+        const lastEnd = line.tiers.length > 0 ? line.tiers[line.tiers.length - 1].endMonth : 0;
+        const durationMonths = line.durationYears * 12;
+        line.tiers.push({ startMonth: lastEnd + 1, endMonth: durationMonths, monthlyPayment: 0 });
+        renderOfferLoanLines(offer);
+    }
+
+    function updateOfferLoanTier(offer, loanIndex, tierIndex, field, value) {
+        offerLoanLines[offer][loanIndex].tiers[tierIndex][field] = value;
+        document.getElementById(offer + '_new_loan_lines').value = JSON.stringify(offerLoanLines[offer]);
+    }
+
+    function removeOfferLoanTier(offer, loanIndex, tierIndex) {
+        offerLoanLines[offer][loanIndex].tiers.splice(tierIndex, 1);
+        renderOfferLoanLines(offer);
+    }
+
+    function calculateOfferRemainingAmount(offer) {
+        const propertyPrice = parseFloat(document.getElementById('property_price').value) || 0;
+        const downPayment1 = parseFloat(document.getElementById('down_payment_1').value) || 0;
+        const downPayment2 = parseFloat(document.getElementById('down_payment_2').value) || 0;
+        const notaryRate = parseFloat(document.getElementById('notary_rate').value) || 0;
+        const notaryFixed = parseFloat(document.getElementById('notary_fixed').value) || 0;
+        const agencyRate = parseFloat(document.getElementById('agency_rate').value) || 0;
+        const agencyFixed = parseFloat(document.getElementById('agency_fixed').value) || 0;
+        const notaryFees = notaryFixed > 0 ? notaryFixed : propertyPrice * notaryRate / 100;
+        const agencyFees = agencyFixed > 0 ? agencyFixed : propertyPrice * agencyRate / 100;
+        let existingAmount = 0;
+        offerLoanLines[offer].forEach(line => { existingAmount += line.amount || 0; });
+        return Math.max(0, propertyPrice + notaryFees + agencyFees - downPayment1 - downPayment2 - existingAmount);
+    }
+
+    function fillOfferRemainingAmount(offer, index) {
+        const currentAmount = offerLoanLines[offer][index].amount || 0;
+        offerLoanLines[offer][index].amount = 0;
+        offerLoanLines[offer][index].amount = calculateOfferRemainingAmount(offer);
+        renderOfferLoanLines(offer);
+    }
+
+    function toggleBridgeLoan(offer) {
+        const enabled = document.getElementById(offer + '_bridge_loan_enabled').checked;
+        const fields = document.getElementById(offer + '_bridge_loan_fields');
+        if (enabled) {
+            fields.classList.remove('hidden');
+            updateBridgeLoanDisplay(offer);
+        } else {
+            fields.classList.add('hidden');
+        }
+    }
+
+    function formatMoneyJS(v) {
+        const s = v.toFixed(2);
+        const parts = s.split('.');
+        const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+        return intPart + '.' + parts[1];
+    }
+
+    function updateBridgeLoanSlider(offer) {
+        const price = parseFloat(document.getElementById(offer + '_bridge_loan_sale_price').value) || 0;
+        const slider = document.getElementById(offer + '_bridge_loan_sale_slider');
+        // Adjust slider max to 2x the entered price (minimum 500k)
+        const newMax = Math.max(500000, price * 2);
+        slider.max = newMax;
+        slider.value = price;
+        document.getElementById(offer + '_bridge_loan_sale_max').textContent = formatMoneyJS(newMax) + ' \u20ac';
+        updateBridgeLoanDisplay(offer);
+    }
+
+    function updateBridgeLoanDisplay(offer) {
+        const salePrice = parseFloat(document.getElementById(offer + '_bridge_loan_sale_price').value) || 0;
+        const quotity = parseFloat(document.getElementById(offer + '_bridge_loan_quotity').value) || 70;
+        const loanBalance = parseFloat(document.getElementById(offer + '_bridge_loan_loan_balance').value) || 0;
+        const amount = salePrice * quotity / 100;
+        const net = Math.max(0, amount - loanBalance);
+        document.getElementById(offer + '_bridge_loan_amount_display').textContent = formatMoneyJS(amount) + ' \u20ac';
+        document.getElementById(offer + '_bridge_loan_net_display').textContent = formatMoneyJS(net) + ' \u20ac';
+        updateBridgeLoanRepayDisplay(offer);
+    }
+
+    function updateSaleMonthMax(offer) {
+        const duration = parseInt(document.getElementById(offer + '_bridge_loan_duration').value) || 12;
+        const slider = document.getElementById(offer + '_bridge_loan_sale_month');
+        if (slider) {
+            slider.max = duration;
+            if (parseInt(slider.value) > duration) slider.value = duration;
+            document.getElementById(offer + '_sale_month_label').textContent = slider.value;
+            document.getElementById(offer + '_sale_month_max_label').textContent = duration;
+        }
+        updateBridgeLoanRepayDisplay(offer);
+    }
+
+    function updateRepayLineDropdown(offer) {
+        const select = document.getElementById(offer + '_bridge_loan_repay_line');
+        if (!select) return;
+        const currentVal = parseInt(select.value) || 0;
+        const lines = offerLoanLines[offer] || [];
+        select.innerHTML = '';
+        if (lines.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '0';
+            opt.textContent = 'Aucune ligne';
+            select.appendChild(opt);
+        } else {
+            lines.forEach((line, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = line.label || ('Ligne ' + (idx + 1));
+                if (idx === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+    }
+
+    function updateBridgeLoanRepayDisplay(offer) {
+        const proceedsEl = document.getElementById(offer + '_remaining_proceeds_display');
+        const repayEl = document.getElementById(offer + '_early_repay_display');
+        if (!proceedsEl || !repayEl) return;
+
+        const salePrice = parseFloat(document.getElementById(offer + '_bridge_loan_sale_price').value) || 0;
+        const quotity = parseFloat(document.getElementById(offer + '_bridge_loan_quotity').value) || 70;
+        const loanBalance = parseFloat(document.getElementById(offer + '_bridge_loan_loan_balance').value) || 0;
+        const rate = parseFloat(document.getElementById(offer + '_bridge_loan_rate').value) || 3.5;
+        const insurance = parseFloat(document.getElementById(offer + '_bridge_loan_insurance').value) || 0;
+        const saleMonth = parseInt(document.getElementById(offer + '_bridge_loan_sale_month').value) || 12;
+        const repayPct = parseFloat(document.getElementById(offer + '_bridge_loan_repay_pct').value) || 0;
+
+        const franchiseRadios = document.querySelectorAll('input[name="' + offer + '_bridge_loan_franchise"]');
+        let franchise = 'partielle';
+        franchiseRadios.forEach(r => { if (r.checked) franchise = r.value; });
+
+        const bridgeAmount = salePrice * quotity / 100;
+        let capitalizedRepayment;
+        if (franchise === 'totale') {
+            const monthlyRate = rate / 100 / 12;
+            capitalizedRepayment = bridgeAmount * Math.pow(1 + monthlyRate, saleMonth);
+            capitalizedRepayment += insurance / 100 / 12 * bridgeAmount * saleMonth;
+        } else {
+            capitalizedRepayment = bridgeAmount;
+        }
+
+        const remainingProceeds = Math.max(0, salePrice - capitalizedRepayment);
+        const earlyRepayment = remainingProceeds * repayPct / 100;
+
+        proceedsEl.textContent = formatMoneyJS(remainingProceeds) + ' \u20ac';
+        repayEl.textContent = formatMoneyJS(earlyRepayment) + ' \u20ac';
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        ['a', 'b'].forEach(offer => {
+            const saved = document.getElementById(offer + '_new_loan_lines').value;
+            if (saved && saved !== '[]' && saved !== '') {
+                try {
+                    offerLoanLines[offer] = JSON.parse(saved);
+                } catch (e) {
+                    console.error('Failed to parse ' + offer + ' loan lines:', e);
+                    offerLoanLines[offer] = [];
+                }
+            }
+            renderOfferLoanLines(offer);
+            updateBridgeLoanDisplay(offer);
+        });
+    });
+</script>
+{{end}}
+
+{{template "layout" .}}

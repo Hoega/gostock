@@ -4,23 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run Commands
 
+The project uses [Task](https://taskfile.dev/) as its task runner. Prefer `task` commands over raw `go` commands.
+
 ```bash
 # Build
-go build -o gostock ./cmd/gostock/
+task build              # or: go build -o gostock ./cmd/gostock/
 
-# Run (default port 8080)
-./gostock
+# Run (default port 8080, must run from project root — templates use relative paths)
+task run                # builds then runs
+task dev                # builds, runs, and auto-restarts on file changes
 
 # Run with custom port
 ./gostock -port 9999
 PORT=3000 ./gostock
+
+# Code quality
+task fmt                # gofmt -w .
+task vet                # go vet ./...
+task check              # fmt + vet + build (pre-commit quality check)
+
+# Database
+task db:path            # print SQLite DB path
+task db:backup          # backup DB with timestamp
+
+# Cleanup
+task stop               # kill running server
+task clean              # remove built binary
 ```
 
-There are no tests or linter configurations in this project. Always verify changes compile with `go build`.
+There are no tests or linter configurations in this project. Always verify changes compile with `task build` (or `go build`).
 
 ## Architecture
 
-GoStock is a French personal finance web application built with Go 1.25.5, Chi router, HTMX, and Chart.js. It combines:
+GoStock is a French personal finance web application built with Go 1.25.5, Chi router, HTMX, and Chart.js. Uses pure-Go SQLite via `modernc.org/sqlite` (no CGO required) with `sqlx` for query binding. It combines:
 - **Mortgage/credit simulation** with French-specific calculations (PTZ, HCSF rules)
 - **Portfolio tracking** for stocks, crypto, and cash
 - **Tax reporting** for French tax forms (2042-C, 2086)
@@ -30,7 +46,7 @@ GoStock is a French personal finance web application built with Go 1.25.5, Chi r
 
 - **cmd/gostock/main.go** - Entry point, flag parsing, graceful shutdown
 - **internal/server/** - HTTP server, Chi router, template loading with custom FuncMap
-- **internal/handler/** - HTTP handlers: `credit`, `portfolio`, `dashboard`, `tax`, `budget`
+- **internal/handler/** - HTTP handlers: `credit`, `compare`, `portfolio`, `dashboard`, `tax`, `budget`
 - **internal/calculator/** - Pure calculation logic (amortization, performance, tax)
 - **internal/model/** - Domain structs with computed fields and summary logic
 - **internal/persistence/** - SQLite storage with `Store` interface; has its own struct types mirroring `model/` (handlers convert between them)
@@ -51,20 +67,7 @@ All pages use HTMX for dynamic updates without full page reloads:
 
 ### Routes
 
-Routes are defined in `internal/server/server.go`. `/` redirects to `/credit`.
-
-- **`/credit`** — `creditHandler`: Page (`GET`) + calculate amortization (`POST /credit/calculate`)
-- **`/dashboard`** — `dashboardHandler`: Global wealth overview (`GET`)
-- **`/portfolio`** — `portfolioHandler`:
-  - Page (`GET`), quote lookup (`GET /portfolio/quote`), history (`GET /portfolio/history`, `/portfolio/history/total`, `/portfolio/history/eurusd`, `/portfolio/history/networth`)
-  - Stock positions CRUD (`POST/PUT/DELETE /portfolio/positions/{id}`)
-  - Watchlist CRUD (`POST/DELETE /portfolio/watchlist/{id}`)
-  - Cash positions CRUD (`POST/PUT/DELETE /portfolio/cash/positions/{id}`)
-  - Crypto: quote (`GET /portfolio/crypto/quote`), history (`GET /portfolio/crypto/history`), CRUD (`POST/PUT/DELETE /portfolio/crypto/positions/{id}`)
-- **`/budget`** — `budgetHandler`: Budget visualization with Sankey diagram (`GET`), save (`POST /budget/save`), Sankey data (`GET /budget/sankey`)
-- **`/tax`** — `taxHandler`:
-  - Page (`GET`), stock sales CRUD, crypto sales CRUD
-  - Stock purchases CRUD + PRU lookup (`GET /tax/purchases/pru`) + reset (`POST /tax/purchases/{id}/reset`)
+Routes are defined in `internal/server/server.go`. `/` redirects to `/credit`. Each feature area (`/credit`, `/credit/compare`, `/dashboard`, `/portfolio`, `/budget`, `/tax`) has a handler in `internal/handler/` with a `GET` page route and `POST`/`PUT`/`DELETE` routes for CRUD operations that return HTML partials. The portfolio handler is the most complex, with sub-routes for stocks, crypto, cash, and watchlist.
 
 ### External APIs
 
@@ -89,8 +92,10 @@ Routes are defined in `internal/server/server.go`. `/` redirects to `/credit`.
 Templates use `html/template` with custom functions defined in `server.go`:
 - `formatMoney` - French currency (space separator)
 - `formatDate` - DD/MM/YYYY format
-- `seq`, `toJSON`, `sub`, `add`, `mul`, `div`
-- `percentInRange` - Calculate position in a range (for UI meters)
+- Arithmetic: `add`, `sub`, `mul`, `div` (float64), `intAdd`, `subInt`, `intDiv`, `mod` (int)
+- `seq`, `toJSON`, `percentInRange`
+
+**Critical**: Every page template defines its content with `{{define "content"}}...{{end}}` and **must** end with `{{template "layout" .}}` as the last line outside the define block. Missing this line results in a blank page (1-byte response).
 
 ### Data Persistence
 
@@ -100,9 +105,11 @@ SQLite database at `~/.local/share/gostock/gostock.db`:
 - `WatchlistItem` - Watchlist ISINs for monitoring
 - `StockSale`, `CryptoSale` - Tax reporting transactions
 - `StockPurchase` - Purchase history for PRU (Prix de Revient Unitaire) calculation
+- `PortfolioSnapshot` - Daily portfolio value snapshots by asset class
 - `BudgetInputs` - Budget/Sankey diagram configuration (single row, upsert)
+- `CompareInputs` - Loan offer comparison state (single row, upsert)
 
-The `Store` interface (`persistence/store.go`) defines all persistence operations.
+The `Store` interface (`persistence/store.go`) defines all persistence operations. Single-page form state (`FormInputs`, `CompareInputs`, `BudgetInputs`) uses a single-row upsert pattern: `INSERT INTO ... ON CONFLICT(id) DO UPDATE SET ...` with `id=1`.
 
 ### Key Design Patterns
 

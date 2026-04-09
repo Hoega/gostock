@@ -146,6 +146,18 @@ func LookupISIN(isin string) (*QuoteResult, error) {
 				Sector:   sector,
 			}, nil
 		}
+		// If the base symbol is too long (e.g., "GOOGLCO" from "GOOGLCO.CL"),
+		// try shorter prefixes to find the real US ticker.
+		if len(baseSymbol) > 5 {
+			if _, price, err := tryUSTickerPrefixes(baseSymbol); err == nil {
+				return &QuoteResult{
+					Name:     name,
+					Price:    price,
+					Currency: "USD",
+					Sector:   sector,
+				}, nil
+			}
+		}
 	}
 
 	// Try each symbol candidate until we find one with the expected currency.
@@ -309,23 +321,51 @@ func resolveUSBaseSymbol(symbols []string) string {
 	if len(symbols) == 0 {
 		return ""
 	}
-	// If the first symbol is already a clean US ticker (no numeric prefix, no .XX suffix),
-	// return it directly.
-	first := symbols[0]
-	if symbolPattern.MatchString(first) {
-		m := symbolPattern.FindStringSubmatch(first)
-		if m[1] == first {
-			// Already a clean ticker like "GOOGL" or "AMZN".
-			return first
+
+	// Pass 1: Look for a short undotted symbol (1-5 chars, all uppercase).
+	// US tickers are almost always ≤5 chars (e.g., GOOGL, AMZN, AAPL).
+	// This avoids treating concatenated ticker+exchange like "GOOGLCO" as a clean US ticker.
+	for _, s := range symbols {
+		if symbolPattern.MatchString(s) {
+			m := symbolPattern.FindStringSubmatch(s)
+			if m[1] == s && len(s) <= 5 {
+				return s
+			}
 		}
 	}
-	// Otherwise, extract the base ticker from any symbol (e.g. "1GOOGL.MI" -> "GOOGL").
+
+	// Pass 2: Extract base ticker from dotted symbols (e.g., "GOOGL.MI" → "GOOGL").
+	// Only accept bases ≤5 chars to avoid concatenated ticker+exchange like "GOOGLCO" from "GOOGLCO.CL".
 	for _, symbol := range symbols {
-		if m := symbolPattern.FindStringSubmatch(symbol); len(m) > 1 {
+		if m := symbolPattern.FindStringSubmatch(symbol); len(m) > 1 && m[1] != symbol && len(m[1]) <= 5 {
 			return m[1]
 		}
 	}
+
+	// Pass 3: Extract from numeric-prefixed symbols (e.g., "1GOOGL" → "GOOGL").
+	for _, symbol := range symbols {
+		if m := symbolPattern.FindStringSubmatch(symbol); len(m) > 1 && len(m[1]) <= 5 {
+			return m[1]
+		}
+	}
+
 	return symbols[0]
+}
+
+// tryUSTickerPrefixes tries progressively shorter prefixes of a long base symbol
+// to find the real US ticker. For example, "GOOGLCO" → tries "GOOGL", "GOOG", "GOO".
+// This handles cases where Yahoo search only returns non-US listings with concatenated
+// ticker+exchange suffixes (e.g., "GOOGLCO.CL" for Alphabet on the Colombian exchange).
+func tryUSTickerPrefixes(base string) (string, float64, error) {
+	maxLen := min(len(base)-1, 5)
+	for l := maxLen; l >= 2; l-- {
+		candidate := base[:l]
+		price, currency, err := fetchPrice(candidate)
+		if err == nil && currency == "USD" {
+			return candidate, price, nil
+		}
+	}
+	return "", 0, fmt.Errorf("no valid US ticker found from prefix %s", base)
 }
 
 // ResolveISINToSymbol resolves an ISIN to the best Yahoo Finance symbol.
@@ -342,7 +382,16 @@ func ResolveISINToSymbol(isin string) (string, error) {
 
 	isUS := len(isin) >= 2 && isin[:2] == "US"
 	if isUS {
-		return resolveUSBaseSymbol(symbols), nil
+		base := resolveUSBaseSymbol(symbols)
+		if len(base) <= 5 {
+			return base, nil
+		}
+		// Base is too long (e.g., "GOOGLCO" from "GOOGLCO.CL").
+		// Try shorter prefixes via fetchPrice to find the real US ticker.
+		if symbol, _, err := tryUSTickerPrefixes(base); err == nil {
+			return symbol, nil
+		}
+		return base, nil
 	}
 
 	return symbols[0], nil

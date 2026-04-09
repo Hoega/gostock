@@ -415,6 +415,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		amortMonthlyPayment = capital * avgMonthlyRate / (1 - math.Pow(1+avgMonthlyRate, float64(-n)))
 	}
 
+	var cumulInterest float64
 	for m := 1; m <= n; m++ {
 		// Compute date for this row
 		month := (startMonth-1+m-1)%12 + 1
@@ -422,6 +423,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		date := fmt.Sprintf("%s %d", frenchMonths[month-1], year)
 
 		interest := remaining * avgMonthlyRate
+		cumulInterest += interest
 		principal := amortMonthlyPayment - interest
 		remaining -= principal
 
@@ -437,6 +439,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			Payment:          round2(monthlyPayment),
 			Principal:        round2(principal),
 			Interest:         round2(interest),
+			CumulInterest:    round2(cumulInterest),
 			Insurance:        round2(monthlyInsurance),
 			RemainingBalance: round2(math.Max(0, remaining)),
 		})

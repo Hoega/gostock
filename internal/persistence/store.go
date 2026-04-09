@@ -142,6 +142,9 @@ type Store interface {
 	// Budget
 	LoadBudgetInputs() (*BudgetInputs, error)
 	SaveBudgetInputs(inputs *BudgetInputs) error
+	// Compare
+	LoadCompareInputs() (*CompareInputs, error)
+	SaveCompareInputs(inputs *CompareInputs) error
 	Close() error
 }
 
@@ -279,6 +282,101 @@ type BudgetInputs struct {
 // DefaultBudgetInputs returns the default budget values.
 func DefaultBudgetInputs() *BudgetInputs {
 	return &BudgetInputs{ID: 1}
+}
+
+// CompareInputs contains all form fields for the loan offer comparison page.
+type CompareInputs struct {
+	ID int `db:"id"`
+	// Shared fields (same property/buyer)
+	PropertyPrice  float64 `db:"property_price"`
+	NotaryRate     float64 `db:"notary_rate"`
+	NotaryFixed    float64 `db:"notary_fixed"`
+	AgencyRate     float64 `db:"agency_rate"`
+	AgencyFixed    float64 `db:"agency_fixed"`
+	DownPayment1   float64 `db:"down_payment_1"`
+	DownPayment2   float64 `db:"down_payment_2"`
+	NetIncome1     float64 `db:"net_income_1"`
+	NetIncome2     float64 `db:"net_income_2"`
+	RenovationCost float64 `db:"renovation_cost"`
+	WorkLines      string  `db:"work_lines"`
+	// Offer A
+	InterestRateA        float64 `db:"interest_rate_a"`
+	DurationYearsA       int     `db:"duration_years_a"`
+	InsuranceRateA       float64 `db:"insurance_rate_a"`
+	BankFeesA            float64 `db:"bank_fees_a"`
+	GuaranteeFeesA       float64 `db:"guarantee_fees_a"`
+	BrokerFeesA          float64 `db:"broker_fees_a"`
+	StartYearA           int     `db:"start_year_a"`
+	StartMonthA          int     `db:"start_month_a"`
+	NewLoanLinesA        string  `db:"new_loan_lines_a"`
+	BridgeLoanEnabledA     bool    `db:"bridge_loan_enabled_a"`
+	BridgeLoanSalePriceA   float64 `db:"bridge_loan_sale_price_a"`
+	BridgeLoanLoanBalanceA float64 `db:"bridge_loan_loan_balance_a"`
+	BridgeLoanQuotityA     float64 `db:"bridge_loan_quotity_a"`
+	BridgeLoanRateA        float64 `db:"bridge_loan_rate_a"`
+	BridgeLoanDurationA    int     `db:"bridge_loan_duration_a"`
+	BridgeLoanInsuranceA   float64 `db:"bridge_loan_insurance_a"`
+	BridgeLoanFranchiseA   string  `db:"bridge_loan_franchise_a"`
+	BridgeLoanSaleMonthA   int     `db:"bridge_loan_sale_month_a"`
+	BridgeLoanRepayPctA    float64 `db:"bridge_loan_repay_pct_a"`
+	BridgeLoanRepayLineA   int     `db:"bridge_loan_repay_line_a"`
+	// Offer B
+	InterestRateB        float64 `db:"interest_rate_b"`
+	DurationYearsB       int     `db:"duration_years_b"`
+	InsuranceRateB       float64 `db:"insurance_rate_b"`
+	BankFeesB            float64 `db:"bank_fees_b"`
+	GuaranteeFeesB       float64 `db:"guarantee_fees_b"`
+	BrokerFeesB          float64 `db:"broker_fees_b"`
+	StartYearB           int     `db:"start_year_b"`
+	StartMonthB          int     `db:"start_month_b"`
+	NewLoanLinesB        string  `db:"new_loan_lines_b"`
+	BridgeLoanEnabledB     bool    `db:"bridge_loan_enabled_b"`
+	BridgeLoanSalePriceB   float64 `db:"bridge_loan_sale_price_b"`
+	BridgeLoanLoanBalanceB float64 `db:"bridge_loan_loan_balance_b"`
+	BridgeLoanQuotityB     float64 `db:"bridge_loan_quotity_b"`
+	BridgeLoanRateB        float64 `db:"bridge_loan_rate_b"`
+	BridgeLoanDurationB    int     `db:"bridge_loan_duration_b"`
+	BridgeLoanInsuranceB   float64 `db:"bridge_loan_insurance_b"`
+	BridgeLoanFranchiseB   string  `db:"bridge_loan_franchise_b"`
+	BridgeLoanSaleMonthB   int     `db:"bridge_loan_sale_month_b"`
+	BridgeLoanRepayPctB    float64 `db:"bridge_loan_repay_pct_b"`
+	BridgeLoanRepayLineB   int     `db:"bridge_loan_repay_line_b"`
+}
+
+// DefaultCompareInputs returns sensible defaults for the comparison page.
+func DefaultCompareInputs() *CompareInputs {
+	return &CompareInputs{
+		ID:                   1,
+		PropertyPrice:        250000,
+		NotaryRate:           7.50,
+		AgencyRate:           5.00,
+		InterestRateA:        3.50,
+		DurationYearsA:       20,
+		InsuranceRateA:       0.34,
+		StartYearA:           2026,
+		StartMonthA:          1,
+		BridgeLoanQuotityA:   70,
+		BridgeLoanRateA:      3.50,
+		BridgeLoanDurationA:  12,
+		BridgeLoanInsuranceA: 0.34,
+		BridgeLoanFranchiseA: "partielle",
+		BridgeLoanSaleMonthA: 12,
+		BridgeLoanRepayPctA:  100,
+		BridgeLoanRepayLineA: 0,
+		InterestRateB:        3.50,
+		DurationYearsB:       20,
+		InsuranceRateB:       0.34,
+		StartYearB:           2026,
+		StartMonthB:          1,
+		BridgeLoanQuotityB:   70,
+		BridgeLoanRateB:      3.50,
+		BridgeLoanDurationB:  12,
+		BridgeLoanInsuranceB: 0.34,
+		BridgeLoanFranchiseB: "partielle",
+		BridgeLoanSaleMonthB: 12,
+		BridgeLoanRepayPctB:  100,
+		BridgeLoanRepayLineB: 0,
+	}
 }
 
 // DefaultInputs returns the default form values.

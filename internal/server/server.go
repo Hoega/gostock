@@ -111,12 +111,14 @@ func New(port int, store persistence.Store) *http.Server {
 	dashboardTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/dashboard.html"))
 	taxTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/tax.html"))
 	budgetTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/budget.html"))
+	compareTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/compare.html"))
 
 	creditHandler := handler.NewCreditHandler(creditTmpl, store)
 	portfolioHandler := handler.NewPortfolioHandler(portfolioTmpl, store)
 	dashboardHandler := handler.NewDashboardHandler(dashboardTmpl, store)
 	taxHandler := handler.NewTaxHandler(taxTmpl, store)
 	budgetHandler := handler.NewBudgetHandler(budgetTmpl, store)
+	compareHandler := handler.NewCompareHandler(compareTmpl, store)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -130,6 +132,10 @@ func New(port int, store persistence.Store) *http.Server {
 	// Credit simulator routes
 	r.Get("/credit", creditHandler.ShowForm)
 	r.Post("/credit/calculate", creditHandler.Calculate)
+
+	// Loan comparison routes
+	r.Get("/credit/compare", compareHandler.ShowForm)
+	r.Post("/credit/compare/calculate", compareHandler.Calculate)
 
 	// Dashboard route
 	r.Get("/dashboard", dashboardHandler.ShowDashboard)

@@ -1,0 +1,387 @@
+{{define "compare-chart.html"}}
+<div class="bg-white shadow rounded-lg p-6 space-y-6 mt-6">
+    <h3 class="text-lg font-semibold text-gray-900">Graphiques comparatifs</h3>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Amortization comparison -->
+        <div>
+            <h4 class="text-sm font-medium text-gray-700 mb-2">Capital restant d&ucirc;</h4>
+            <div style="position: relative; height: 250px;">
+                <canvas id="compareAmortChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Cost breakdown -->
+        <div>
+            <h4 class="text-sm font-medium text-gray-700 mb-2">D&eacute;composition des co&ucirc;ts</h4>
+            <div style="position: relative; height: 250px;">
+                <canvas id="compareCostChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Per-offer stacked area charts -->
+    {{if gt (len .ResultA.MonthlySchedule) 0}}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+            <h4 class="text-sm font-medium text-indigo-700 mb-2">Mensualit&eacute;s par ligne - Offre A</h4>
+            <div style="position: relative; height: 250px;">
+                <canvas id="compareStackedA"></canvas>
+            </div>
+        </div>
+        <div>
+            <h4 class="text-sm font-medium text-emerald-700 mb-2">Mensualit&eacute;s par ligne - Offre B</h4>
+            <div style="position: relative; height: 250px;">
+                <canvas id="compareStackedB"></canvas>
+            </div>
+        </div>
+    </div>
+    {{end}}
+</div>
+
+<script>
+(function() {
+    // Destroy existing charts
+    ['compareAmortChart', 'compareCostChart', 'compareStackedA', 'compareStackedB'].forEach(id => {
+        const existing = Chart.getChart(id);
+        if (existing) existing.destroy();
+    });
+
+    // Amortization data
+    const amortA = [{{range .ResultA.Amortization}}{{.RemainingBalance}},{{end}}];
+    const amortB = [{{range .ResultB.Amortization}}{{.RemainingBalance}},{{end}}];
+    const maxLen = Math.max(amortA.length, amortB.length);
+    const months = Array.from({length: maxLen}, (_, i) => i + 1);
+
+    if (maxLen > 0) {
+        new Chart(document.getElementById('compareAmortChart'), {
+            type: 'line',
+            data: {
+                labels: months,
+                datasets: [{
+                    label: 'Offre A',
+                    data: amortA,
+                    borderColor: '#6366f1',
+                    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0
+                }, {
+                    label: 'Offre B',
+                    data: amortB,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { title: { display: true, text: 'Mois' }, ticks: { maxTicksLimit: 12 } },
+                    y: { beginAtZero: true, title: { display: true, text: '€' }, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Cost breakdown chart
+    new Chart(document.getElementById('compareCostChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Int\u00e9r\u00eats', 'Assurance', 'Frais dossier', 'Garantie', 'Courtage', 'Notaire', 'Agence'],
+            datasets: [{
+                label: 'Offre A',
+                data: [
+                    {{.ResultA.TotalInterest}},
+                    {{.ResultA.TotalInsurance}},
+                    {{.ResultA.BankFees}},
+                    {{.ResultA.GuaranteeFees}},
+                    {{.ResultA.BrokerFees}},
+                    {{.ResultA.NotaryFees}},
+                    {{.ResultA.AgencyFees}}
+                ],
+                backgroundColor: 'rgba(99, 102, 241, 0.7)',
+                borderColor: '#6366f1',
+                borderWidth: 1
+            }, {
+                label: 'Offre B',
+                data: [
+                    {{.ResultB.TotalInterest}},
+                    {{.ResultB.TotalInsurance}},
+                    {{.ResultB.BankFees}},
+                    {{.ResultB.GuaranteeFees}},
+                    {{.ResultB.BrokerFees}},
+                    {{.ResultB.NotaryFees}},
+                    {{.ResultB.AgencyFees}}
+                ],
+                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                borderColor: '#10b981',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString('fr-FR') + ' €' } }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' €'
+                    }
+                }
+            }
+        }
+    });
+
+    // Stacked area charts per offer
+    const colorsA = ['#6366f1', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    const colorsB = ['#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+    const bridgeColor = '#f59e0b';
+
+    function buildStackedChart(canvasId, schedule, bridgeLoan, sale, colors) {
+        const ctx = document.getElementById(canvasId);
+        if (!ctx || schedule.length === 0) return;
+
+        const numLines = schedule[0].length;
+        const numMonths = schedule.length;
+        const monthLabels = Array.from({length: numMonths}, (_, i) => i + 1);
+
+        // Compute early repayment if bridge loan with sale
+        let earlyRepayAmount = 0;
+        let earlyRepayMonth = 0; // 0-based index
+        let earlyRepayLine = 0;
+        if (bridgeLoan.enabled && sale.salePrice > 0 && sale.repayPct > 0) {
+            const bridgeAmount = sale.salePrice * sale.quotity / 100;
+            const monthlyRate = sale.bridgeRate / 100 / 12;
+            let capitalizedRepayment;
+            if (sale.franchise === 'totale') {
+                capitalizedRepayment = bridgeAmount * Math.pow(1 + monthlyRate, sale.saleMonth);
+                capitalizedRepayment += sale.bridgeInsurance / 100 / 12 * bridgeAmount * sale.saleMonth;
+            } else {
+                capitalizedRepayment = bridgeAmount;
+            }
+            const remainingProceeds = Math.max(0, sale.salePrice - capitalizedRepayment);
+            earlyRepayAmount = remainingProceeds * sale.repayPct / 100;
+            earlyRepayMonth = sale.saleMonth; // 0-based: repayment takes effect the month after sale
+            earlyRepayLine = sale.repayLine;
+        }
+
+        // Build per-line data, applying early repayment to the targeted line
+        const datasets = [];
+        for (let i = 0; i < numLines; i++) {
+            const label = schedule[0][i].label;
+            let data;
+            if (earlyRepayAmount > 0 && i === earlyRepayLine) {
+                // Simulate reduced payments after early repayment
+                // Compute remaining balance at sale month, then new payment for remaining term
+                const rate = schedule[0][i].rate || 0;
+                const monthlyRate = rate / 100 / 12;
+                data = schedule.map((m, mIdx) => {
+                    if (mIdx < earlyRepayMonth) return m[i].total;
+                    if (mIdx === earlyRepayMonth && m[i].total === 0) return 0;
+                    // After repayment: compute remaining balance and new payment
+                    // Use ratio: new_payment = old_payment * (1 - earlyRepay / balance_at_sale)
+                    return m[i].total; // will be adjusted below
+                });
+                // Better approach: compute remaining balance at sale month from the schedule
+                let balance = schedule[0][i].amount || 0;
+                if (balance === 0) {
+                    // Estimate from payments: sum principal portions
+                    // Fallback: use ratio of earlyRepay to total loan
+                    const totalPaid = schedule.reduce((s, m) => s + (m[i].principal || 0), 0);
+                    balance = totalPaid > 0 ? totalPaid : earlyRepayAmount * 3; // rough fallback
+                }
+                // Track balance month by month
+                let bal = balance;
+                for (let m = 0; m < numMonths; m++) {
+                    const payment = schedule[m][i];
+                    const interest = bal * monthlyRate;
+                    const principal = Math.max(0, payment.total - payment.insurance - interest);
+                    bal -= principal;
+                    if (m === earlyRepayMonth - 1) {
+                        // Apply early repayment
+                        bal = Math.max(0, bal - earlyRepayAmount);
+                        // Recalculate monthly payment for remaining term
+                        const remainingMonths = numMonths - m - 1;
+                        let newPayment = 0;
+                        if (remainingMonths > 0 && bal > 0) {
+                            if (monthlyRate === 0) {
+                                newPayment = bal / remainingMonths;
+                            } else {
+                                newPayment = bal * monthlyRate / (1 - Math.pow(1 + monthlyRate, -remainingMonths));
+                            }
+                        }
+                        const ins = payment.insurance || 0;
+                        for (let k = m + 1; k < numMonths; k++) {
+                            data[k] = bal > 0 ? Math.round((newPayment + ins) * 100) / 100 : 0;
+                            const intK = bal * monthlyRate;
+                            const prinK = Math.max(0, newPayment - intK);
+                            bal = Math.max(0, bal - prinK);
+                        }
+                        break;
+                    }
+                }
+            } else {
+                data = schedule.map(m => m[i].total);
+            }
+            datasets.push({
+                label: label,
+                data: data,
+                backgroundColor: colors[i % colors.length] + 'aa',
+                borderColor: colors[i % colors.length],
+                borderWidth: 1,
+                fill: 'origin',
+                pointRadius: 0,
+                tension: 0.1
+            });
+        }
+
+        // Add bridge loan if enabled
+        if (bridgeLoan.enabled) {
+            const bridgeData = Array.from({length: numMonths}, (_, i) =>
+                i < bridgeLoan.duration ? bridgeLoan.monthly : 0
+            );
+            datasets.push({
+                label: 'Pr\u00eat relais',
+                data: bridgeData,
+                backgroundColor: '#f59e0b' + 'aa',
+                borderColor: '#f59e0b',
+                borderWidth: 1,
+                fill: 'origin',
+                pointRadius: 0,
+                tension: 0.1
+            });
+        }
+
+        // Vertical annotation for early repayment
+        const annotations = {};
+        if (earlyRepayAmount > 0) {
+            annotations.saleLine = {
+                type: 'line',
+                xMin: earlyRepayMonth,
+                xMax: earlyRepayMonth,
+                borderColor: '#dc2626',
+                borderWidth: 2,
+                borderDash: [6, 3],
+                label: {
+                    display: true,
+                    content: 'Vente: -' + Math.round(earlyRepayAmount).toLocaleString('fr-FR') + ' \u20ac',
+                    position: 'start',
+                    backgroundColor: '#dc2626',
+                    color: '#fff',
+                    font: { size: 10 }
+                }
+            };
+        }
+
+        new Chart(ctx, {
+            type: 'line',
+            data: { labels: monthLabels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { stacked: true, title: { display: true, text: 'Mois' }, ticks: { maxTicksLimit: 12 } },
+                    y: { stacked: true, beginAtZero: true, title: { display: true, text: '\u20ac/mois' }, ticks: { callback: v => v.toLocaleString('fr-FR') + ' \u20ac' } }
+                },
+                plugins: {
+                    annotation: { annotations: annotations },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac',
+                            footer: items => {
+                                const total = items.reduce((s, item) => s + (item.raw || 0), 0);
+                                return 'Total: ' + total.toLocaleString('fr-FR', {minimumFractionDigits: 2}) + ' \u20ac';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Build schedule data as array of [{label, total, principal, interest, insurance, rate, amount}, ...] per month
+    const schedDataA = [
+        {{range .ResultA.MonthlySchedule}}[{{range .Payments}}{label:"{{.Label}}",total:{{.Total}},principal:{{.Principal}},interest:{{.Interest}},insurance:{{.Insurance}}},{{end}}],
+        {{end}}
+    ];
+    const schedDataB = [
+        {{range .ResultB.MonthlySchedule}}[{{range .Payments}}{label:"{{.Label}}",total:{{.Total}},principal:{{.Principal}},interest:{{.Interest}},insurance:{{.Insurance}}},{{end}}],
+        {{end}}
+    ];
+
+    // Inject rate and initial amount from loan line results
+    {{if gt (len .ResultA.LoanLineResults) 0}}
+    const loanInfoA = [{{range .ResultA.LoanLineResults}}{rate:{{.Rate}},amount:{{.Amount}}},{{end}}];
+    if (schedDataA.length > 0) {
+        for (let m = 0; m < schedDataA.length; m++) {
+            for (let i = 0; i < Math.min(schedDataA[m].length, loanInfoA.length); i++) {
+                schedDataA[m][i].rate = loanInfoA[i].rate;
+                schedDataA[m][i].amount = loanInfoA[i].amount;
+            }
+        }
+    }
+    {{end}}
+    {{if gt (len .ResultB.LoanLineResults) 0}}
+    const loanInfoB = [{{range .ResultB.LoanLineResults}}{rate:{{.Rate}},amount:{{.Amount}}},{{end}}];
+    if (schedDataB.length > 0) {
+        for (let m = 0; m < schedDataB.length; m++) {
+            for (let i = 0; i < Math.min(schedDataB[m].length, loanInfoB.length); i++) {
+                schedDataB[m][i].rate = loanInfoB[i].rate;
+                schedDataB[m][i].amount = loanInfoB[i].amount;
+            }
+        }
+    }
+    {{end}}
+
+    const bridgeA = {
+        enabled: {{if .ResultA.BridgeLoan.Enabled}}true{{else}}false{{end}},
+        duration: {{.ResultA.BridgeLoan.Duration}},
+        monthly: {{.ResultA.BridgeLoan.MonthlyPayment}}
+    };
+    const bridgeB = {
+        enabled: {{if .ResultB.BridgeLoan.Enabled}}true{{else}}false{{end}},
+        duration: {{.ResultB.BridgeLoan.Duration}},
+        monthly: {{.ResultB.BridgeLoan.MonthlyPayment}}
+    };
+
+    const saleA = {
+        salePrice: {{.InputA.CurrentSalePrice}},
+        quotity: {{.InputA.BridgeLoanQuotity}},
+        bridgeRate: {{.InputA.BridgeLoanRate}},
+        bridgeInsurance: {{.InputA.BridgeLoanInsurance}},
+        franchise: "{{.InputA.BridgeLoanFranchise}}",
+        saleMonth: {{.InputA.BridgeLoanSaleMonth}},
+        repayPct: {{.InputA.BridgeLoanRepayPct}},
+        repayLine: {{.InputA.BridgeLoanRepayLine}}
+    };
+    const saleB = {
+        salePrice: {{.InputB.CurrentSalePrice}},
+        quotity: {{.InputB.BridgeLoanQuotity}},
+        bridgeRate: {{.InputB.BridgeLoanRate}},
+        bridgeInsurance: {{.InputB.BridgeLoanInsurance}},
+        franchise: "{{.InputB.BridgeLoanFranchise}}",
+        saleMonth: {{.InputB.BridgeLoanSaleMonth}},
+        repayPct: {{.InputB.BridgeLoanRepayPct}},
+        repayLine: {{.InputB.BridgeLoanRepayLine}}
+    };
+
+    buildStackedChart('compareStackedA', schedDataA, bridgeA, saleA, colorsA);
+    buildStackedChart('compareStackedB', schedDataB, bridgeB, saleB, colorsB);
+})();
+</script>
+{{end}}

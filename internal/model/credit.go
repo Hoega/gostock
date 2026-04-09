@@ -88,6 +88,9 @@ type CreditInput struct {
 	BridgeLoanDuration  int     // Durée en mois (12-24)
 	BridgeLoanInsurance float64 // Taux assurance (%)
 	BridgeLoanFranchise string  // "partielle" (intérêts mensuels) ou "totale" (intérêts capitalisés)
+	BridgeLoanSaleMonth int     // Mois de vente estimé (1-based)
+	BridgeLoanRepayPct  float64 // Part affectée au remboursement anticipé (%)
+	BridgeLoanRepayLine int     // Index de la ligne de prêt prioritaire pour le remboursement
 }
 
 // EnergyComparisonYear holds the energy cost comparison data for one year.
@@ -302,6 +305,7 @@ type AmortizationRow struct {
 	Payment          float64 // Mensualité (capital + intérêts)
 	Principal        float64 // Part capital
 	Interest         float64 // Part intérêts
+	CumulInterest    float64 // Cumul des intérêts
 	Insurance        float64 // Assurance
 	RemainingBalance float64 // Capital restant dû
 }

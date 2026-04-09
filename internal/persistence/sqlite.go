@@ -272,6 +272,68 @@ func NewSQLiteStore() (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to create budget_inputs table: %w", err)
 	}
 
+	// Create compare_inputs table
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS compare_inputs (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			property_price REAL NOT NULL DEFAULT 250000,
+			notary_rate REAL NOT NULL DEFAULT 7.5,
+			notary_fixed REAL NOT NULL DEFAULT 0,
+			agency_rate REAL NOT NULL DEFAULT 5.0,
+			agency_fixed REAL NOT NULL DEFAULT 0,
+			down_payment_1 REAL NOT NULL DEFAULT 0,
+			down_payment_2 REAL NOT NULL DEFAULT 0,
+			net_income_1 REAL NOT NULL DEFAULT 0,
+			net_income_2 REAL NOT NULL DEFAULT 0,
+			renovation_cost REAL NOT NULL DEFAULT 0,
+			work_lines TEXT NOT NULL DEFAULT '[]',
+			interest_rate_a REAL NOT NULL DEFAULT 3.5,
+			duration_years_a INTEGER NOT NULL DEFAULT 20,
+			insurance_rate_a REAL NOT NULL DEFAULT 0.34,
+			bank_fees_a REAL NOT NULL DEFAULT 0,
+			guarantee_fees_a REAL NOT NULL DEFAULT 0,
+			broker_fees_a REAL NOT NULL DEFAULT 0,
+			start_year_a INTEGER NOT NULL DEFAULT 2026,
+			start_month_a INTEGER NOT NULL DEFAULT 1,
+			new_loan_lines_a TEXT NOT NULL DEFAULT '[]',
+			bridge_loan_enabled_a INTEGER NOT NULL DEFAULT 0,
+			bridge_loan_sale_price_a REAL NOT NULL DEFAULT 0,
+			bridge_loan_loan_balance_a REAL NOT NULL DEFAULT 0,
+			bridge_loan_quotity_a REAL NOT NULL DEFAULT 70,
+			bridge_loan_rate_a REAL NOT NULL DEFAULT 3.5,
+			bridge_loan_duration_a INTEGER NOT NULL DEFAULT 12,
+			bridge_loan_insurance_a REAL NOT NULL DEFAULT 0.34,
+			bridge_loan_franchise_a TEXT NOT NULL DEFAULT 'partielle',
+			bridge_loan_sale_month_a INTEGER NOT NULL DEFAULT 12,
+			bridge_loan_repay_pct_a REAL NOT NULL DEFAULT 100,
+			bridge_loan_repay_line_a INTEGER NOT NULL DEFAULT 0,
+			interest_rate_b REAL NOT NULL DEFAULT 3.5,
+			duration_years_b INTEGER NOT NULL DEFAULT 20,
+			insurance_rate_b REAL NOT NULL DEFAULT 0.34,
+			bank_fees_b REAL NOT NULL DEFAULT 0,
+			guarantee_fees_b REAL NOT NULL DEFAULT 0,
+			broker_fees_b REAL NOT NULL DEFAULT 0,
+			start_year_b INTEGER NOT NULL DEFAULT 2026,
+			start_month_b INTEGER NOT NULL DEFAULT 1,
+			new_loan_lines_b TEXT NOT NULL DEFAULT '[]',
+			bridge_loan_enabled_b INTEGER NOT NULL DEFAULT 0,
+			bridge_loan_sale_price_b REAL NOT NULL DEFAULT 0,
+			bridge_loan_loan_balance_b REAL NOT NULL DEFAULT 0,
+			bridge_loan_quotity_b REAL NOT NULL DEFAULT 70,
+			bridge_loan_rate_b REAL NOT NULL DEFAULT 3.5,
+			bridge_loan_duration_b INTEGER NOT NULL DEFAULT 12,
+			bridge_loan_insurance_b REAL NOT NULL DEFAULT 0.34,
+			bridge_loan_franchise_b TEXT NOT NULL DEFAULT 'partielle',
+			bridge_loan_sale_month_b INTEGER NOT NULL DEFAULT 12,
+			bridge_loan_repay_pct_b REAL NOT NULL DEFAULT 100,
+			bridge_loan_repay_line_b INTEGER NOT NULL DEFAULT 0
+		)
+	`)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to create compare_inputs table: %w", err)
+	}
+
 	// Run migrations for any missing columns
 	runMigrations(db)
 
@@ -367,6 +429,18 @@ func runMigrations(db *sqlx.DB) {
 		`ALTER TABLE budget_inputs ADD COLUMN meal_vouchers REAL NOT NULL DEFAULT 0`,
 		`ALTER TABLE budget_inputs ADD COLUMN lifestyle_json TEXT NOT NULL DEFAULT '[]'`,
 		`ALTER TABLE budget_inputs ADD COLUMN other_expenses_json TEXT NOT NULL DEFAULT '[]'`,
+		// Compare inputs migrations
+		`ALTER TABLE compare_inputs ADD COLUMN notary_fixed REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_sale_price_a REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_loan_balance_a REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_sale_month_a INTEGER NOT NULL DEFAULT 12`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_pct_a REAL NOT NULL DEFAULT 100`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_line_a INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_sale_price_b REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_loan_balance_b REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_sale_month_b INTEGER NOT NULL DEFAULT 12`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_pct_b REAL NOT NULL DEFAULT 100`,
+		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_line_b INTEGER NOT NULL DEFAULT 0`,
 	}
 
 	for _, migration := range migrations {
@@ -1116,6 +1190,70 @@ func (s *SQLiteStore) SaveBudgetInputs(inputs *BudgetInputs) error {
 	`, inputs)
 	if err != nil {
 		return fmt.Errorf("failed to save budget inputs: %w", err)
+	}
+	return nil
+}
+
+// LoadCompareInputs loads the saved comparison inputs from the database.
+func (s *SQLiteStore) LoadCompareInputs() (*CompareInputs, error) {
+	inputs := &CompareInputs{}
+	err := s.db.Get(inputs, `SELECT * FROM compare_inputs WHERE id = 1`)
+	if err == sql.ErrNoRows {
+		return DefaultCompareInputs(), nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load compare inputs: %w", err)
+	}
+	return inputs, nil
+}
+
+// SaveCompareInputs persists the comparison inputs to the database.
+func (s *SQLiteStore) SaveCompareInputs(inputs *CompareInputs) error {
+	inputs.ID = 1
+	_, err := s.db.NamedExec(`
+		INSERT INTO compare_inputs (id, property_price, notary_rate, notary_fixed, agency_rate, agency_fixed,
+			down_payment_1, down_payment_2, net_income_1, net_income_2, renovation_cost, work_lines,
+			interest_rate_a, duration_years_a, insurance_rate_a, bank_fees_a, guarantee_fees_a, broker_fees_a,
+			start_year_a, start_month_a, new_loan_lines_a,
+			bridge_loan_enabled_a, bridge_loan_sale_price_a, bridge_loan_loan_balance_a, bridge_loan_quotity_a, bridge_loan_rate_a, bridge_loan_duration_a, bridge_loan_insurance_a, bridge_loan_franchise_a,
+			bridge_loan_sale_month_a, bridge_loan_repay_pct_a, bridge_loan_repay_line_a,
+			interest_rate_b, duration_years_b, insurance_rate_b, bank_fees_b, guarantee_fees_b, broker_fees_b,
+			start_year_b, start_month_b, new_loan_lines_b,
+			bridge_loan_enabled_b, bridge_loan_sale_price_b, bridge_loan_loan_balance_b, bridge_loan_quotity_b, bridge_loan_rate_b, bridge_loan_duration_b, bridge_loan_insurance_b, bridge_loan_franchise_b,
+			bridge_loan_sale_month_b, bridge_loan_repay_pct_b, bridge_loan_repay_line_b)
+		VALUES (:id, :property_price, :notary_rate, :notary_fixed, :agency_rate, :agency_fixed,
+			:down_payment_1, :down_payment_2, :net_income_1, :net_income_2, :renovation_cost, :work_lines,
+			:interest_rate_a, :duration_years_a, :insurance_rate_a, :bank_fees_a, :guarantee_fees_a, :broker_fees_a,
+			:start_year_a, :start_month_a, :new_loan_lines_a,
+			:bridge_loan_enabled_a, :bridge_loan_sale_price_a, :bridge_loan_loan_balance_a, :bridge_loan_quotity_a, :bridge_loan_rate_a, :bridge_loan_duration_a, :bridge_loan_insurance_a, :bridge_loan_franchise_a,
+			:bridge_loan_sale_month_a, :bridge_loan_repay_pct_a, :bridge_loan_repay_line_a,
+			:interest_rate_b, :duration_years_b, :insurance_rate_b, :bank_fees_b, :guarantee_fees_b, :broker_fees_b,
+			:start_year_b, :start_month_b, :new_loan_lines_b,
+			:bridge_loan_enabled_b, :bridge_loan_sale_price_b, :bridge_loan_loan_balance_b, :bridge_loan_quotity_b, :bridge_loan_rate_b, :bridge_loan_duration_b, :bridge_loan_insurance_b, :bridge_loan_franchise_b,
+			:bridge_loan_sale_month_b, :bridge_loan_repay_pct_b, :bridge_loan_repay_line_b)
+		ON CONFLICT(id) DO UPDATE SET
+			property_price = :property_price, notary_rate = :notary_rate, notary_fixed = :notary_fixed, agency_rate = :agency_rate, agency_fixed = :agency_fixed,
+			down_payment_1 = :down_payment_1, down_payment_2 = :down_payment_2, net_income_1 = :net_income_1, net_income_2 = :net_income_2,
+			renovation_cost = :renovation_cost, work_lines = :work_lines,
+			interest_rate_a = :interest_rate_a, duration_years_a = :duration_years_a, insurance_rate_a = :insurance_rate_a,
+			bank_fees_a = :bank_fees_a, guarantee_fees_a = :guarantee_fees_a, broker_fees_a = :broker_fees_a,
+			start_year_a = :start_year_a, start_month_a = :start_month_a, new_loan_lines_a = :new_loan_lines_a,
+			bridge_loan_enabled_a = :bridge_loan_enabled_a, bridge_loan_sale_price_a = :bridge_loan_sale_price_a,
+			bridge_loan_loan_balance_a = :bridge_loan_loan_balance_a, bridge_loan_quotity_a = :bridge_loan_quotity_a,
+			bridge_loan_rate_a = :bridge_loan_rate_a, bridge_loan_duration_a = :bridge_loan_duration_a,
+			bridge_loan_insurance_a = :bridge_loan_insurance_a, bridge_loan_franchise_a = :bridge_loan_franchise_a,
+			bridge_loan_sale_month_a = :bridge_loan_sale_month_a, bridge_loan_repay_pct_a = :bridge_loan_repay_pct_a, bridge_loan_repay_line_a = :bridge_loan_repay_line_a,
+			interest_rate_b = :interest_rate_b, duration_years_b = :duration_years_b, insurance_rate_b = :insurance_rate_b,
+			bank_fees_b = :bank_fees_b, guarantee_fees_b = :guarantee_fees_b, broker_fees_b = :broker_fees_b,
+			start_year_b = :start_year_b, start_month_b = :start_month_b, new_loan_lines_b = :new_loan_lines_b,
+			bridge_loan_enabled_b = :bridge_loan_enabled_b, bridge_loan_sale_price_b = :bridge_loan_sale_price_b,
+			bridge_loan_loan_balance_b = :bridge_loan_loan_balance_b, bridge_loan_quotity_b = :bridge_loan_quotity_b,
+			bridge_loan_rate_b = :bridge_loan_rate_b, bridge_loan_duration_b = :bridge_loan_duration_b,
+			bridge_loan_insurance_b = :bridge_loan_insurance_b, bridge_loan_franchise_b = :bridge_loan_franchise_b,
+			bridge_loan_sale_month_b = :bridge_loan_sale_month_b, bridge_loan_repay_pct_b = :bridge_loan_repay_pct_b, bridge_loan_repay_line_b = :bridge_loan_repay_line_b
+	`, inputs)
+	if err != nil {
+		return fmt.Errorf("failed to save compare inputs: %w", err)
 	}
 	return nil
 }
