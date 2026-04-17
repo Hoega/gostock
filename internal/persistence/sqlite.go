@@ -441,6 +441,8 @@ func runMigrations(db *sqlx.DB) {
 		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_sale_month_b INTEGER NOT NULL DEFAULT 12`,
 		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_pct_b REAL NOT NULL DEFAULT 100`,
 		`ALTER TABLE compare_inputs ADD COLUMN bridge_loan_repay_line_b INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN loan_amount_override_a REAL NOT NULL DEFAULT 0`,
+		`ALTER TABLE compare_inputs ADD COLUMN loan_amount_override_b REAL NOT NULL DEFAULT 0`,
 	}
 
 	for _, migration := range migrations {
@@ -1213,21 +1215,21 @@ func (s *SQLiteStore) SaveCompareInputs(inputs *CompareInputs) error {
 	_, err := s.db.NamedExec(`
 		INSERT INTO compare_inputs (id, property_price, notary_rate, notary_fixed, agency_rate, agency_fixed,
 			down_payment_1, down_payment_2, net_income_1, net_income_2, renovation_cost, work_lines,
-			interest_rate_a, duration_years_a, insurance_rate_a, bank_fees_a, guarantee_fees_a, broker_fees_a,
+			loan_amount_override_a, interest_rate_a, duration_years_a, insurance_rate_a, bank_fees_a, guarantee_fees_a, broker_fees_a,
 			start_year_a, start_month_a, new_loan_lines_a,
 			bridge_loan_enabled_a, bridge_loan_sale_price_a, bridge_loan_loan_balance_a, bridge_loan_quotity_a, bridge_loan_rate_a, bridge_loan_duration_a, bridge_loan_insurance_a, bridge_loan_franchise_a,
 			bridge_loan_sale_month_a, bridge_loan_repay_pct_a, bridge_loan_repay_line_a,
-			interest_rate_b, duration_years_b, insurance_rate_b, bank_fees_b, guarantee_fees_b, broker_fees_b,
+			loan_amount_override_b, interest_rate_b, duration_years_b, insurance_rate_b, bank_fees_b, guarantee_fees_b, broker_fees_b,
 			start_year_b, start_month_b, new_loan_lines_b,
 			bridge_loan_enabled_b, bridge_loan_sale_price_b, bridge_loan_loan_balance_b, bridge_loan_quotity_b, bridge_loan_rate_b, bridge_loan_duration_b, bridge_loan_insurance_b, bridge_loan_franchise_b,
 			bridge_loan_sale_month_b, bridge_loan_repay_pct_b, bridge_loan_repay_line_b)
 		VALUES (:id, :property_price, :notary_rate, :notary_fixed, :agency_rate, :agency_fixed,
 			:down_payment_1, :down_payment_2, :net_income_1, :net_income_2, :renovation_cost, :work_lines,
-			:interest_rate_a, :duration_years_a, :insurance_rate_a, :bank_fees_a, :guarantee_fees_a, :broker_fees_a,
+			:loan_amount_override_a, :interest_rate_a, :duration_years_a, :insurance_rate_a, :bank_fees_a, :guarantee_fees_a, :broker_fees_a,
 			:start_year_a, :start_month_a, :new_loan_lines_a,
 			:bridge_loan_enabled_a, :bridge_loan_sale_price_a, :bridge_loan_loan_balance_a, :bridge_loan_quotity_a, :bridge_loan_rate_a, :bridge_loan_duration_a, :bridge_loan_insurance_a, :bridge_loan_franchise_a,
 			:bridge_loan_sale_month_a, :bridge_loan_repay_pct_a, :bridge_loan_repay_line_a,
-			:interest_rate_b, :duration_years_b, :insurance_rate_b, :bank_fees_b, :guarantee_fees_b, :broker_fees_b,
+			:loan_amount_override_b, :interest_rate_b, :duration_years_b, :insurance_rate_b, :bank_fees_b, :guarantee_fees_b, :broker_fees_b,
 			:start_year_b, :start_month_b, :new_loan_lines_b,
 			:bridge_loan_enabled_b, :bridge_loan_sale_price_b, :bridge_loan_loan_balance_b, :bridge_loan_quotity_b, :bridge_loan_rate_b, :bridge_loan_duration_b, :bridge_loan_insurance_b, :bridge_loan_franchise_b,
 			:bridge_loan_sale_month_b, :bridge_loan_repay_pct_b, :bridge_loan_repay_line_b)
@@ -1235,6 +1237,7 @@ func (s *SQLiteStore) SaveCompareInputs(inputs *CompareInputs) error {
 			property_price = :property_price, notary_rate = :notary_rate, notary_fixed = :notary_fixed, agency_rate = :agency_rate, agency_fixed = :agency_fixed,
 			down_payment_1 = :down_payment_1, down_payment_2 = :down_payment_2, net_income_1 = :net_income_1, net_income_2 = :net_income_2,
 			renovation_cost = :renovation_cost, work_lines = :work_lines,
+			loan_amount_override_a = :loan_amount_override_a,
 			interest_rate_a = :interest_rate_a, duration_years_a = :duration_years_a, insurance_rate_a = :insurance_rate_a,
 			bank_fees_a = :bank_fees_a, guarantee_fees_a = :guarantee_fees_a, broker_fees_a = :broker_fees_a,
 			start_year_a = :start_year_a, start_month_a = :start_month_a, new_loan_lines_a = :new_loan_lines_a,
@@ -1243,6 +1246,7 @@ func (s *SQLiteStore) SaveCompareInputs(inputs *CompareInputs) error {
 			bridge_loan_rate_a = :bridge_loan_rate_a, bridge_loan_duration_a = :bridge_loan_duration_a,
 			bridge_loan_insurance_a = :bridge_loan_insurance_a, bridge_loan_franchise_a = :bridge_loan_franchise_a,
 			bridge_loan_sale_month_a = :bridge_loan_sale_month_a, bridge_loan_repay_pct_a = :bridge_loan_repay_pct_a, bridge_loan_repay_line_a = :bridge_loan_repay_line_a,
+			loan_amount_override_b = :loan_amount_override_b,
 			interest_rate_b = :interest_rate_b, duration_years_b = :duration_years_b, insurance_rate_b = :insurance_rate_b,
 			bank_fees_b = :bank_fees_b, guarantee_fees_b = :guarantee_fees_b, broker_fees_b = :broker_fees_b,
 			start_year_b = :start_year_b, start_month_b = :start_month_b, new_loan_lines_b = :new_loan_lines_b,

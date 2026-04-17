@@ -300,6 +300,7 @@ type CompareInputs struct {
 	RenovationCost float64 `db:"renovation_cost"`
 	WorkLines      string  `db:"work_lines"`
 	// Offer A
+	LoanAmountOverrideA  float64 `db:"loan_amount_override_a"`
 	InterestRateA        float64 `db:"interest_rate_a"`
 	DurationYearsA       int     `db:"duration_years_a"`
 	InsuranceRateA       float64 `db:"insurance_rate_a"`
@@ -321,6 +322,7 @@ type CompareInputs struct {
 	BridgeLoanRepayPctA    float64 `db:"bridge_loan_repay_pct_a"`
 	BridgeLoanRepayLineA   int     `db:"bridge_loan_repay_line_a"`
 	// Offer B
+	LoanAmountOverrideB  float64 `db:"loan_amount_override_b"`
 	InterestRateB        float64 `db:"interest_rate_b"`
 	DurationYearsB       int     `db:"duration_years_b"`
 	InsuranceRateB       float64 `db:"insurance_rate_b"`

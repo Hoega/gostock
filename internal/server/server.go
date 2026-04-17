@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/Hoega/gostock/internal/handler"
+	"github.com/Hoega/gostock/internal/model"
 	"github.com/Hoega/gostock/internal/persistence"
 )
 
@@ -85,6 +86,9 @@ func New(port int, store persistence.Store) *http.Server {
 				return t.Format("02/01/2006")
 			}
 			return s
+		},
+		"hasMultipleLoans": func(schedule []model.MonthlySchedule) bool {
+			return len(schedule) > 0 && len(schedule[0].Payments) > 1
 		},
 		"percentInRange": func(current, low, high float64) float64 {
 			if high == low {

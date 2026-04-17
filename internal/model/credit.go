@@ -336,30 +336,38 @@ type LoanLine struct {
 
 // NewLoanLine represents a loan line for the new mortgage.
 type NewLoanLine struct {
-	Label          string        `json:"label"`          // Libellé du prêt (ex: "Prêt principal", "PTZ", "PAL")
-	Amount         float64       `json:"amount"`         // Montant emprunté (€)
-	Rate           float64       `json:"rate"`           // Taux d'intérêt annuel (%)
-	DurationYears  int           `json:"durationYears"`  // Durée en années
-	InsuranceRate  float64       `json:"insuranceRate"`  // Taux assurance annuel (%)
-	DeferralMonths int           `json:"deferralMonths"` // Différé en mois (paiement intérêts seuls)
-	DeferralRate   float64       `json:"deferralRate"`   // Taux intérêts intercalaires (%)
-	Tiers          []PaymentTier `json:"tiers"`          // Paliers de paiement
+	Label            string        `json:"label"`            // Libellé du prêt (ex: "Prêt principal", "PTZ", "PAL")
+	Amount           float64       `json:"amount"`           // Montant emprunté (€)
+	Rate             float64       `json:"rate"`             // Taux d'intérêt annuel (%)
+	DurationYears    int           `json:"durationYears"`    // Durée en années
+	InsuranceRate    float64       `json:"insuranceRate"`    // Taux assurance annuel (%)
+	InsuranceMonthly float64       `json:"insuranceMonthly"` // Mensualité assurance (€) - prioritaire sur le taux
+	DeferralMonths   int           `json:"deferralMonths"`   // Différé en mois (paiement intérêts seuls)
+	DeferralRate     float64       `json:"deferralRate"`     // Taux intérêts intercalaires (%)
+	Tiers            []PaymentTier `json:"tiers"`            // Paliers de paiement
 }
 
 // LoanMonthPayment holds the payment details for a single loan in a given month.
 type LoanMonthPayment struct {
-	Label     string  // Libellé du prêt
-	Principal float64 // Capital remboursé
-	Interest  float64 // Intérêts
-	Insurance float64 // Assurance
-	Total     float64 // Total pour ce prêt
+	Label            string  // Libellé du prêt
+	Principal        float64 // Capital remboursé
+	Interest         float64 // Intérêts
+	Insurance        float64 // Assurance
+	Total            float64 // Total pour ce prêt
+	RemainingBalance float64 // Capital restant dû pour cette ligne
 }
 
 // MonthlySchedule holds the payment breakdown for all loans in a given month.
 type MonthlySchedule struct {
-	Month       int                // Numéro du mois (1-based)
-	Payments    []LoanMonthPayment // Paiement par ligne de crédit
-	TotalAmount float64            // Somme des paiements
+	Month            int                // Numéro du mois (1-based)
+	Date             string             // Date formatée (ex: "02/2026")
+	Payments         []LoanMonthPayment // Paiement par ligne de crédit
+	TotalAmount      float64            // Somme des paiements
+	TotalPrincipal   float64            // Capital total remboursé ce mois
+	TotalInterest    float64            // Intérêts totaux ce mois
+	TotalInsurance   float64            // Assurance totale ce mois
+	CumulInterest    float64            // Cumul des intérêts jusqu'à ce mois
+	RemainingBalance float64            // Capital restant dû total
 }
 
 // NewLoanLineResult holds computed results for a single loan line.

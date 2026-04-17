@@ -1,125 +1,161 @@
 {{define "compare-results.html"}}
-<div class="bg-white shadow rounded-lg p-6 space-y-6 mt-6">
-    <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats de la comparaison</h2>
+<div class="bg-white shadow rounded-lg p-6 space-y-6 mt-6" id="compare-results">
+    <div class="flex items-center justify-between">
+        <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats de la comparaison</h2>
+        <div class="flex gap-2">
+            <button onclick="exportCompareMarkdown()" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Markdown
+            </button>
+            <button onclick="exportComparePDF()" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                PDF
+            </button>
+        </div>
+    </div>
 
     <!-- Per-loan-line details -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="border border-indigo-200 rounded-lg p-4">
+        <div class="border border-indigo-200 rounded-lg p-4 overflow-x-auto">
             <h3 class="text-sm font-semibold text-indigo-800 mb-3">D&eacute;tail lignes - Offre A</h3>
-            <table class="min-w-full text-xs">
+            <table class="min-w-[700px] text-xs">
                 <thead class="bg-indigo-50">
                     <tr>
-                        <th class="px-3 py-2 text-left">Pr&ecirc;t</th>
-                        <th class="px-3 py-2 text-right">Montant</th>
-                        <th class="px-3 py-2 text-right">Taux</th>
-                        <th class="px-3 py-2 text-right">Mensualit&eacute; HA</th>
-                        <th class="px-3 py-2 text-right">Int&eacute;r&ecirc;ts</th>
+                        <th class="px-2 py-2 text-left whitespace-nowrap">Pr&ecirc;t</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Montant</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Taux</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Mens. HA</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Ass. /m</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Int&eacute;r&ecirc;ts</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Ass. tot.</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr class="border-t border-indigo-100 bg-gray-50">
-                        <td class="px-3 py-2 italic text-gray-600">Apport</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney (add .InputA.DownPayment1 .InputA.DownPayment2)}} &euro;</td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2"></td>
+                        <td class="px-2 py-2 italic text-gray-600 whitespace-nowrap">Apport</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney (add .InputA.DownPayment1 .InputA.DownPayment2)}} &euro;</td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
                     </tr>
                     {{if gt (len .ResultA.LoanLineResults) 0}}
                     {{range .ResultA.LoanLineResults}}
                     <tr class="border-t border-indigo-100">
-                        <td class="px-3 py-2">{{.Label}}</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .Amount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .Rate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">{{.Label}}</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .Amount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .Rate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                     {{else}}
                     <tr class="border-t border-indigo-100">
-                        <td class="px-3 py-2">Pr&ecirc;t principal</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .InputA.LoanAmount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .InputA.InterestRate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Pr&ecirc;t principal</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .InputA.LoanAmount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .InputA.InterestRate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                     {{if .ResultA.BridgeLoan.Enabled}}
                     <tr class="border-t border-amber-200 bg-amber-50">
-                        <td class="px-3 py-2">Pr&ecirc;t relais</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.BridgeLoan.Amount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .ResultA.BridgeLoan.Rate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.BridgeLoan.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.BridgeLoan.TotalCost}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Pr&ecirc;t relais</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.BridgeLoan.Amount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .ResultA.BridgeLoan.Rate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.BridgeLoan.MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap text-gray-400 italic">incl.</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.BridgeLoan.TotalCost}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.BridgeLoan.TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                 </tbody>
                 <tfoot class="bg-indigo-50 font-semibold">
                     <tr>
-                        <td class="px-3 py-2">Total</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney (add .InputA.PropertyPrice (add .ResultA.NotaryFees .ResultA.AgencyFees))}} &euro;</td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultA.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Total</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultA.BridgeLoan.Enabled}}{{formatMoney (add .InputA.LoanAmount .ResultA.BridgeLoan.Amount)}}{{else}}{{formatMoney .InputA.LoanAmount}}{{end}} &euro;</td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultA.BridgeLoan.Enabled}}{{formatMoney (add .ResultA.MonthlyPayment .ResultA.BridgeLoan.MonthlyPayment)}}{{else}}{{formatMoney .ResultA.MonthlyPayment}}{{end}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultA.MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultA.BridgeLoan.Enabled}}{{formatMoney (add .ResultA.TotalInterest .ResultA.BridgeLoan.TotalCost)}}{{else}}{{formatMoney .ResultA.TotalInterest}}{{end}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultA.BridgeLoan.Enabled}}{{formatMoney (add .ResultA.TotalInsurance .ResultA.BridgeLoan.TotalInsurance)}}{{else}}{{formatMoney .ResultA.TotalInsurance}}{{end}} &euro;</td>
                     </tr>
                 </tfoot>
             </table>
         </div>
-        <div class="border border-emerald-200 rounded-lg p-4">
+        <div class="border border-emerald-200 rounded-lg p-4 overflow-x-auto">
             <h3 class="text-sm font-semibold text-emerald-800 mb-3">D&eacute;tail lignes - Offre B</h3>
-            <table class="min-w-full text-xs">
+            <table class="min-w-[700px] text-xs">
                 <thead class="bg-emerald-50">
                     <tr>
-                        <th class="px-3 py-2 text-left">Pr&ecirc;t</th>
-                        <th class="px-3 py-2 text-right">Montant</th>
-                        <th class="px-3 py-2 text-right">Taux</th>
-                        <th class="px-3 py-2 text-right">Mensualit&eacute; HA</th>
-                        <th class="px-3 py-2 text-right">Int&eacute;r&ecirc;ts</th>
+                        <th class="px-2 py-2 text-left whitespace-nowrap">Pr&ecirc;t</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Montant</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Taux</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Mens. HA</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Ass. /m</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Int&eacute;r&ecirc;ts</th>
+                        <th class="px-2 py-2 text-right whitespace-nowrap">Ass. tot.</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr class="border-t border-emerald-100 bg-gray-50">
-                        <td class="px-3 py-2 italic text-gray-600">Apport</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney (add .InputB.DownPayment1 .InputB.DownPayment2)}} &euro;</td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2"></td>
+                        <td class="px-2 py-2 italic text-gray-600 whitespace-nowrap">Apport</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney (add .InputB.DownPayment1 .InputB.DownPayment2)}} &euro;</td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2"></td>
                     </tr>
                     {{if gt (len .ResultB.LoanLineResults) 0}}
                     {{range .ResultB.LoanLineResults}}
                     <tr class="border-t border-emerald-100">
-                        <td class="px-3 py-2">{{.Label}}</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .Amount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .Rate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">{{.Label}}</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .Amount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .Rate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                     {{else}}
                     <tr class="border-t border-emerald-100">
-                        <td class="px-3 py-2">Pr&ecirc;t principal</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .InputB.LoanAmount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .InputB.InterestRate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Pr&ecirc;t principal</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .InputB.LoanAmount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .InputB.InterestRate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                     {{if .ResultB.BridgeLoan.Enabled}}
                     <tr class="border-t border-amber-200 bg-amber-50">
-                        <td class="px-3 py-2">Pr&ecirc;t relais</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.BridgeLoan.Amount}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{printf "%.2f" .ResultB.BridgeLoan.Rate}}%</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.BridgeLoan.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.BridgeLoan.TotalCost}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Pr&ecirc;t relais</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.BridgeLoan.Amount}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{printf "%.2f" .ResultB.BridgeLoan.Rate}}%</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.BridgeLoan.MonthlyPayment}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap text-gray-400 italic">incl.</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.BridgeLoan.TotalCost}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.BridgeLoan.TotalInsurance}} &euro;</td>
                     </tr>
                     {{end}}
                 </tbody>
                 <tfoot class="bg-emerald-50 font-semibold">
                     <tr>
-                        <td class="px-3 py-2">Total</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney (add .InputB.PropertyPrice (add .ResultB.NotaryFees .ResultB.AgencyFees))}} &euro;</td>
-                        <td class="px-3 py-2"></td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.MonthlyPayment}} &euro;</td>
-                        <td class="px-3 py-2 text-right">{{formatMoney .ResultB.TotalInterest}} &euro;</td>
+                        <td class="px-2 py-2 whitespace-nowrap">Total</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultB.BridgeLoan.Enabled}}{{formatMoney (add .InputB.LoanAmount .ResultB.BridgeLoan.Amount)}}{{else}}{{formatMoney .InputB.LoanAmount}}{{end}} &euro;</td>
+                        <td class="px-2 py-2"></td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultB.BridgeLoan.Enabled}}{{formatMoney (add .ResultB.MonthlyPayment .ResultB.BridgeLoan.MonthlyPayment)}}{{else}}{{formatMoney .ResultB.MonthlyPayment}}{{end}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{formatMoney .ResultB.MonthlyInsurance}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultB.BridgeLoan.Enabled}}{{formatMoney (add .ResultB.TotalInterest .ResultB.BridgeLoan.TotalCost)}}{{else}}{{formatMoney .ResultB.TotalInterest}}{{end}} &euro;</td>
+                        <td class="px-2 py-2 text-right whitespace-nowrap">{{if .ResultB.BridgeLoan.Enabled}}{{formatMoney (add .ResultB.TotalInsurance .ResultB.BridgeLoan.TotalInsurance)}}{{else}}{{formatMoney .ResultB.TotalInsurance}}{{end}} &euro;</td>
                     </tr>
                 </tfoot>
             </table>
@@ -373,63 +409,137 @@
         .amort-scroll { scrollbar-width: auto; scrollbar-color: #94a3b8 #f1f5f9; }
     </style>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Offre A -->
         <div class="border border-indigo-200 rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-indigo-800 mb-3">Amortissement - Offre A</h3>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold text-indigo-800">Amortissement - Offre A</h3>
+                {{if hasMultipleLoans .ResultA.MonthlySchedule}}
+                <button onclick="toggleAllDetails(this.closest('.border').querySelector('tbody'))" class="text-xs text-indigo-600 hover:text-indigo-800 hover:underline">Tout d&eacute;plier / replier</button>
+                {{end}}
+            </div>
             <div class="overflow-x-auto max-h-[500px] overflow-y-auto amort-scroll">
-                <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <table class="min-w-[700px] divide-y divide-gray-200 text-xs">
                     <thead class="bg-indigo-50 sticky top-0">
                         <tr>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500">Date</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Mensualit&eacute;</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Capital</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Int&eacute;r&ecirc;ts</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Cumul int.</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Assurance</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">CRD</th>
+                            <th class="px-2 py-2 text-left font-medium text-gray-500">Date</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Mensualit&eacute;</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Capital</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Int&eacute;r&ecirc;ts</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Cumul int.</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Assurance</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">CRD</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-100">
+                        {{if hasMultipleLoans .ResultA.MonthlySchedule}}
+                        {{range .ResultA.MonthlySchedule}}
+                        <tr class="hover:bg-indigo-50 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                            <td class="px-2 py-1 text-gray-900 whitespace-nowrap"><span class="detail-chevron inline-block w-3 text-indigo-400 transition-transform">&#9654;</span> {{.Date}}</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalAmount}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalPrincipal}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right font-medium whitespace-nowrap">{{formatMoney .CumulInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalInsurance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 text-right font-medium whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
+                        </tr>
+                        <tr class="hidden detail-row">
+                            <td colspan="7" class="p-0">
+                                <table class="w-full text-xs">
+                                    {{range .Payments}}{{if gt .Total 0.0}}
+                                    <tr class="bg-indigo-50/50 text-gray-500">
+                                        <td class="pl-7 px-2 py-0.5 italic whitespace-nowrap">&hookrightarrow; {{.Label}}</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Total}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Principal}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Interest}} &euro;</td>
+                                        <td class="px-2 py-0.5"></td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Insurance}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
+                                    </tr>
+                                    {{end}}{{end}}
+                                </table>
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{else}}
                         {{range .ResultA.Amortization}}
                         <tr class="hover:bg-indigo-50">
-                            <td class="px-3 py-1 text-gray-900 whitespace-nowrap">{{.Date}}</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Payment}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Principal}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Interest}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right font-medium">{{formatMoney .CumulInterest}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Insurance}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-900 text-right font-medium">{{formatMoney .RemainingBalance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 whitespace-nowrap">{{.Date}}</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Payment}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Principal}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Interest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right font-medium whitespace-nowrap">{{formatMoney .CumulInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Insurance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 text-right font-medium whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
                         </tr>
+                        {{end}}
                         {{end}}
                     </tbody>
                 </table>
             </div>
         </div>
+        <!-- Offre B -->
         <div class="border border-emerald-200 rounded-lg p-4">
-            <h3 class="text-lg font-semibold text-emerald-800 mb-3">Amortissement - Offre B</h3>
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-lg font-semibold text-emerald-800">Amortissement - Offre B</h3>
+                {{if hasMultipleLoans .ResultB.MonthlySchedule}}
+                <button onclick="toggleAllDetails(this.closest('.border').querySelector('tbody'))" class="text-xs text-emerald-600 hover:text-emerald-800 hover:underline">Tout d&eacute;plier / replier</button>
+                {{end}}
+            </div>
             <div class="overflow-x-auto max-h-[500px] overflow-y-auto amort-scroll">
-                <table class="min-w-full divide-y divide-gray-200 text-xs">
+                <table class="min-w-[700px] divide-y divide-gray-200 text-xs">
                     <thead class="bg-emerald-50 sticky top-0">
                         <tr>
-                            <th class="px-3 py-2 text-left font-medium text-gray-500">Date</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Mensualit&eacute;</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Capital</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Int&eacute;r&ecirc;ts</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Cumul int.</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">Assurance</th>
-                            <th class="px-3 py-2 text-right font-medium text-gray-500">CRD</th>
+                            <th class="px-2 py-2 text-left font-medium text-gray-500">Date</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Mensualit&eacute;</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Capital</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Int&eacute;r&ecirc;ts</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Cumul int.</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">Assurance</th>
+                            <th class="px-2 py-2 text-right font-medium text-gray-500">CRD</th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-100">
+                        {{if hasMultipleLoans .ResultB.MonthlySchedule}}
+                        {{range .ResultB.MonthlySchedule}}
+                        <tr class="hover:bg-emerald-50 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                            <td class="px-2 py-1 text-gray-900 whitespace-nowrap"><span class="detail-chevron inline-block w-3 text-emerald-400 transition-transform">&#9654;</span> {{.Date}}</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalAmount}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalPrincipal}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right font-medium whitespace-nowrap">{{formatMoney .CumulInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .TotalInsurance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 text-right font-medium whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
+                        </tr>
+                        <tr class="hidden detail-row">
+                            <td colspan="7" class="p-0">
+                                <table class="w-full text-xs">
+                                    {{range .Payments}}{{if gt .Total 0.0}}
+                                    <tr class="bg-emerald-50/50 text-gray-500">
+                                        <td class="pl-7 px-2 py-0.5 italic whitespace-nowrap">&hookrightarrow; {{.Label}}</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Total}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Principal}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Interest}} &euro;</td>
+                                        <td class="px-2 py-0.5"></td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .Insurance}} &euro;</td>
+                                        <td class="px-2 py-0.5 text-right whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
+                                    </tr>
+                                    {{end}}{{end}}
+                                </table>
+                            </td>
+                        </tr>
+                        {{end}}
+                        {{else}}
                         {{range .ResultB.Amortization}}
                         <tr class="hover:bg-emerald-50">
-                            <td class="px-3 py-1 text-gray-900 whitespace-nowrap">{{.Date}}</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Payment}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Principal}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Interest}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right font-medium">{{formatMoney .CumulInterest}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-700 text-right">{{formatMoney .Insurance}} &euro;</td>
-                            <td class="px-3 py-1 text-gray-900 text-right font-medium">{{formatMoney .RemainingBalance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 whitespace-nowrap">{{.Date}}</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Payment}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Principal}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Interest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right font-medium whitespace-nowrap">{{formatMoney .CumulInterest}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-700 text-right whitespace-nowrap">{{formatMoney .Insurance}} &euro;</td>
+                            <td class="px-2 py-1 text-gray-900 text-right font-medium whitespace-nowrap">{{formatMoney .RemainingBalance}} &euro;</td>
                         </tr>
+                        {{end}}
                         {{end}}
                     </tbody>
                 </table>
@@ -437,4 +547,87 @@
         </div>
     </div>
 </div>
+
+<script>
+function toggleAllDetails(tbody) {
+    const rows = tbody.querySelectorAll('tr.detail-row');
+    const anyHidden = Array.from(rows).some(r => r.classList.contains('hidden'));
+    rows.forEach(r => r.classList.toggle('hidden', !anyHidden));
+}
+function tableToMarkdown(table) {
+    const rows = table.querySelectorAll('tr');
+    if (rows.length === 0) return '';
+    const lines = [];
+    rows.forEach((row, ri) => {
+        const cells = row.querySelectorAll('th, td');
+        const vals = [];
+        cells.forEach(c => {
+            const colspan = parseInt(c.getAttribute('colspan') || '1');
+            const text = c.textContent.replace(/\s+/g, ' ').trim();
+            vals.push(text);
+            for (let i = 1; i < colspan; i++) vals.push('');
+        });
+        lines.push('| ' + vals.join(' | ') + ' |');
+        if (ri === 0 || (table.querySelector('thead') && row.closest('thead') && !row.nextElementSibling)) {
+            lines.push('|' + vals.map(() => '---').join('|') + '|');
+        }
+    });
+    return lines.join('\n');
+}
+
+function exportCompareMarkdown() {
+    const container = document.getElementById('compare-results');
+    let md = '# Comparaison de crédit\n\n';
+    const processed = new Set();
+
+    // Walk all sections (direct children of the container) in DOM order
+    container.querySelectorAll(':scope > div, :scope > style').forEach(section => {
+        if (section.tagName === 'STYLE') return;
+        // Skip the header/button bar
+        if (section.querySelector(':scope > h2')) return;
+
+        // Sections with sub-divs containing h3 + table (grids: loan details, amortization)
+        const subDivs = section.querySelectorAll(':scope > div');
+        if (subDivs.length > 0) {
+            subDivs.forEach(div => {
+                const h3 = div.querySelector('h3');
+                const table = div.querySelector('table');
+                if (h3 && table && !processed.has(table)) {
+                    processed.add(table);
+                    md += '## ' + h3.textContent.trim() + '\n\n';
+                    md += tableToMarkdown(table) + '\n\n';
+                }
+            });
+        }
+
+        // Direct h3 + table in section (bridge hypotheses)
+        const h3 = section.querySelector(':scope > h3');
+        const table = section.querySelector(':scope > table');
+        if (h3 && table && !processed.has(table)) {
+            processed.add(table);
+            md += '## ' + h3.textContent.trim() + '\n\n';
+            md += tableToMarkdown(table) + '\n\n';
+        }
+
+        // Direct table without h3 (summary table)
+        if (!h3 && table && !processed.has(table)) {
+            processed.add(table);
+            md += '## Résumé\n\n';
+            md += tableToMarkdown(table) + '\n\n';
+        }
+    });
+
+    const blob = new Blob([md], {type: 'text/markdown;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'comparaison-credit.md';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function exportComparePDF() {
+    window.print();
+}
+</script>
 {{end}}

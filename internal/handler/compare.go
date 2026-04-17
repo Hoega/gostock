@@ -95,6 +95,7 @@ func (h *CompareHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		RenovationCost: renovationCost,
 		WorkLines:      workLinesJSON,
 		// Offer A
+		LoanAmountOverrideA: cmpParseFloat(r.FormValue("a_loan_amount_override"), 0),
 		InterestRateA:        inputA.InterestRate,
 		DurationYearsA:       inputA.DurationMonths / 12,
 		InsuranceRateA:       inputA.InsuranceRate,
@@ -116,6 +117,7 @@ func (h *CompareHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		BridgeLoanRepayPctA:    cmpParseFloat(r.FormValue("a_bridge_loan_repay_pct"), 100),
 		BridgeLoanRepayLineA:   cmpParseInt(r.FormValue("a_bridge_loan_repay_line"), 0),
 		// Offer B
+		LoanAmountOverrideB: cmpParseFloat(r.FormValue("b_loan_amount_override"), 0),
 		InterestRateB:        inputB.InterestRate,
 		DurationYearsB:       inputB.DurationMonths / 12,
 		InsuranceRateB:       inputB.InsuranceRate,
@@ -248,15 +250,13 @@ func buildOfferInput(r *http.Request, prefix string, propertyPrice, baseLoanAmou
 	bridgeLoanRepayPct := cmpParseFloat(r.FormValue(prefix+"bridge_loan_repay_pct"), 100)
 	bridgeLoanRepayLine := cmpParseInt(r.FormValue(prefix+"bridge_loan_repay_line"), 0)
 
-	// Compute final loan amount: base + finançable fees - bridge net contribution
-	// The bridge finances both the rachat and part of the acquisition
-	loanAmount := baseLoanAmount + guaranteeFees + bankFees
-	if bridgeLoanEnabled && bridgeLoanLoanBalance > 0 {
-		bridgeAmount := bridgeLoanSalePrice * bridgeLoanQuotity / 100
-		bridgeNetContribution := bridgeAmount - bridgeLoanLoanBalance
-		if bridgeNetContribution > 0 {
-			loanAmount -= bridgeNetContribution
-		}
+	// Compute final loan amount: use override if provided, otherwise base + guarantee fees
+	loanAmountOverride := cmpParseFloat(r.FormValue(prefix+"loan_amount_override"), 0)
+	var loanAmount float64
+	if loanAmountOverride > 0 {
+		loanAmount = loanAmountOverride
+	} else {
+		loanAmount = baseLoanAmount + guaranteeFees
 	}
 	if loanAmount < 0 {
 		loanAmount = 0
@@ -264,11 +264,18 @@ func buildOfferInput(r *http.Request, prefix string, propertyPrice, baseLoanAmou
 
 	// Auto-prepend "Prêt principal" line if loan lines don't cover the full amount
 	if len(newLoanLines) > 0 {
-		var sumLines float64
-		for _, line := range newLoanLines {
-			sumLines += line.Amount
+		// When override is set, it represents the main loan amount directly;
+		// otherwise compute it as residual (total - other lines)
+		var mainAmount float64
+		if loanAmountOverride > 0 {
+			mainAmount = loanAmountOverride
+		} else {
+			var sumLines float64
+			for _, line := range newLoanLines {
+				sumLines += line.Amount
+			}
+			mainAmount = loanAmount - sumLines
 		}
-		mainAmount := loanAmount - sumLines
 		if mainAmount > 0 {
 			// Compute the actual monthly payment for the main loan line
 			durationMonths := durationYears * 12
@@ -288,6 +295,11 @@ func buildOfferInput(r *http.Request, prefix string, propertyPrice, baseLoanAmou
 				Tiers:         []model.PaymentTier{{StartMonth: 1, EndMonth: durationMonths, MonthlyPayment: math.Round(monthlyPayment*100) / 100}},
 			}
 			newLoanLines = append([]model.NewLoanLine{mainLine}, newLoanLines...)
+		}
+		// Sync loanAmount with actual loan lines total
+		loanAmount = 0
+		for _, line := range newLoanLines {
+			loanAmount += line.Amount
 		}
 	}
 

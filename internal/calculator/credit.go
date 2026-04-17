@@ -8,10 +8,6 @@ import (
 	"github.com/Hoega/gostock/internal/model"
 )
 
-var frenchMonths = [12]string{
-	"Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
-	"Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
-}
 
 // PresetWorkCategories contains the predefined work categories with their valuation parameters.
 // Each category has an initial valuation rate and an annual appreciation/depreciation rate.
@@ -121,7 +117,7 @@ func calculateE2AccumulatedContribution(initialContribution, flatMonthlyPayment 
 
 // calculateTierBasedSchedule computes the month-by-month payment schedule using manual tiers.
 // Each loan line has user-defined payment tiers specifying the payment for each period.
-func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths int) []model.MonthlySchedule {
+func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths int, startYear int, startMonth int) []model.MonthlySchedule {
 	if len(lines) == 0 {
 		return nil
 	}
@@ -174,6 +170,7 @@ func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths
 
 	schedule := make([]model.MonthlySchedule, 0, maxDuration)
 
+	var cumulInterest float64
 	for month := 1; month <= maxDuration; month++ {
 		payments := make([]model.LoanMonthPayment, 0, len(states))
 		var monthTotal float64
@@ -219,19 +216,40 @@ func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths
 			}
 
 			payments = append(payments, model.LoanMonthPayment{
-				Label:     s.label,
-				Principal: round2(principal),
-				Interest:  round2(interest),
-				Insurance: round2(insurance),
-				Total:     round2(total),
+				Label:            s.label,
+				Principal:        round2(principal),
+				Interest:         round2(interest),
+				Insurance:        round2(insurance),
+				Total:            round2(total),
+				RemainingBalance: round2(math.Max(0, s.balance)),
 			})
 			monthTotal += total
 		}
 
+		// Compute date and aggregates
+		m := (startMonth - 1 + month - 1) % 12 + 1
+		y := startYear + (startMonth-1+month-1)/12
+		date := fmt.Sprintf("%02d/%d", m, y)
+
+		var totalPrincipal, totalInterest, totalInsurance, totalRemaining float64
+		for _, p := range payments {
+			totalPrincipal += p.Principal
+			totalInterest += p.Interest
+			totalInsurance += p.Insurance
+			totalRemaining += p.RemainingBalance
+		}
+		cumulInterest += totalInterest
+
 		schedule = append(schedule, model.MonthlySchedule{
-			Month:       month,
-			Payments:    payments,
-			TotalAmount: round2(monthTotal),
+			Month:            month,
+			Date:             date,
+			Payments:         payments,
+			TotalAmount:      round2(monthTotal),
+			TotalPrincipal:   round2(totalPrincipal),
+			TotalInterest:    round2(totalInterest),
+			TotalInsurance:   round2(totalInsurance),
+			CumulInterest:    round2(cumulInterest),
+			RemainingBalance: round2(totalRemaining),
 		})
 	}
 
@@ -239,9 +257,14 @@ func calculateTierBasedSchedule(lines []model.NewLoanLine, defaultDurationMonths
 }
 
 // calculateLoanLineTotals computes totals for a loan line based on its tiers.
-func calculateLoanLineTotals(amount float64, rate float64, durationMonths int, insuranceRate float64, deferralMonths int, deferralRate float64, tiers []model.PaymentTier) (totalInterest, totalInsurance float64) {
+func calculateLoanLineTotals(amount float64, rate float64, durationMonths int, insuranceRate float64, insuranceMonthly float64, deferralMonths int, deferralRate float64, tiers []model.PaymentTier) (totalInterest, totalInsurance float64) {
 	monthlyRate := rate / 100 / 12
-	monthlyInsurance := insuranceRate / 100 / 12 * amount
+	var monthlyInsurance float64
+	if insuranceMonthly > 0 {
+		monthlyInsurance = insuranceMonthly
+	} else {
+		monthlyInsurance = insuranceRate / 100 / 12 * amount
+	}
 
 	// Taux d'intérêts intercalaires : utiliser deferralRate si défini, sinon rate
 	if deferralRate == 0 {
@@ -297,7 +320,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 			}
 
 			// Calculate totals based on tiers
-			ti, tis := calculateLoanLineTotals(line.Amount, line.Rate, durationMonths, line.InsuranceRate, line.DeferralMonths, line.DeferralRate, line.Tiers)
+			ti, tis := calculateLoanLineTotals(line.Amount, line.Rate, durationMonths, line.InsuranceRate, line.InsuranceMonthly, line.DeferralMonths, line.DeferralRate, line.Tiers)
 
 			// Calculate average monthly payment from tiers for display
 			var totalPayments float64
@@ -314,7 +337,12 @@ func Calculate(input model.CreditInput) model.CreditResult {
 				avgMonthlyPayment = totalPayments / float64(activeMonths)
 			}
 
-			mi := line.InsuranceRate / 100 / 12 * line.Amount
+			var mi float64
+			if line.InsuranceMonthly > 0 {
+				mi = line.InsuranceMonthly
+			} else {
+				mi = line.InsuranceRate / 100 / 12 * line.Amount
+			}
 
 			loanLineResults = append(loanLineResults, model.NewLoanLineResult{
 				Label:            line.Label,
@@ -420,7 +448,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		// Compute date for this row
 		month := (startMonth-1+m-1)%12 + 1
 		year := startYear + (startMonth-1+m-1)/12
-		date := fmt.Sprintf("%s %d", frenchMonths[month-1], year)
+		date := fmt.Sprintf("%02d/%d", month, year)
 
 		interest := remaining * avgMonthlyRate
 		cumulInterest += interest
@@ -1111,10 +1139,24 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		}
 	}
 
-	// Calculate tier-based monthly schedule if multiple loan lines
+	// Calculate tier-based monthly schedule (always, for amortization detail)
 	var monthlySchedule []model.MonthlySchedule
 	if len(input.NewLoanLines) > 0 {
-		monthlySchedule = calculateTierBasedSchedule(input.NewLoanLines, input.DurationMonths)
+		monthlySchedule = calculateTierBasedSchedule(input.NewLoanLines, input.DurationMonths, startYear, startMonth)
+	} else if capital > 0 {
+		singleLine := model.NewLoanLine{
+			Label:         "Prêt principal",
+			Amount:        capital,
+			Rate:          input.InterestRate,
+			DurationYears: input.DurationMonths / 12,
+			InsuranceRate: input.InsuranceRate,
+			Tiers: []model.PaymentTier{{
+				StartMonth:     1,
+				EndMonth:       input.DurationMonths,
+				MonthlyPayment: round2(monthlyPayment),
+			}},
+		}
+		monthlySchedule = calculateTierBasedSchedule([]model.NewLoanLine{singleLine}, input.DurationMonths, startYear, startMonth)
 	}
 
 	// Calculate energy comparison

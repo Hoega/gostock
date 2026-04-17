@@ -88,6 +88,11 @@
             <div class="border-2 border-indigo-300 rounded-lg p-6 bg-indigo-50/30 space-y-6">
                 <h2 class="text-lg font-semibold text-indigo-800 border-b border-indigo-200 pb-2">Offre A</h2>
 
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Montant total emprunt&eacute; (&euro;) <span class="text-xs text-gray-400 font-normal">&mdash; vide = calcul auto</span></label>
+                    <input type="number" name="a_loan_amount_override" id="a_loan_amount_override" value="{{if gt .LoanAmountOverrideA 0.0}}{{.LoanAmountOverrideA}}{{end}}" step="any" min="0" placeholder="Prix + frais - apport + garantie"
+                        class="mt-1 block w-full rounded-md border-indigo-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2 bg-indigo-50/50">
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
@@ -285,6 +290,11 @@
             <div class="border-2 border-emerald-300 rounded-lg p-6 bg-emerald-50/30 space-y-6">
                 <h2 class="text-lg font-semibold text-emerald-800 border-b border-emerald-200 pb-2">Offre B</h2>
 
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Montant total emprunt&eacute; (&euro;) <span class="text-xs text-gray-400 font-normal">&mdash; vide = calcul auto</span></label>
+                    <input type="number" name="b_loan_amount_override" id="b_loan_amount_override" value="{{if gt .LoanAmountOverrideB 0.0}}{{.LoanAmountOverrideB}}{{end}}" step="any" min="0" placeholder="Prix + frais - apport + garantie"
+                        class="mt-1 block w-full rounded-md border-emerald-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 border px-3 py-2 bg-emerald-50/50">
+                </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
@@ -592,6 +602,12 @@
                             oninput="updateOfferLoanLineValue('${offer}', ${index}, 'insuranceRate', parseFloat(this.value) || 0)"
                             class="w-full rounded border-gray-300 text-xs px-2 py-1">
                     </div>
+                    <div>
+                        <label class="block text-xs text-gray-500">Assurance (&euro;/m)</label>
+                        <input type="number" value="${line.insuranceMonthly || ''}" step="0.01" min="0" placeholder="Auto"
+                            oninput="updateOfferLoanLineValue('${offer}', ${index}, 'insuranceMonthly', parseFloat(this.value) || 0)"
+                            class="w-full rounded border-gray-300 text-xs px-2 py-1">
+                    </div>
                 </div>
                 <div>
                     <div class="flex items-center justify-between mb-1">
@@ -622,7 +638,7 @@
         updateRepayLineDropdown(offer);
     }
 
-    function addOfferLoanLine(offer, label, amount, rate, durationYears, insuranceRate, deferralMonths, deferralRate) {
+    function addOfferLoanLine(offer, label, amount, rate, durationYears, insuranceRate, deferralMonths, deferralRate, insuranceMonthly) {
         const lines = offerLoanLines[offer];
         const durationMonthsTotal = durationYears * 12;
         const calculatedAmount = (amount === 0 && lines.length === 0) ? calculateOfferRemainingAmount(offer) : amount;
@@ -632,6 +648,7 @@
             rate: rate,
             durationYears: durationYears,
             insuranceRate: insuranceRate,
+            insuranceMonthly: insuranceMonthly || 0,
             deferralMonths: deferralMonths || 0,
             deferralRate: deferralRate || rate,
             tiers: [{startMonth: 1, endMonth: durationMonthsTotal, monthlyPayment: 0}]
@@ -670,18 +687,26 @@
     }
 
     function calculateOfferRemainingAmount(offer) {
-        const propertyPrice = parseFloat(document.getElementById('property_price').value) || 0;
-        const downPayment1 = parseFloat(document.getElementById('down_payment_1').value) || 0;
-        const downPayment2 = parseFloat(document.getElementById('down_payment_2').value) || 0;
-        const notaryRate = parseFloat(document.getElementById('notary_rate').value) || 0;
-        const notaryFixed = parseFloat(document.getElementById('notary_fixed').value) || 0;
-        const agencyRate = parseFloat(document.getElementById('agency_rate').value) || 0;
-        const agencyFixed = parseFloat(document.getElementById('agency_fixed').value) || 0;
-        const notaryFees = notaryFixed > 0 ? notaryFixed : propertyPrice * notaryRate / 100;
-        const agencyFees = agencyFixed > 0 ? agencyFixed : propertyPrice * agencyRate / 100;
+        const override = parseFloat(document.getElementById(offer + '_loan_amount_override').value) || 0;
+        let totalLoan;
+        if (override > 0) {
+            totalLoan = override;
+        } else {
+            const propertyPrice = parseFloat(document.getElementById('property_price').value) || 0;
+            const downPayment1 = parseFloat(document.getElementById('down_payment_1').value) || 0;
+            const downPayment2 = parseFloat(document.getElementById('down_payment_2').value) || 0;
+            const notaryRate = parseFloat(document.getElementById('notary_rate').value) || 0;
+            const notaryFixed = parseFloat(document.getElementById('notary_fixed').value) || 0;
+            const agencyRate = parseFloat(document.getElementById('agency_rate').value) || 0;
+            const agencyFixed = parseFloat(document.getElementById('agency_fixed').value) || 0;
+            const guaranteeFees = parseFloat(document.getElementById(offer + '_guarantee_fees').value) || 0;
+            const notaryFees = notaryFixed > 0 ? notaryFixed : propertyPrice * notaryRate / 100;
+            const agencyFees = agencyFixed > 0 ? agencyFixed : propertyPrice * agencyRate / 100;
+            totalLoan = propertyPrice + notaryFees + agencyFees - downPayment1 - downPayment2 + guaranteeFees;
+        }
         let existingAmount = 0;
         offerLoanLines[offer].forEach(line => { existingAmount += line.amount || 0; });
-        return Math.max(0, propertyPrice + notaryFees + agencyFees - downPayment1 - downPayment2 - existingAmount);
+        return Math.max(0, totalLoan - existingAmount);
     }
 
     function fillOfferRemainingAmount(offer, index) {
