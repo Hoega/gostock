@@ -1,8 +1,67 @@
 {{define "amortization.html"}}
-<div class="bg-white shadow rounded-lg p-6 mt-6">
-    <h2 class="text-2xl font-bold text-gray-900 mb-4">Tableau d'amortissement</h2>
+<div class="bg-white shadow rounded-lg p-6 mt-6" id="amortization-block">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 class="text-2xl font-bold text-gray-900">Tableau d'amortissement</h2>
+        {{if .Result.BridgeLoan.Enabled}}
+        <div class="inline-flex rounded-md shadow-sm bg-gray-100 p-1" role="group">
+            <button type="button" id="amort-view-integrated" onclick="setAmortView('integrated')"
+                class="px-3 py-1 text-sm font-medium rounded bg-white text-indigo-700 shadow">
+                Vue int&eacute;gr&eacute;e
+            </button>
+            <button type="button" id="amort-view-separate" onclick="setAmortView('separate')"
+                class="px-3 py-1 text-sm font-medium rounded text-gray-600 hover:bg-white">
+                Vue s&eacute;par&eacute;e
+            </button>
+        </div>
+        {{end}}
+    </div>
 
     <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+        {{if .Result.MonthlySchedule}}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Mensualit&eacute;</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Capital</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Int&eacute;r&ecirc;ts</th>
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Assurance</th>
+                    {{if .Result.BridgeLoan.Enabled}}
+                    <th class="px-4 py-3 text-right text-xs font-medium text-amber-600 uppercase tracking-wider amort-bridge-col">Pr&ecirc;t relais</th>
+                    {{end}}
+                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Capital restant d&ucirc;</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {{range .Result.MonthlySchedule}}
+                <tr class="hover:bg-gray-50{{if .BridgeEnd}} bg-amber-50 font-semibold{{end}}">
+                    <td class="px-4 py-2 text-sm text-gray-900 whitespace-nowrap">{{.Date}}</td>
+                    <td class="px-4 py-2 text-sm text-gray-700 text-right">{{formatMoney .TotalAmount}} &euro;</td>
+                    <td class="px-4 py-2 text-sm text-gray-700 text-right">{{formatMoney .TotalPrincipal}} &euro;</td>
+                    <td class="px-4 py-2 text-sm text-gray-700 text-right">{{formatMoney .TotalInterest}} &euro;</td>
+                    <td class="px-4 py-2 text-sm text-gray-700 text-right">{{formatMoney .TotalInsurance}} &euro;</td>
+                    {{if $.Result.BridgeLoan.Enabled}}
+                    <td class="px-4 py-2 text-sm text-amber-700 text-right amort-bridge-col">
+                        {{if .BridgeActive}}
+                            {{if eq $.Result.BridgeLoan.Franchise "totale"}}
+                                <span title="Int&eacute;r&ecirc;ts capitalis&eacute;s, rembours&eacute;s &agrave; la vente">&mdash;</span>
+                            {{else}}
+                                {{formatMoney .BridgePayment}} &euro;
+                            {{end}}
+                        {{else}}
+                            <span class="text-gray-300">&mdash;</span>
+                        {{end}}
+                        {{if .BridgeEnd}}
+                        <div class="text-xs text-amber-800 font-normal mt-1">CRD relais {{formatMoney $.Result.BridgeLoan.CapitalizedAmount}} &euro; d&ucirc; &agrave; la vente</div>
+                        {{end}}
+                    </td>
+                    {{end}}
+                    <td class="px-4 py-2 text-sm font-medium text-gray-900 text-right">{{formatMoney .RemainingBalance}} &euro;</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+        {{else}}
         <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50 sticky top-0">
                 <tr>
@@ -27,6 +86,39 @@
                 {{end}}
             </tbody>
         </table>
+        {{end}}
     </div>
 </div>
+
+{{if .Result.BridgeLoan.Enabled}}
+<script>
+    (function () {
+        function setAmortView(mode) {
+            const intBtn = document.getElementById('amort-view-integrated');
+            const sepBtn = document.getElementById('amort-view-separate');
+            const bridgeCols = document.querySelectorAll('.amort-bridge-col');
+            const separateBlock = document.getElementById('bridge-separate-block');
+            if (!intBtn || !sepBtn) return;
+            if (mode === 'separate') {
+                intBtn.classList.remove('bg-white', 'text-indigo-700', 'shadow');
+                intBtn.classList.add('text-gray-600');
+                sepBtn.classList.add('bg-white', 'text-indigo-700', 'shadow');
+                sepBtn.classList.remove('text-gray-600');
+                bridgeCols.forEach(c => c.classList.add('hidden'));
+                if (separateBlock) separateBlock.classList.remove('hidden');
+            } else {
+                sepBtn.classList.remove('bg-white', 'text-indigo-700', 'shadow');
+                sepBtn.classList.add('text-gray-600');
+                intBtn.classList.add('bg-white', 'text-indigo-700', 'shadow');
+                intBtn.classList.remove('text-gray-600');
+                bridgeCols.forEach(c => c.classList.remove('hidden'));
+                if (separateBlock) separateBlock.classList.add('hidden');
+            }
+        }
+        window.setAmortView = setAmortView;
+        // Default: integrated (so hide the separate amber block)
+        setAmortView('integrated');
+    })();
+</script>
+{{end}}
 {{end}}

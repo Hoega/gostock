@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	texttemplate "text/template"
 
 	"github.com/Hoega/gostock/internal/calculator"
 	"github.com/Hoega/gostock/internal/model"
@@ -13,12 +14,13 @@ import (
 )
 
 type CreditHandler struct {
-	templates *template.Template
-	store     persistence.Store
+	templates   *template.Template
+	mdTemplates *texttemplate.Template
+	store       persistence.Store
 }
 
-func NewCreditHandler(templates *template.Template, store persistence.Store) *CreditHandler {
-	return &CreditHandler{templates: templates, store: store}
+func NewCreditHandler(templates *template.Template, mdTemplates *texttemplate.Template, store persistence.Store) *CreditHandler {
+	return &CreditHandler{templates: templates, mdTemplates: mdTemplates, store: store}
 }
 
 // ShowForm renders the main credit simulator page.
@@ -36,9 +38,19 @@ func (h *CreditHandler) ShowForm(w http.ResponseWriter, r *http.Request) {
 
 // Calculate processes the form and returns HTMX partials.
 func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
+	input, ok := h.buildInputFromForm(w, r)
+	if !ok {
+		return
+	}
+	h.renderResultPartials(w, input)
+}
+
+// buildInputFromForm parses the form, saves to DB, and returns a CreditInput ready for Calculate.
+// On error, writes HTTP error and returns ok=false.
+func (h *CreditHandler) buildInputFromForm(w http.ResponseWriter, r *http.Request) (model.CreditInput, bool) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "Formulaire invalide", http.StatusBadRequest)
-		return
+		return model.CreditInput{}, false
 	}
 
 	propertyPrice := parseFloat(r.FormValue("property_price"), 250000)
@@ -388,6 +400,11 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		BridgeLoanFranchise:    bridgeLoanFranchise,
 	}
 
+	return input, true
+}
+
+// renderResultPartials runs the calculator and writes all HTMX partial templates.
+func (h *CreditHandler) renderResultPartials(w http.ResponseWriter, input model.CreditInput) {
 	result := calculator.Calculate(input)
 
 	data := struct {
@@ -398,42 +415,39 @@ func (h *CreditHandler) Calculate(w http.ResponseWriter, r *http.Request) {
 		Result: result,
 	}
 
-	if err := h.templates.ExecuteTemplate(w, "results.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	partials := []string{
+		"results.html",
+		"amortization.html",
+		"charts-unified.html",
+		"loancomposition.html",
+		"paymentbreakdown.html",
+		"salecash.html",
+		"downpayment-impact.html",
+		"energy-comparison.html",
+	}
+	for _, name := range partials {
+		if err := h.templates.ExecuteTemplate(w, name, data); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+}
+
+// ExportMarkdown parses the form, runs the calculator, and streams a Markdown file.
+func (h *CreditHandler) ExportMarkdown(w http.ResponseWriter, r *http.Request) {
+	input, ok := h.buildInputFromForm(w, r)
+	if !ok {
 		return
 	}
+	result := calculator.Calculate(input)
+	data := struct {
+		Input  model.CreditInput
+		Result model.CreditResult
+	}{Input: input, Result: result}
 
-	if err := h.templates.ExecuteTemplate(w, "amortization.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "charts-unified.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "loancomposition.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "paymentbreakdown.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "salecash.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "downpayment-impact.html", data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.templates.ExecuteTemplate(w, "energy-comparison.html", data); err != nil {
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="simulation-credit.md"`)
+	if err := h.mdTemplates.ExecuteTemplate(w, "credit-export.md", data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

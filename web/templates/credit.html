@@ -47,29 +47,6 @@
                         class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
                     <p class="mt-1 text-xs text-gray-500">Si renseign&eacute;, remplace le pourcentage</p>
                 </div>
-
-                <!-- Frais de dossier -->
-                <div>
-                    <label for="bank_fees" class="block text-sm font-medium text-gray-700">Frais de dossier (&euro;)</label>
-                    <input type="number" name="bank_fees" id="bank_fees" value="{{.BankFees}}" step="50" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                </div>
-
-                <!-- Frais de garantie -->
-                <div>
-                    <label for="guarantee_fees" class="block text-sm font-medium text-gray-700">Frais de garantie (&euro;)</label>
-                    <input type="number" name="guarantee_fees" id="guarantee_fees" value="{{.GuaranteeFees}}" step="100" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                    <p class="mt-1 text-xs text-gray-500">Hypoth&egrave;que, caution (Cr&eacute;dit Logement), ou PPD</p>
-                </div>
-
-                <!-- Frais de courtage -->
-                <div>
-                    <label for="broker_fees" class="block text-sm font-medium text-gray-700">Frais de courtage (&euro;)</label>
-                    <input type="number" name="broker_fees" id="broker_fees" value="{{.BrokerFees}}" step="100" min="0"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                    <p class="mt-1 text-xs text-gray-500">Honoraires du courtier en pr&ecirc;t immobilier</p>
-                </div>
             </div>
         </div>
 
@@ -166,9 +143,59 @@
             </details>
         </div>
 
-        <!-- Section: Le prêt -->
+        <!-- Section: Offre banque -->
         <div>
-            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Le pr&ecirc;t</h2>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Offre banque</h2>
+            <p class="text-sm text-gray-500 mb-4">Saisissez le financement propos&eacute; par la banque : lignes de cr&eacute;dit, pr&ecirc;t relais et frais bancaires.</p>
+
+            <!-- Résumé live de l'offre -->
+            <div class="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+                <h3 class="text-sm font-semibold text-indigo-900 mb-3">R&eacute;sum&eacute; de l'offre</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                        <p class="text-xs text-indigo-600">Total emprunt&eacute; (lignes)</p>
+                        <p class="text-lg font-bold text-indigo-900" id="offer_total_lines">0 &euro;</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-indigo-600">+ Pr&ecirc;t relais</p>
+                        <p class="text-lg font-bold text-indigo-900" id="offer_total_with_bridge">0 &euro;</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-indigo-600">Besoin financement</p>
+                        <p class="text-lg font-bold text-indigo-900" id="offer_need">0 &euro;</p>
+                        <p class="text-xs text-indigo-500">Co&ucirc;t projet &minus; apports</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-indigo-600">&Eacute;cart</p>
+                        <p class="text-lg font-bold" id="offer_gap">0 &euro;</p>
+                        <p class="text-xs text-indigo-500" id="offer_gap_label">lignes &minus; besoin</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Frais bancaires -->
+            <div class="mb-6">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">Frais bancaires</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="bank_fees" class="block text-sm font-medium text-gray-700">Frais de dossier (&euro;)</label>
+                        <input type="number" name="bank_fees" id="bank_fees" value="{{.BankFees}}" step="50" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <div>
+                        <label for="guarantee_fees" class="block text-sm font-medium text-gray-700">Frais de garantie (&euro;)</label>
+                        <input type="number" name="guarantee_fees" id="guarantee_fees" value="{{.GuaranteeFees}}" step="any" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <p class="mt-1 text-xs text-gray-500">Hypoth&egrave;que, caution (Cr&eacute;dit Logement), ou PPD</p>
+                    </div>
+                    <div>
+                        <label for="broker_fees" class="block text-sm font-medium text-gray-700">Frais de courtage (&euro;)</label>
+                        <input type="number" name="broker_fees" id="broker_fees" value="{{.BrokerFees}}" step="100" min="0"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                        <p class="mt-1 text-xs text-gray-500">Honoraires du courtier en pr&ecirc;t immobilier</p>
+                    </div>
+                </div>
+            </div>
 
             <!-- Paramètres par défaut (utilisés si aucune ligne de prêt) -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
@@ -263,11 +290,98 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Sous-bloc Prêt relais -->
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">Pr&ecirc;t relais</h3>
+                <div class="mb-4">
+                    <label class="inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="bridge_loan_enabled" id="bridge_loan_enabled"
+                            {{if .BridgeLoanEnabled}}checked{{end}}
+                            onchange="toggleBridgeLoan()"
+                            class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <span class="ml-2 text-sm font-medium text-gray-700">Activer le pr&ecirc;t relais</span>
+                    </label>
+                    <p class="text-sm text-gray-500 mt-1">Financement temporaire en attendant la vente de votre bien actuel. Le montant est calcul&eacute; &agrave; partir du prix de vente estim&eacute; (section Vente r&eacute;sidence principale).</p>
+                </div>
+                <div id="bridge_loan_fields" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 {{if not .BridgeLoanEnabled}}hidden{{end}}">
+                    <!-- Quotité -->
+                    <div>
+                        <label for="bridge_loan_quotity" class="block text-sm font-medium text-gray-700">Quotit&eacute; (%)</label>
+                        <input type="range" name="bridge_loan_quotity" id="bridge_loan_quotity"
+                            value="{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}"
+                            min="50" max="80" step="5"
+                            oninput="updateBridgeLoanAmount()"
+                            class="mt-1 block w-full">
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>50%</span>
+                            <span id="bridge_loan_quotity_display" class="font-medium text-indigo-600">{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}%</span>
+                            <span>80%</span>
+                        </div>
+                    </div>
+                    <!-- Montant calculé (lecture seule) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Montant brut</label>
+                        <p id="bridge_loan_amount_display" class="mt-1 text-lg font-semibold text-indigo-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
+                        <p class="mt-1 text-xs text-gray-500">= quotit&eacute; &times; prix de vente</p>
+                    </div>
+                    <!-- Montant net après CRD -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Net apr&egrave;s CRD</label>
+                        <p id="bridge_loan_net_display" class="mt-1 text-lg font-semibold text-emerald-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
+                        <p class="mt-1 text-xs text-gray-500">= montant brut &minus; capital restant d&ucirc;</p>
+                    </div>
+                    <!-- Taux d'intérêt -->
+                    <div>
+                        <label for="bridge_loan_rate" class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
+                        <input type="number" name="bridge_loan_rate" id="bridge_loan_rate"
+                            value="{{if .BridgeLoanRate}}{{.BridgeLoanRate}}{{else}}3.5{{end}}"
+                            step="any" min="0" max="10"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <!-- Durée -->
+                    <div>
+                        <label for="bridge_loan_duration" class="block text-sm font-medium text-gray-700">Dur&eacute;e (mois)</label>
+                        <select name="bridge_loan_duration" id="bridge_loan_duration"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                            <option value="12" {{if eq .BridgeLoanDuration 12}}selected{{end}}>12 mois</option>
+                            <option value="24" {{if eq .BridgeLoanDuration 24}}selected{{end}}>24 mois</option>
+                        </select>
+                    </div>
+                    <!-- Taux assurance -->
+                    <div>
+                        <label for="bridge_loan_insurance" class="block text-sm font-medium text-gray-700">Taux assurance (%)</label>
+                        <input type="number" name="bridge_loan_insurance" id="bridge_loan_insurance"
+                            value="{{if .BridgeLoanInsurance}}{{.BridgeLoanInsurance}}{{else}}0.34{{end}}"
+                            step="0.01" min="0" max="5"
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
+                    </div>
+                    <!-- Type de franchise -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Type de franchise</label>
+                        <div class="flex gap-4">
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" name="bridge_loan_franchise" value="partielle"
+                                    {{if or (eq .BridgeLoanFranchise "partielle") (eq .BridgeLoanFranchise "")}}checked{{end}}
+                                    class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                                <span class="ml-2 text-sm text-gray-700">Partielle</span>
+                            </label>
+                            <label class="inline-flex items-center cursor-pointer">
+                                <input type="radio" name="bridge_loan_franchise" value="totale"
+                                    {{if eq .BridgeLoanFranchise "totale"}}checked{{end}}
+                                    class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
+                                <span class="ml-2 text-sm text-gray-700">Totale</span>
+                            </label>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Partielle : int&eacute;r&ecirc;ts mensuels. Totale : int&eacute;r&ecirc;ts capitalis&eacute;s.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Section: Financement -->
+        <!-- Section: Apports -->
         <div>
-            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Financement</h2>
+            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Apports</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- Apport - Emprunteur 1 -->
                 <div>
@@ -452,93 +566,6 @@
                             class="px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded border text-gray-700 text-xs shrink-0">Equitable</button>
                     </div>
                     <p class="mt-1 text-xs text-gray-500">Part &eacute;quitable : <span id="fair_share_display" class="font-medium"></span></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section: Prêt relais -->
-        <div>
-            <h2 class="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">Pr&ecirc;t relais</h2>
-            <div class="mb-4">
-                <label class="inline-flex items-center cursor-pointer">
-                    <input type="checkbox" name="bridge_loan_enabled" id="bridge_loan_enabled"
-                        {{if .BridgeLoanEnabled}}checked{{end}}
-                        onchange="toggleBridgeLoan()"
-                        class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    <span class="ml-2 text-sm font-medium text-gray-700">Activer le pr&ecirc;t relais</span>
-                </label>
-                <p class="text-sm text-gray-500 mt-1">Financement temporaire en attendant la vente de votre bien actuel. Le montant est calcul&eacute; &agrave; partir du prix de vente estim&eacute; ci-dessus.</p>
-            </div>
-            <div id="bridge_loan_fields" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 {{if not .BridgeLoanEnabled}}hidden{{end}}">
-                <!-- Quotité -->
-                <div>
-                    <label for="bridge_loan_quotity" class="block text-sm font-medium text-gray-700">Quotit&eacute; (%)</label>
-                    <input type="range" name="bridge_loan_quotity" id="bridge_loan_quotity"
-                        value="{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}"
-                        min="50" max="80" step="5"
-                        oninput="updateBridgeLoanAmount()"
-                        class="mt-1 block w-full">
-                    <div class="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>50%</span>
-                        <span id="bridge_loan_quotity_display" class="font-medium text-indigo-600">{{if .BridgeLoanQuotity}}{{.BridgeLoanQuotity}}{{else}}70{{end}}%</span>
-                        <span>80%</span>
-                    </div>
-                </div>
-                <!-- Montant calculé (lecture seule) -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Montant brut</label>
-                    <p id="bridge_loan_amount_display" class="mt-1 text-lg font-semibold text-indigo-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
-                    <p class="mt-1 text-xs text-gray-500">= quotit&eacute; &times; prix de vente</p>
-                </div>
-                <!-- Montant net après CRD -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Net apr&egrave;s CRD</label>
-                    <p id="bridge_loan_net_display" class="mt-1 text-lg font-semibold text-emerald-700 border border-gray-200 rounded-md px-3 py-2 bg-gray-50">0 &euro;</p>
-                    <p class="mt-1 text-xs text-gray-500">= montant brut &minus; capital restant d&ucirc;</p>
-                </div>
-                <!-- Taux d'intérêt -->
-                <div>
-                    <label for="bridge_loan_rate" class="block text-sm font-medium text-gray-700">Taux d'int&eacute;r&ecirc;t (%)</label>
-                    <input type="number" name="bridge_loan_rate" id="bridge_loan_rate"
-                        value="{{if .BridgeLoanRate}}{{.BridgeLoanRate}}{{else}}3.5{{end}}"
-                        step="0.1" min="0" max="10"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                </div>
-                <!-- Durée -->
-                <div>
-                    <label for="bridge_loan_duration" class="block text-sm font-medium text-gray-700">Dur&eacute;e (mois)</label>
-                    <select name="bridge_loan_duration" id="bridge_loan_duration"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                        <option value="12" {{if eq .BridgeLoanDuration 12}}selected{{end}}>12 mois</option>
-                        <option value="24" {{if eq .BridgeLoanDuration 24}}selected{{end}}>24 mois</option>
-                    </select>
-                </div>
-                <!-- Taux assurance -->
-                <div>
-                    <label for="bridge_loan_insurance" class="block text-sm font-medium text-gray-700">Taux assurance (%)</label>
-                    <input type="number" name="bridge_loan_insurance" id="bridge_loan_insurance"
-                        value="{{if .BridgeLoanInsurance}}{{.BridgeLoanInsurance}}{{else}}0.34{{end}}"
-                        step="0.01" min="0" max="5"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 border px-3 py-2">
-                </div>
-                <!-- Type de franchise -->
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Type de franchise</label>
-                    <div class="flex gap-4">
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="radio" name="bridge_loan_franchise" value="partielle"
-                                {{if or (eq .BridgeLoanFranchise "partielle") (eq .BridgeLoanFranchise "")}}checked{{end}}
-                                class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                            <span class="ml-2 text-sm text-gray-700">Partielle</span>
-                        </label>
-                        <label class="inline-flex items-center cursor-pointer">
-                            <input type="radio" name="bridge_loan_franchise" value="totale"
-                                {{if eq .BridgeLoanFranchise "totale"}}checked{{end}}
-                                class="text-indigo-600 border-gray-300 focus:ring-indigo-500">
-                            <span class="ml-2 text-sm text-gray-700">Totale</span>
-                        </label>
-                    </div>
-                    <p class="mt-1 text-xs text-gray-500">Partielle : int&eacute;r&ecirc;ts mensuels. Totale : int&eacute;r&ecirc;ts capitalis&eacute;s.</p>
                 </div>
             </div>
         </div>
@@ -1235,6 +1262,7 @@
         document.getElementById('total_work_amount').textContent = formatMoney(totalAmount);
         document.getElementById('total_work_initial_value').textContent = formatMoney(totalInitialValue);
         document.getElementById('work_lines').value = JSON.stringify(workLines);
+        if (typeof updateOfferSummary === 'function') updateOfferSummary();
     }
 
     function addWorkLine(categoryId, defaultLabel) {
@@ -1928,6 +1956,7 @@
 
     function updateNewLoanTotals() {
         document.getElementById('new_loan_lines').value = JSON.stringify(newLoanLines);
+        if (typeof updateOfferSummary === 'function') updateOfferSummary();
     }
 
     // Calcule le montant restant à emprunter
@@ -2110,6 +2139,72 @@
     if (document.getElementById('bridge_loan_enabled') && document.getElementById('bridge_loan_enabled').checked) {
         updateBridgeLoanAmount();
     }
+
+    // Offre banque : résumé live
+    function updateOfferSummary() {
+        const fmt = (v) => Math.round(v).toLocaleString('fr-FR') + ' €';
+        // Somme des lignes de crédit
+        let totalLines = 0;
+        if (typeof newLoanLines !== 'undefined' && Array.isArray(newLoanLines)) {
+            newLoanLines.forEach(l => { totalLines += parseFloat(l.amount) || 0; });
+        }
+        // Prêt relais
+        let bridge = 0;
+        const bridgeEnabled = document.getElementById('bridge_loan_enabled');
+        if (bridgeEnabled && bridgeEnabled.checked) {
+            const salePrice = parseFloat(document.getElementById('current_sale_price').value) || 0;
+            const quotity = parseFloat(document.getElementById('bridge_loan_quotity').value) || 0;
+            bridge = salePrice * quotity / 100;
+        }
+        // Besoin de financement = coût projet - apports - produit net de vente estimé
+        const price = parseFloat(document.getElementById('property_price').value) || 0;
+        const notaryRate = parseFloat(document.getElementById('notary_rate').value) || 0;
+        const agencyRate = parseFloat(document.getElementById('agency_rate').value) || 0;
+        const agencyFixed = parseFloat(document.getElementById('agency_fixed').value) || 0;
+        const bankFees = parseFloat(document.getElementById('bank_fees').value) || 0;
+        const guaranteeFees = parseFloat(document.getElementById('guarantee_fees').value) || 0;
+        const brokerFees = parseFloat(document.getElementById('broker_fees').value) || 0;
+        const reno = parseFloat(document.getElementById('renovation_cost').value) || 0;
+        const apport1 = parseFloat(document.getElementById('down_payment_1').value) || 0;
+        const apport2 = parseFloat(document.getElementById('down_payment_2').value) || 0;
+        const notary = price * notaryRate / 100;
+        const agency = agencyFixed > 0 ? agencyFixed : price * agencyRate / 100;
+        // Somme travaux si lignes détaillées
+        let workTotal = 0;
+        if (typeof workLines !== 'undefined' && Array.isArray(workLines)) {
+            workLines.forEach(w => { workTotal += parseFloat(w.amount) || 0; });
+        }
+        if (workTotal === 0) workTotal = reno;
+        const projectCost = price + notary + agency + bankFees + guaranteeFees + brokerFees + workTotal;
+        const need = Math.max(0, projectCost - apport1 - apport2);
+        const gap = (totalLines + bridge) - need;
+
+        const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        set('offer_total_lines', fmt(totalLines));
+        set('offer_total_with_bridge', fmt(totalLines + bridge));
+        set('offer_need', fmt(need));
+        set('offer_gap', (gap >= 0 ? '+' : '') + fmt(gap));
+        const gapEl = document.getElementById('offer_gap');
+        if (gapEl) {
+            gapEl.classList.remove('text-emerald-700', 'text-red-700', 'text-indigo-900');
+            if (Math.abs(gap) < 500) gapEl.classList.add('text-emerald-700');
+            else if (gap > 0) gapEl.classList.add('text-indigo-900');
+            else gapEl.classList.add('text-red-700');
+        }
+    }
+
+    // Hook offer summary to relevant inputs
+    ['property_price', 'notary_rate', 'agency_rate', 'agency_fixed', 'bank_fees', 'guarantee_fees',
+     'broker_fees', 'renovation_cost', 'down_payment_1', 'down_payment_2', 'current_sale_price',
+     'bridge_loan_quotity', 'bridge_loan_enabled'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', updateOfferSummary);
+            el.addEventListener('change', updateOfferSummary);
+        }
+    });
+    // Initial compute (defer so other inits run first)
+    setTimeout(updateOfferSummary, 0);
     </script>
 
     <div id="results"></div>

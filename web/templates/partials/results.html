@@ -2,13 +2,41 @@
 <div id="results-container" class="bg-white shadow rounded-lg p-6 space-y-6">
     <div class="flex justify-between items-center">
         <h2 class="text-2xl font-bold text-gray-900">R&eacute;sultats</h2>
-        <button onclick="exportToPDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 no-print">
-            <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-            </svg>
-            Imprimer / PDF
-        </button>
+        <div class="flex gap-2 no-print">
+            <button onclick="exportMarkdown()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"></path>
+                </svg>
+                Exporter Markdown
+            </button>
+            <button onclick="exportToPDF()" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                <svg class="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                </svg>
+                Imprimer / PDF
+            </button>
+        </div>
     </div>
+    <script>
+        function exportMarkdown() {
+            const form = document.getElementById('credit-form') || document.querySelector('form[hx-post="/credit/calculate"]');
+            if (!form) { alert('Formulaire introuvable'); return; }
+            const fd = new FormData(form);
+            fetch('/credit/export.md', { method: 'POST', body: fd })
+                .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+                .then(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'simulation-credit.md';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                })
+                .catch(err => alert('Export Markdown: ' + err.message));
+        }
+    </script>
 
     {{if gt .Result.PropertySale.SalePrice 0.0}}
     <!-- Section: Résidence actuelle -->
@@ -574,7 +602,7 @@
 
     {{if .Result.BridgeLoan.Enabled}}
     <!-- Prêt relais -->
-    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6 mt-6">
+    <div id="bridge-separate-block" class="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-6 mt-6">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Pr&ecirc;t relais</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             <div class="bg-white rounded-lg p-3 border border-amber-100">

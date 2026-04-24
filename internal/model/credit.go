@@ -368,6 +368,9 @@ type MonthlySchedule struct {
 	TotalInsurance   float64            // Assurance totale ce mois
 	CumulInterest    float64            // Cumul des intérêts jusqu'à ce mois
 	RemainingBalance float64            // Capital restant dû total
+	BridgePayment    float64            // Mensualité prêt relais (intérêts + assurance si partielle, 0 si totale)
+	BridgeActive     bool               // True pendant la période de prêt relais
+	BridgeEnd        bool               // True sur le mois de fin relais (remboursement capital)
 }
 
 // NewLoanLineResult holds computed results for a single loan line.

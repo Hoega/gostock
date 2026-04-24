@@ -1180,6 +1180,7 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		if incomeMonthly > 0 && bridgeLoan.MonthlyPayment > 0 {
 			effortRate = (monthlyPayment + monthlyInsurance + bridgeLoan.MonthlyPayment) / incomeMonthly * 100
 		}
+		injectBridgeIntoSchedule(monthlySchedule, bridgeLoan)
 	}
 
 	return model.CreditResult{
@@ -1223,6 +1224,26 @@ func Calculate(input model.CreditInput) model.CreditResult {
 		EnergyComparisonData:     energyComparisonData,
 		BridgeLoan:               bridgeLoan,
 	}
+}
+
+// injectBridgeIntoSchedule adds bridge loan monthly cost into the first N months of the schedule.
+// Partielle: adds interest+insurance to TotalAmount; Totale: marks months active (no payment) with capital repayment flag at end.
+func injectBridgeIntoSchedule(schedule []model.MonthlySchedule, bridge model.BridgeLoanResult) {
+	if !bridge.Enabled || bridge.Duration <= 0 || len(schedule) == 0 {
+		return
+	}
+	last := bridge.Duration
+	if last > len(schedule) {
+		last = len(schedule)
+	}
+	for i := 0; i < last; i++ {
+		schedule[i].BridgeActive = true
+		if bridge.Franchise != "totale" {
+			schedule[i].BridgePayment = round2(bridge.MonthlyPayment)
+			schedule[i].TotalAmount = round2(schedule[i].TotalAmount + bridge.MonthlyPayment)
+		}
+	}
+	schedule[last-1].BridgeEnd = true
 }
 
 // CalculateBridgeLoan computes the results for a bridge loan (prêt relais).

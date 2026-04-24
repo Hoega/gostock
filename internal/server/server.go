@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	texttemplate "text/template"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -111,13 +112,21 @@ func New(port int, store persistence.Store) *http.Server {
 	template.Must(baseTmpl.ParseFiles("web/templates/layout.html"))
 
 	creditTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/credit.html"))
+	creditMdFuncMap := texttemplate.FuncMap(funcMap)
+	delete(creditMdFuncMap, "toJSON") // html-specific, not needed in markdown
+	creditMdTmpl := texttemplate.Must(texttemplate.New("credit-export.md").
+		Funcs(creditMdFuncMap).
+		Funcs(texttemplate.FuncMap{
+			"now": func() string { return time.Now().Format("02/01/2006") },
+		}).
+		ParseFiles("web/templates/credit-export.md"))
 	portfolioTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/portfolio.html"))
 	dashboardTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/dashboard.html"))
 	taxTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/tax.html"))
 	budgetTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/budget.html"))
 	compareTmpl := template.Must(template.Must(baseTmpl.Clone()).ParseFiles("web/templates/compare.html"))
 
-	creditHandler := handler.NewCreditHandler(creditTmpl, store)
+	creditHandler := handler.NewCreditHandler(creditTmpl, creditMdTmpl, store)
 	portfolioHandler := handler.NewPortfolioHandler(portfolioTmpl, store)
 	dashboardHandler := handler.NewDashboardHandler(dashboardTmpl, store)
 	taxHandler := handler.NewTaxHandler(taxTmpl, store)
@@ -136,6 +145,7 @@ func New(port int, store persistence.Store) *http.Server {
 	// Credit simulator routes
 	r.Get("/credit", creditHandler.ShowForm)
 	r.Post("/credit/calculate", creditHandler.Calculate)
+	r.Post("/credit/export.md", creditHandler.ExportMarkdown)
 
 	// Loan comparison routes
 	r.Get("/credit/compare", compareHandler.ShowForm)
